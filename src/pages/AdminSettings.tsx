@@ -19,8 +19,10 @@ import {
   formatCurrency,
   type CurrencyCode,
 } from '../lib/currency';
+import { signOutDevice, unsyncedCount } from '../lib/cloud';
 import { LOGO_TYPES, readLogo } from '../lib/logo';
 import { usePos } from '../lib/store';
+import { supabase } from '../lib/supabase';
 
 /** The form's working copy — numbers stay as typed text until Save checks them. */
 type Draft = {
@@ -172,12 +174,33 @@ function fromDraft(d: Draft, current: Settings): { settings: Settings } | { erro
 export function AdminSettings() {
   const { settings, updateSettings, resetAllData } = usePos();
   const [confirmingReset, setConfirmingReset] = useState(false);
+  const [confirmingUnlink, setConfirmingUnlink] = useState(false);
+  const [shopEmail, setShopEmail] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft>(() => toDraft(settings));
   const [errors, setErrors] = useState<Errors>({});
   const [savedAt, setSavedAt] = useState<number | null>(null);
 
   const saved = useMemo(() => toDraft(settings), [settings]);
   const dirty = JSON.stringify(draft) !== JSON.stringify(saved);
+
+  useEffect(() => {
+    supabase?.auth.getSession().then(({ data }) => setShopEmail(data.session?.user.email ?? null));
+  }, []);
+
+  async function unlinkDevice() {
+    if (!supabase) return;
+    const unsynced = unsyncedCount();
+    if (
+      unsynced > 0 &&
+      !window.confirm(
+        `${unsynced} recent change${unsynced === 1 ? ' hasn’t' : 's haven’t'} uploaded yet and will be lost. Sign out anyway?`,
+      )
+    ) {
+      return;
+    }
+    await signOutDevice(supabase);
+    window.location.reload();
+  }
 
   // The "Saved" note fades on its own.
   useEffect(() => {
@@ -607,11 +630,36 @@ export function AdminSettings() {
         )}
       </Section>
 
-      <Section title="Data on this register" note="Saved in this browser — clearing site data loses it.">
+      <Section
+        title="Data on this register"
+        note={
+          shopEmail
+            ? `Synced to the shop account ${shopEmail}.`
+            : 'Saved in this browser — clearing site data loses it.'
+        }
+      >
+        {shopEmail && (
+          <Row
+            id="unlinkDevice"
+            label="Sign out this device"
+            hint="Removes the shop’s data from this browser. It stays in the cloud, and signing back in restores it."
+          >
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => (confirmingUnlink ? void unlinkDevice() : setConfirmingUnlink(true))}
+              onBlur={() => setConfirmingUnlink(false)}
+            >
+              {confirmingUnlink ? 'Confirm — sign out' : 'Sign out device'}
+            </Button>
+          </Row>
+        )}
         <Row
           id="resetData"
           label="Start over"
-          hint="Deletes every order, shift, stock movement, and setting saved here and reloads the demo data. This can’t be undone."
+          hint={`Deletes every order, shift, stock movement, and setting saved ${
+            shopEmail ? 'for this shop, on every device,' : 'here'
+          } and reloads the demo data. This can’t be undone.`}
         >
           <Button
             variant="secondary"

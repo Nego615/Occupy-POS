@@ -73,3 +73,36 @@
   text-underline-offset: 3px;
   cursor: pointer;
 }
+
+/* Device sign-in (DeviceSignIn) */
+.signin__fields {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+}
+
+.signin__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.signin__field input {
+  min-height: var(--hit-area);
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 14px;
+}
+
+.signin__error {
+  margin: 0;
+  font-size: 13px;
+  color: var(--occupied);
+}

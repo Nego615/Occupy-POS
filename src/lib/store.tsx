@@ -1093,7 +1093,13 @@ export function PosProvider({
   );
 
   const resetAllData = useCallback(async () => {
-    await repo.clear();
+    try {
+      await repo.clear();
+    } catch (err) {
+      console.warn('Reset failed.', err);
+      window.alert('Couldn’t delete the saved data. Check the connection and try again.');
+      return;
+    }
     window.location.reload();
   }, [repo]);
 

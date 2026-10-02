@@ -15,8 +15,8 @@ export interface PosRepository {
 export type Snapshot = Partial<Record<string, unknown>>;
 
 /** Bumped when a saved shape changes incompatibly; older saves are then ignored. */
-const SCHEMA_VERSION = 2;
-const VERSION_KEY = '__version';
+export const SCHEMA_VERSION = 2;
+export const VERSION_KEY = '__version';
 
 const DB_NAME = 'occupy-pos';
 const STORE = 'state';
@@ -93,11 +93,17 @@ export function memoryRepository(initial: Snapshot = {}): PosRepository {
   };
 }
 
-/** IndexedDB when the browser has it, memory otherwise. Never throws. */
-export async function openRepository(): Promise<{ repo: PosRepository; snapshot: Snapshot }> {
+/**
+ * IndexedDB when the browser has it, memory otherwise — wrapped by `cloud`
+ * (e.g. Supabase sync) when given. Never throws.
+ */
+export async function openRepository(
+  cloud?: (local: PosRepository) => PosRepository,
+): Promise<{ repo: PosRepository; snapshot: Snapshot }> {
   if (typeof indexedDB !== 'undefined') {
     try {
-      const repo = indexedDbRepository();
+      const local = indexedDbRepository();
+      const repo = cloud ? cloud(local) : local;
       return { repo, snapshot: await repo.load() };
     } catch (err) {
       console.warn('Saved data unavailable, running in memory only.', err);
