@@ -1,0 +1,86 @@
+.admin-locations {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.admin-locations__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.admin-locations__count {
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+
+.admin-locations__empty {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+.location-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.location-row:last-child {
+  border-bottom: none;
+}
+
+.location-row__main {
+  flex: 1;
+  min-width: 0;
+}
+
+.location-row__name {
+  width: 100%;
+  max-width: 280px;
+  min-height: var(--hit-area);
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.location-row__name[aria-invalid='true'] {
+  border-color: var(--occupied);
+}
+
+.location-row__error {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--occupied);
+}
+
+.location-row__seats {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.location-row__seats-label {
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+.location-row__status {
+  width: 120px;
+  flex-shrink: 0;
+}
+
+.location-row__remove {
+  flex-shrink: 0;
+  min-width: 128px;
+}

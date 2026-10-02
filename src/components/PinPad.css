@@ -1,0 +1,77 @@
+.pinpad {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
+.pinpad__field {
+  width: 180px;
+  min-height: 52px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  font-size: 26px;
+  letter-spacing: 0.5em;
+  /* Letter-spacing adds trailing space; indent balances it so dots sit centered. */
+  text-indent: 0.5em;
+  text-align: center;
+  color: var(--ink);
+}
+
+.pinpad__field::placeholder {
+  color: var(--line);
+}
+
+.pinpad__field[aria-invalid='true'] {
+  border-color: var(--occupied);
+}
+
+.pinpad__field:disabled {
+  background: var(--surface);
+}
+
+.pinpad__message {
+  min-height: 18px;
+  margin: 8px 0 12px;
+  font-size: 12.5px;
+  color: var(--occupied);
+  text-align: center;
+}
+
+.pinpad__keys {
+  display: grid;
+  grid-template-columns: repeat(3, 72px);
+  gap: 10px;
+}
+
+.pinpad__key {
+  height: 56px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--paper);
+  font-size: 20px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.pinpad__key:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+.pinpad__key:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.pinpad__key:disabled {
+  color: var(--ink-soft);
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.pinpad__key--soft {
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--ink-soft);
+}

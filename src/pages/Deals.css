@@ -1,0 +1,125 @@
+/* Promotions and set meals editors. Builds on Inventory.css's table + side panel. */
+
+.deal-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* A compact toggle — days of the week, categories, items. */
+.deal-chip {
+  position: relative;
+  min-height: 32px;
+  padding: 5px 11px;
+  border: 1px solid var(--line);
+  border-radius: 100px;
+  background: var(--paper);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+/* 32px visual, 44px touch target. */
+.deal-chip::after {
+  content: '';
+  position: absolute;
+  inset: 50% 0 auto;
+  transform: translateY(-50%);
+  height: var(--hit-area);
+}
+
+.deal-chip:hover {
+  border-color: var(--ink);
+}
+
+.deal-chip[aria-pressed='true'] {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.deal-chip:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
+}
+
+.deal-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.deal-group__label {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.deal-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.deal-row > * {
+  flex: 1;
+  min-width: 0;
+}
+
+/* One course in the set meal editor. */
+.deal-course {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+}
+
+.deal-course__head {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.deal-course__head .inv-input {
+  flex: 1;
+}
+
+.deal-course__items {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.deal-course .deal-chip {
+  background: var(--surface);
+}
+
+.deal-course .deal-chip[aria-pressed='true'] {
+  background: var(--ink);
+}
+
+.deal-preview {
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--ink-soft);
+}
+
+.deal-preview strong {
+  color: var(--ink);
+}
+
+/* Destructive confirm step names the consequence in the state color. */
+.deal-delete--confirm {
+  border-color: var(--occupied) !important;
+  color: var(--occupied) !important;
+}

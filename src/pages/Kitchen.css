@@ -1,0 +1,259 @@
+.kitchen {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  height: 100%;
+  min-height: 640px;
+}
+
+.kitchen__nav {
+  display: flex;
+  gap: 8px;
+}
+
+.kitchen__nav .pill {
+  padding: 8px 14px;
+  font-size: 13px;
+}
+
+/* Tickets sit on --surface so each paper card reads as a chit on the rail. */
+.kitchen__body {
+  padding: 20px 28px 28px;
+  overflow-y: auto;
+  min-height: 0;
+  background: var(--surface);
+}
+
+.kitchen__summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+.kitchen__late-count {
+  margin-left: 8px;
+}
+
+.kitchen__empty {
+  margin: 80px auto;
+  max-width: 360px;
+  text-align: center;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+
+.kitchen__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+
+/* ---------- Ticket ---------- */
+
+.ticket {
+  display: flex;
+  flex-direction: column;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+/* Late: the state color as a 2px accent along the top — never a fill. */
+.ticket--late {
+  border-top: 2px solid var(--occupied);
+}
+
+.ticket--void {
+  border-top: 2px solid var(--refund);
+}
+
+.ticket__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px 10px;
+}
+
+.ticket__who {
+  min-width: 0;
+}
+
+.ticket__tab {
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.ticket__meta {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+.ticket__timer {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.ticket--late .ticket__timer {
+  color: var(--occupied);
+}
+
+.ticket__flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 16px 10px;
+}
+
+.ticket__lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px dashed var(--line);
+}
+
+.ticket-line {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 52px;
+  padding: 8px 16px;
+  border: none;
+  border-bottom: 1px solid var(--line);
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ticket-line:hover {
+  background: var(--surface);
+}
+
+.ticket-line__qty {
+  min-width: 28px;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.ticket-line__name {
+  flex: 1;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+/* An empty ring until the line is done, then a check. */
+.ticket-line__check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  font-size: 12px;
+  color: transparent;
+}
+
+.ticket-line--done .ticket-line__qty,
+.ticket-line--done .ticket-line__name {
+  color: var(--ink-soft);
+  text-decoration: line-through;
+}
+
+.ticket-line--done .ticket-line__check {
+  border-color: var(--open);
+  background: var(--open-soft);
+  color: var(--open);
+}
+
+.ticket__foot {
+  padding: 12px 16px 16px;
+}
+
+/* ---------- Done ---------- */
+
+.done-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+
+.done-row {
+  display: grid;
+  grid-template-columns: minmax(160px, 220px) 1fr auto auto;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.done-row:last-child {
+  border-bottom: none;
+}
+
+.done-row__who {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.done-row__tab {
+  font-weight: 700;
+}
+
+.done-row__id,
+.done-row__time {
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+
+.done-row__items {
+  font-size: 13px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .kitchen__body {
+    padding: 16px;
+  }
+
+  .done-row {
+    grid-template-columns: 1fr auto;
+  }
+
+  .done-row__items,
+  .done-row__time {
+    grid-column: 1 / -1;
+  }
+}
+
+.ticket__type {
+  color: var(--occupied);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-size: 11.5px;
+}
+
+.ticket-line__note {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--occupied);
+  margin-top: 2px;
+}

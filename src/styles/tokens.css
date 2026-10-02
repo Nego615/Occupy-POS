@@ -1,0 +1,46 @@
+/* ---------------------------------------------------------------
+   Occupy POS — design tokens
+   Ported verbatim from occupy-pos-design-system.md §2–3.
+   Nothing in this file may be overridden ad hoc in a component;
+   add a token here instead.
+   --------------------------------------------------------------- */
+
+:root {
+  /* Base */
+  --ink:            #121212; /* primary text, primary buttons, active states */
+  --ink-soft:       #63615c; /* secondary text, captions, timestamps */
+  --paper:          #ffffff; /* page background */
+  --surface:        #f5f4f1; /* cards, panels, item tiles */
+  --surface-hover:  #eeece6; /* hover state for surface elements */
+  --line:           #e4e2dc; /* all hairline borders/dividers */
+
+  /* Signal (state only — never decorative) */
+  --occupied:       #ff4b2e; /* tab/table occupied, pending payment */
+  --occupied-soft:  #fff0ec; /* occupied chip background */
+  --open:           #1fae5c; /* available, paid, success */
+  --open-soft:      #eafaf1; /* success chip background */
+  --refund:         #8a5cf6; /* refunded / voided */
+  --refund-soft:    #f3efff; /* refund chip background */
+
+  /* Radius */
+  --radius-lg: 20px; /* panels, modals */
+  --radius-md: 14px; /* item tiles, cards */
+  --radius-sm: 10px; /* buttons, inputs */
+
+  /* Elevation — floating surfaces only (modals, popovers).
+     Never on base cards or buttons. */
+  --shadow: 0 1px 2px rgba(18, 18, 18, 0.04), 0 8px 24px rgba(18, 18, 18, 0.04);
+
+  /* Type */
+  --font-ui:   'Inter', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+
+  /* Focus ring — every interactive element gets one.
+     Drawn with outline, not box-shadow, so the no-shadow rule holds. */
+  --focus-color: var(--ink);
+  --focus-width: 2px;
+  --focus-offset: 2px;
+
+  /* Accessibility floor: minimum hit area on any control */
+  --hit-area: 44px;
+}

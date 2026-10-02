@@ -1,0 +1,487 @@
+.tender {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 640px;
+}
+
+/* ---------- Top bar ---------- */
+
+.tender__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 28px;
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+
+.tender__bar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.tender__close {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 15px;
+  flex-shrink: 0;
+}
+
+.tender__close:hover {
+  background: var(--surface);
+}
+
+.tender__close::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: var(--hit-area);
+  height: var(--hit-area);
+}
+
+.tender__title {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+/* ---------- Center card ---------- */
+
+.tender__center {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  overflow-y: auto;
+}
+
+.tender__edge {
+  width: 340px;
+  max-width: 100%;
+}
+
+.tender__card {
+  width: 340px;
+  max-width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-top: none;
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  padding: 28px 26px 26px;
+  text-align: center;
+}
+
+.tender__total-label {
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 700;
+}
+
+.tender__total-amount {
+  display: block;
+  font-size: 44px;
+  font-weight: 700;
+  margin-top: 8px;
+  line-height: 1;
+}
+
+/* ---------- Tip ---------- */
+
+.tip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 26px;
+}
+
+.tip-pill {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  border-radius: var(--radius-sm);
+  padding: 12px 6px;
+  cursor: pointer;
+  text-align: center;
+  font-family: inherit;
+  color: inherit;
+  min-height: var(--hit-area);
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+/* "No tip" takes its own full-width line under the presets, so the four
+   amounts keep their width on the 340px card. */
+.tip-pill--wide {
+  flex-basis: 100%;
+  padding: 10px 6px;
+}
+
+.tip-pill:not(.tip-pill--active):hover {
+  background: var(--surface-hover);
+}
+
+.tip-pill--active {
+  background: var(--ink);
+  border-color: var(--ink);
+}
+
+.tip-pill--active .tip-pill__pct,
+.tip-pill--active .tip-pill__amt {
+  color: var(--paper);
+}
+
+.tip-pill:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
+}
+
+.tip-pill__pct {
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.tip-pill__amt {
+  display: block;
+  font-size: 11.5px;
+  color: var(--ink-soft);
+  margin-top: 2px;
+}
+
+.tender__custom {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  padding: 10px 14px;
+  min-height: var(--hit-area);
+}
+
+.tender__custom:focus-within {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
+}
+
+.tender__custom label {
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+.tender__custom-symbol {
+  color: var(--ink-soft);
+  margin-left: auto;
+}
+
+.tender__custom input {
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+  width: 72px;
+  text-align: right;
+}
+
+.tender__new-total {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 14px;
+}
+
+.tender__new-total .label {
+  color: var(--ink-soft);
+}
+
+.tender__new-total .value {
+  font-weight: 700;
+}
+
+/* ---------- Payment method ---------- */
+
+.method-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.method {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  border-radius: var(--radius-sm);
+  padding: 14px 8px;
+  text-align: center;
+  cursor: pointer;
+  font-size: 12.5px;
+  font-weight: 700;
+  font-family: inherit;
+  color: inherit;
+  min-height: var(--hit-area);
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.method:not(.method--active):hover {
+  background: var(--surface-hover);
+}
+
+.method--active {
+  background: var(--ink);
+  color: var(--paper);
+  border-color: var(--ink);
+}
+
+.method:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
+}
+
+.method__icon {
+  font-size: 18px;
+  display: block;
+  margin-bottom: 6px;
+}
+
+/* ---------- Footer ---------- */
+
+.tender__footer {
+  padding: 20px 28px 26px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.tender__charge {
+  width: 340px;
+  max-width: 100%;
+  font-size: 16px;
+  padding: 18px;
+}
+
+.tender__cancel {
+  position: relative;
+  font-size: 13px;
+  color: var(--ink-soft);
+  cursor: pointer;
+  background: none;
+  border: none;
+  font-family: inherit;
+  padding: 6px 8px;
+}
+
+.tender__cancel:hover {
+  color: var(--ink);
+}
+
+.tender__cancel::after {
+  content: '';
+  position: absolute;
+  inset: 50% 0 auto;
+  transform: translateY(-50%);
+  height: var(--hit-area);
+}
+
+.tender__cancel:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
+}
+
+/* ---------- Charged confirmation ---------- */
+
+.tender__done {
+  text-align: center;
+}
+
+.tender__done-amount {
+  display: block;
+  font-size: 44px;
+  font-weight: 700;
+  margin-top: 8px;
+  line-height: 1;
+}
+
+.tender__done-sub {
+  font-size: 13px;
+  color: var(--ink-soft);
+  margin: 14px 0 22px;
+  line-height: 1.5;
+}
+
+.tender__done-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* ---------- Split, cash, and payments taken ---------- */
+
+.tender__paid {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+  font-size: 13px;
+}
+
+.tender__paid-row {
+  display: grid;
+  grid-template-columns: 1fr auto var(--hit-area);
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0 4px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--open-soft);
+}
+
+.tender__paid-ref {
+  color: var(--ink-soft);
+}
+
+.tender__paid-remove {
+  width: var(--hit-area);
+  height: 32px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 16px;
+  color: var(--ink-soft);
+  font-family: inherit;
+}
+
+.tender__paid-remove:hover {
+  color: var(--ink);
+}
+
+.tender__paid-remove:focus-visible,
+.tender__chip:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
+}
+
+.tender__split,
+.tender__cash {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tender__split-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tender__chip {
+  flex: 1;
+  min-width: 0;
+  min-height: 36px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: inherit;
+  cursor: pointer;
+  padding: 6px 8px;
+  white-space: nowrap;
+}
+
+.tender__chip:not(.tender__chip--active):hover {
+  background: var(--surface-hover);
+}
+
+.tender__chip--active {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--paper);
+}
+
+.tender__custom input.tender__amount {
+  width: 110px;
+}
+
+.tender__ref {
+  margin-top: 14px;
+}
+
+.tender__ref input {
+  width: 120px;
+}
+
+.tender__items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  text-align: left;
+  font-size: 13px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.tender__item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  min-height: var(--hit-area);
+  cursor: pointer;
+}
+
+.tender__items li + li .tender__item {
+  border-top: 1px solid var(--line);
+}
+
+.tender__change {
+  display: flex;
+  justify-content: space-between;
+  font-size: 15px;
+  font-weight: 700;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--open-soft);
+}
+
+.tender__change--short {
+  background: var(--occupied-soft);
+  color: var(--occupied);
+}

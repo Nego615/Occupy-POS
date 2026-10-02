@@ -1,0 +1,41 @@
+/* Signature detail: a 14px strip faking receipt-tape perforation at the top
+   of any register-tape surface (cart rail, order detail). */
+.receipt-edge {
+  height: 14px;
+  flex-shrink: 0;
+  background:
+    radial-gradient(circle at 10px 0, transparent 6px, var(--surface) 6.5px) top,
+    var(--paper);
+  background-size: 20px 14px;
+  background-repeat: repeat-x;
+  border-bottom: 1px dashed var(--line);
+}
+
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13.5px;
+  color: var(--ink-soft);
+  margin-bottom: 8px;
+}
+
+.summary-row--total {
+  color: var(--ink);
+  font-weight: 700;
+  font-size: 16px;
+  margin-top: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  margin-bottom: 0;
+}
+
+/* Inverted tape: a --surface card sitting on the --paper page, so the
+   perforations are punched out of the card instead of the page. */
+.receipt-edge--inverted {
+  background:
+    radial-gradient(circle at 10px 0, transparent 6px, var(--paper) 6.5px) top,
+    var(--surface);
+  background-size: 20px 14px;
+  background-repeat: repeat-x;
+}

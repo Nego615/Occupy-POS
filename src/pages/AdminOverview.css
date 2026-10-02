@@ -1,0 +1,265 @@
+/* ---------- Range segmented control ---------- */
+
+.range-pill {
+  display: flex;
+  border: 1px solid var(--line);
+  border-radius: 100px;
+  overflow: hidden;
+}
+
+.range-pill button {
+  padding: 8px 14px;
+  font-size: 12.5px;
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--ink-soft);
+  background: var(--paper);
+  border: none;
+  cursor: pointer;
+  min-height: var(--hit-area);
+}
+
+.range-pill button:not(.range-pill__on):hover {
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.range-pill__on {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.range-pill button:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: calc(var(--focus-offset) * -1);
+}
+
+/* ---------- Stat cards ---------- */
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.stat-card {
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  padding: 18px 20px;
+  /* Flat — no shadow on base cards. */
+}
+
+.stat-card__label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.stat-card__value {
+  display: block;
+  font-size: 26px;
+  font-weight: 700;
+  margin-top: 10px;
+}
+
+.stat-card__delta {
+  font-size: 12px;
+  font-weight: 600;
+  margin-top: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Signal color as text only, always paired with an arrow glyph. */
+.stat-card__delta--up {
+  color: var(--open);
+}
+
+.stat-card__delta--down {
+  color: var(--occupied);
+}
+
+/* ---------- Chart ---------- */
+
+.chart-card {
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  padding: 20px 22px;
+  margin-bottom: 20px;
+}
+
+.chart-card__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.chart-card__title {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.chart-card__total {
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+
+.chart-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 140px;
+}
+
+.bar-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  height: 100%;
+  justify-content: flex-end;
+}
+
+.bar {
+  width: 100%;
+  background: var(--ink);
+  border-radius: 4px 4px 0 0;
+  opacity: 0.14;
+}
+
+.bar--peak {
+  opacity: 1;
+}
+
+.bar-col__label {
+  font-size: 10.5px;
+  color: var(--ink-soft);
+}
+
+/* ---------- Two-column panels ---------- */
+
+.cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+
+.rank-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.rank-row:last-child {
+  border-bottom: none;
+}
+
+.rank-row__num {
+  width: 20px;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  font-weight: 600;
+}
+
+.rank-row__dot {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.rank-row__name {
+  flex: 1;
+  min-width: 0;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.rank-row__count {
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+.rank-row__amt {
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+.activity-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.activity-row:last-child {
+  border-bottom: none;
+}
+
+/* Signal color as an 8px dot — the sanctioned small-accent use. */
+.activity-row__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-top: 6px;
+  flex-shrink: 0;
+}
+
+.activity-row__dot--paid {
+  background: var(--open);
+}
+
+.activity-row__dot--occupied {
+  background: var(--occupied);
+}
+
+.activity-row__dot--refunded {
+  background: var(--refund);
+}
+
+.activity-row__text {
+  font-size: 13px;
+  flex: 1;
+  min-width: 0;
+}
+
+.activity-row__subject {
+  font-weight: 700;
+}
+
+.activity-row__time {
+  font-size: 11.5px;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+@media (max-width: 1100px) {
+  .stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .cols {
+    grid-template-columns: 1fr;
+  }
+}
+
+.stat-card__delta--flat {
+  color: var(--ink-soft);
+  font-weight: 500;
+}
+
+.panel__empty {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-soft);
+}

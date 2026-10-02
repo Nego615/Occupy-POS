@@ -1,0 +1,546 @@
+/* Shared by the inventory pages — Stock, Purchases, Suppliers, Supplier bills. */
+
+.inv-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.inv-toolbar__right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.inv-count {
+  margin-left: 4px;
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+/* ---------- Summary tiles ---------- */
+
+.inv-tiles {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.inv-tile {
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+}
+
+.inv-tile__label {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.inv-tile__value {
+  display: block;
+  font-size: 20px;
+  font-weight: 600;
+  margin-top: 6px;
+}
+
+.inv-tile__note {
+  font-size: 12px;
+  color: var(--ink-soft);
+  margin-top: 2px;
+}
+
+/* ---------- Table + side panel ---------- */
+
+.inv-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 380px;
+  gap: 18px;
+  align-items: start;
+}
+
+.inv-table-wrap {
+  padding: 6px 8px;
+  overflow-x: auto;
+}
+
+.inv-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+
+.inv-table th {
+  text-align: left;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 10px 10px;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+.inv-table td {
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.inv-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.inv-table .num {
+  text-align: right;
+}
+
+.inv-row {
+  cursor: pointer;
+}
+
+.inv-row:hover td {
+  background: var(--surface-hover);
+}
+
+.inv-row--selected td,
+.inv-row--selected:hover td {
+  background: var(--paper);
+}
+
+.inv-row td:first-child {
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+}
+
+.inv-row td:last-child {
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+/* The row's keyboard target — the first cell's name. */
+.inv-row__pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.inv-sub {
+  display: block;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--ink-soft);
+  margin-top: 1px;
+}
+
+.inv-soft {
+  color: var(--ink-soft);
+}
+
+.inv-strong {
+  font-weight: 700;
+}
+
+.inv-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.inv-empty {
+  margin: 0;
+  padding: 36px 16px;
+  text-align: center;
+  font-size: 13.5px;
+  color: var(--ink-soft);
+}
+
+/* Neutral status tag, for states with no signal color (draft, due). */
+.inv-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border: 1px solid var(--line);
+  border-radius: 100px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+/* ---------- Side panel ---------- */
+
+.inv-panel {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-height: calc(100vh - 52px);
+  overflow-y: auto;
+  padding: 18px 20px 20px;
+  background: var(--surface);
+  border-radius: var(--radius-md);
+}
+
+.inv-panel__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.inv-panel__title {
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.inv-panel__sub {
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  margin-top: 3px;
+}
+
+.inv-panel__section {
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.inv-panel__section-title {
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
+.inv-panel__placeholder {
+  margin: 0;
+  padding: 24px 4px;
+  text-align: center;
+  font-size: 13.5px;
+  color: var(--ink-soft);
+  line-height: 1.5;
+}
+
+.inv-big {
+  font-family: var(--font-mono);
+  font-size: 30px;
+  font-weight: 700;
+}
+
+.inv-facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 14px;
+  margin: 0;
+  font-size: 13px;
+}
+
+.inv-facts dt {
+  color: var(--ink-soft);
+}
+
+.inv-facts dd {
+  margin: 0;
+  text-align: right;
+}
+
+/* ---------- Forms ---------- */
+
+.inv-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.inv-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.inv-field__hint {
+  font-weight: 400;
+  color: var(--ink-soft);
+}
+
+.inv-input {
+  min-height: var(--hit-area);
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 400;
+  color: var(--ink);
+  width: 100%;
+}
+
+.inv-input--num {
+  font-family: var(--font-mono);
+  text-align: right;
+}
+
+.inv-input--sm {
+  min-height: 36px;
+  padding: 6px 8px;
+  font-size: 13px;
+}
+
+.inv-input[aria-invalid='true'] {
+  border-color: var(--occupied);
+}
+
+.inv-select {
+  min-height: var(--hit-area);
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  font-family: inherit;
+  font-size: 13.5px;
+  color: var(--ink);
+  width: 100%;
+}
+
+.inv-error {
+  margin: 0;
+  font-size: 12px;
+  color: var(--occupied);
+}
+
+.inv-note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+
+.inv-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.inv-actions .btn {
+  flex: 1;
+}
+
+/* ---------- Line editors (purchase orders, receiving) ---------- */
+
+.inv-lines {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.inv-lines th {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 0 4px 6px;
+}
+
+.inv-lines td {
+  padding: 5px 4px;
+  border-top: 1px solid var(--line);
+  vertical-align: middle;
+}
+
+.inv-lines .num {
+  text-align: right;
+}
+
+.inv-lines tfoot td {
+  font-weight: 700;
+  border-top: 1px solid var(--ink);
+}
+
+.inv-lines__qty {
+  width: 64px;
+}
+
+.inv-lines__cost {
+  width: 92px;
+}
+
+.inv-remove {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  font-size: 16px;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+
+.inv-remove:hover {
+  background: var(--surface-hover);
+  color: var(--ink);
+}
+
+/* ---------- History list ---------- */
+
+.inv-history {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.inv-history li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 10px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+  font-size: 12.5px;
+}
+
+.inv-history__what {
+  font-weight: 600;
+}
+
+.inv-history__meta {
+  grid-column: 1;
+  color: var(--ink-soft);
+}
+
+.inv-history__change {
+  grid-row: 1 / span 2;
+  grid-column: 2;
+  text-align: right;
+}
+
+.inv-history__after {
+  display: block;
+  font-size: 11.5px;
+  color: var(--ink-soft);
+}
+
+.inv-plus {
+  color: var(--open);
+  font-weight: 700;
+}
+
+.inv-minus {
+  font-weight: 700;
+}
+
+@media (max-width: 1180px) {
+  .inv-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .inv-panel {
+    position: static;
+    max-height: none;
+  }
+
+  .inv-tiles {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.inv-note--pad {
+  padding: 10px;
+}
+
+/* ---------- Stock count ---------- */
+
+.count-start {
+  margin-bottom: 18px;
+}
+
+.count-start__row {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.count-start__field {
+  flex: 1;
+  min-width: 220px;
+}
+
+.count-history__title {
+  padding: 10px 10px 0;
+}
+
+.count-only-off {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--hit-area);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.count-only-off input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--ink);
+}
+
+.count-sheet__input {
+  width: 84px;
+  margin-left: auto;
+}
+
+/* A row whose count disagrees with the system — a light wash, the numbers carry the detail. */
+.count-sheet__off td {
+  background: var(--occupied-soft);
+}
+
+.count-sheet__off td:first-child {
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+}
+
+.count-sheet__off td:last-child {
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+/* Stays in view while the sheet scrolls. A floating surface, so it may carry --shadow. */
+.count-bar {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 12px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--paper);
+  box-shadow: var(--shadow);
+}
+
+.count-bar__progress {
+  margin-right: auto;
+  font-size: 13px;
+}

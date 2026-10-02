@@ -1,0 +1,58 @@
+.stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 100px;
+  padding: 3px;
+}
+
+.stepper__btn {
+  position: relative;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease;
+}
+
+/* The visual button is 22px; the hit area is 44px. */
+.stepper__btn::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: var(--hit-area);
+  height: var(--hit-area);
+}
+
+.stepper__btn:hover:not(:disabled) {
+  background: var(--surface);
+}
+
+.stepper__btn:disabled {
+  color: var(--ink-soft);
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.stepper__btn:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
+}
+
+.stepper__qty {
+  font-size: 13px;
+  min-width: 16px;
+  text-align: center;
+}

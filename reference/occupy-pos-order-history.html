@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Occupy POS — Order History</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#121212; --ink-soft:#63615c; --paper:#ffffff;
+    --surface:#f5f4f1; --surface-hover:#eeece6; --line:#e4e2dc;
+    --occupied:#ff4b2e; --occupied-soft:#fff0ec;
+    --open:#1fae5c; --open-soft:#eafaf1;
+    --refund:#8a5cf6; --refund-soft:#f3efff;
+    --radius-lg:20px; --radius-md:14px; --radius-sm:10px;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:'Inter',system-ui,sans-serif;-webkit-font-smoothing:antialiased;}
+  .mono{font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums;}
+
+  .app{display:grid;grid-template-rows:auto 1fr;height:100vh;min-height:640px;}
+
+  .topbar{display:flex;align-items:center;justify-content:space-between;padding:16px 28px;border-bottom:1px solid var(--line);}
+  .brand{display:flex;align-items:center;gap:10px;}
+  .brand-mark{width:32px;height:32px;border-radius:9px;background:var(--ink);position:relative;flex-shrink:0;}
+  .brand-mark::after{content:"";position:absolute;inset:9px;border-radius:3px;background:var(--occupied);}
+  .brand-name{font-weight:800;font-size:16px;letter-spacing:-0.02em;}
+  .brand-sub{font-size:12px;color:var(--ink-soft);margin-top:1px;}
+  .avatar{width:34px;height:34px;border-radius:50%;background:var(--surface);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;}
+
+  .body{display:grid;grid-template-columns:1fr 400px;min-height:0;}
+
+  /* ---- List column ---- */
+  .list-col{padding:20px 28px 28px;overflow-y:auto;min-width:0;}
+  .toolbar{display:flex;align-items:center;gap:10px;margin-bottom:18px;flex-wrap:wrap;}
+  .search{
+    flex:1;min-width:200px;
+    display:flex;align-items:center;gap:8px;
+    border:1px solid var(--line);background:var(--paper);
+    border-radius:100px;padding:9px 16px;color:var(--ink-soft);font-size:13.5px;
+  }
+  .filters{display:flex;gap:8px;}
+  .tab{border:1px solid var(--line);background:var(--paper);padding:9px 16px;border-radius:100px;font-size:13.5px;font-weight:600;color:var(--ink-soft);cursor:pointer;white-space:nowrap;}
+  .tab.active{background:var(--ink);border-color:var(--ink);color:var(--paper);}
+
+  .order-row{
+    display:flex;align-items:center;gap:14px;
+    padding:14px 16px;border-radius:var(--radius-md);
+    cursor:pointer;border:1px solid transparent;
+  }
+  .order-row:hover{background:var(--surface);}
+  .order-row.selected{background:var(--surface);border-color:var(--line);}
+  .order-id{width:48px;font-size:12.5px;color:var(--ink-soft);}
+  .order-main{flex:1;min-width:0;}
+  .order-name{font-size:14px;font-weight:600;}
+  .order-meta{font-size:12.5px;color:var(--ink-soft);margin-top:2px;}
+  .chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;padding:5px 10px;border-radius:100px;}
+  .chip .dot{width:6px;height:6px;border-radius:50%;}
+  .chip.paid{background:var(--open-soft);color:var(--open);}
+  .chip.paid .dot{background:var(--open);}
+  .chip.occupied{background:var(--occupied-soft);color:var(--occupied);}
+  .chip.occupied .dot{background:var(--occupied);}
+  .chip.refunded{background:var(--refund-soft);color:var(--refund);}
+  .chip.refunded .dot{background:var(--refund);}
+  .order-amount{width:80px;text-align:right;font-size:14px;font-weight:700;}
+
+  .divider{border:none;border-top:1px solid var(--line);margin:0 0 0 78px;}
+
+  /* ---- Detail column ---- */
+  .detail{border-left:1px solid var(--line);background:var(--surface);display:flex;flex-direction:column;min-height:0;}
+  .receipt-edge{height:14px;flex-shrink:0;background:radial-gradient(circle at 10px 0, transparent 6px, var(--surface) 6.5px) top, var(--paper);background-size:20px 14px;background-repeat:repeat-x;border-bottom:1px dashed var(--line);}
+  .detail-head{padding:18px 22px 6px;}
+  .detail-title{font-size:16px;font-weight:800;letter-spacing:-0.01em;}
+  .detail-sub{font-size:12.5px;color:var(--ink-soft);margin-top:3px;}
+  .detail-status{margin-top:12px;}
+
+  .detail-items{flex:1;overflow-y:auto;padding:14px 22px;}
+  .detail-line{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line);font-size:13.5px;}
+  .detail-line-name{font-weight:600;}
+  .detail-line-qty{color:var(--ink-soft);margin-left:6px;font-weight:400;}
+
+  .detail-summary{padding:16px 22px 22px;border-top:1px solid var(--line);}
+  .summary-row{display:flex;justify-content:space-between;font-size:13.5px;color:var(--ink-soft);margin-bottom:8px;}
+  .summary-row.total{color:var(--ink);font-weight:700;font-size:16px;margin-top:10px;padding-top:12px;border-top:1px solid var(--line);}
+  .summary-row.method{align-items:center;}
+
+  .detail-actions{display:flex;gap:10px;padding:0 22px 22px;}
+  .btn-secondary{flex:1;padding:12px;border-radius:var(--radius-sm);border:1px solid var(--line);background:var(--paper);font-weight:700;font-size:13.5px;font-family:inherit;cursor:pointer;}
+  .btn-secondary:hover{background:var(--surface-hover);}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <div class="brand">
+      <div class="brand-mark"></div>
+      <div><div class="brand-name">Occupy</div><div class="brand-sub">Order history</div></div>
+    </div>
+    <div class="avatar">JM</div>
+  </div>
+
+  <div class="body">
+    <div class="list-col">
+      <div class="toolbar">
+        <div class="search">⌕ Search by tab, item, or amount</div>
+        <div class="filters">
+          <div class="tab active">Today</div>
+          <div class="tab">This week</div>
+          <div class="tab">All time</div>
+        </div>
+      </div>
+      <div id="rows"></div>
+    </div>
+
+    <div class="detail">
+      <div class="receipt-edge"></div>
+      <div class="detail-head">
+        <div class="detail-title">Table 4 · #1042</div>
+        <div class="detail-sub">Closed 4:26 PM · Card ending 4471</div>
+        <div class="detail-status"><span class="chip paid"><span class="dot"></span>Paid</span></div>
+      </div>
+      <div class="detail-items">
+        <div class="detail-line"><span class="detail-line-name">Oat Latte<span class="detail-line-qty">× 2</span></span><span class="mono">$10.50</span></div>
+        <div class="detail-line"><span class="detail-line-name">Cortado<span class="detail-line-qty">× 1</span></span><span class="mono">$4.50</span></div>
+        <div class="detail-line"><span class="detail-line-name">Espresso Shot<span class="detail-line-qty">× 1</span></span><span class="mono">$2.75</span></div>
+      </div>
+      <div class="detail-summary">
+        <div class="summary-row"><span>Subtotal</span><span class="mono">$17.75</span></div>
+        <div class="summary-row"><span>Tax</span><span class="mono">$1.56</span></div>
+        <div class="summary-row"><span>Tip</span><span class="mono">$3.55</span></div>
+        <div class="summary-row total"><span>Total</span><span class="mono">$22.86</span></div>
+      </div>
+      <div class="detail-actions">
+        <button class="btn-secondary">Reprint receipt</button>
+        <button class="btn-secondary">Refund</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const orders = [
+  {id:1045, name:"Table 2", meta:"2 items · 4:41 PM", status:"occupied", amount:12.20},
+  {id:1044, name:"Walk-in", meta:"1 item · 4:38 PM · Cash", status:"paid", amount:4.75},
+  {id:1043, name:"Table 7", meta:"5 items · 4:33 PM · Card ·4471", status:"paid", amount:31.40},
+  {id:1042, name:"Table 4", meta:"4 items · 4:26 PM · Card ·4471", status:"paid", amount:22.86, selected:true},
+  {id:1041, name:"Walk-in", meta:"1 item · 4:15 PM · Card ·9021", status:"refunded", amount:5.25},
+  {id:1040, name:"Table 1", meta:"3 items · 4:02 PM · Card ·1188", status:"paid", amount:18.90},
+];
+const chipHtml = s => s==="paid" ? '<span class="chip paid"><span class="dot"></span>Paid</span>'
+  : s==="refunded" ? '<span class="chip refunded"><span class="dot"></span>Refunded</span>'
+  : '<span class="chip occupied"><span class="dot"></span>Occupied</span>';
+
+document.getElementById('rows').innerHTML = orders.map((o,i) => `
+  <div class="order-row ${o.selected?'selected':''}">
+    <span class="order-id mono">#${o.id}</span>
+    <div class="order-main">
+      <div class="order-name">${o.name}</div>
+      <div class="order-meta">${o.meta}</div>
+    </div>
+    ${chipHtml(o.status)}
+    <span class="order-amount mono">$${o.amount.toFixed(2)}</span>
+  </div>
+  ${i < orders.length-1 ? '<hr class="divider">' : ''}
+`).join('');
+</script>
+</body>
+</html>

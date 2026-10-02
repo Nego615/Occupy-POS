@@ -1,0 +1,52 @@
+/* The only sanctioned way to render a signal color as a filled surface —
+   and even here the fill is the *-soft tint, never the solid color. */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border-radius: 100px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.chip__dot {
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: currentColor;
+}
+
+.chip--md {
+  font-size: 12.5px;
+  padding: 6px 12px;
+}
+
+.chip--md .chip__dot {
+  width: 7px;
+  height: 7px;
+}
+
+.chip--sm {
+  font-size: 12px;
+  padding: 5px 10px;
+  gap: 6px;
+}
+
+.chip--sm .chip__dot {
+  width: 6px;
+  height: 6px;
+}
+
+.chip--occupied {
+  background: var(--occupied-soft);
+  color: var(--occupied);
+}
+
+.chip--open {
+  background: var(--open-soft);
+  color: var(--open);
+}
+
+.chip--refunded {
+  background: var(--refund-soft);
+  color: var(--refund);
+}

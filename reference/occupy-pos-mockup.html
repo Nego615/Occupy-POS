@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Occupy POS — Register</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#121212;
+    --ink-soft:#63615c;
+    --paper:#ffffff;
+    --surface:#f5f4f1;
+    --surface-hover:#eeece6;
+    --line:#e4e2dc;
+    --occupied:#ff4b2e;
+    --occupied-soft:#fff0ec;
+    --open:#1fae5c;
+    --open-soft:#eafaf1;
+    --radius-lg:20px;
+    --radius-md:14px;
+    --radius-sm:10px;
+    --shadow: 0 1px 2px rgba(18,18,18,0.04), 0 8px 24px rgba(18,18,18,0.04);
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Inter',system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .mono{ font-family:'IBM Plex Mono',monospace; font-variant-numeric: tabular-nums; }
+
+  .app{
+    display:grid;
+    grid-template-rows:auto 1fr;
+    height:100vh;
+    min-height:640px;
+  }
+
+  /* ---------- Top bar ---------- */
+  .topbar{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:16px 28px;
+    border-bottom:1px solid var(--line);
+  }
+  .brand{
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  .brand-mark{
+    width:32px;height:32px;
+    border-radius:9px;
+    background:var(--ink);
+    position:relative;
+    flex-shrink:0;
+  }
+  .brand-mark::after{
+    content:"";
+    position:absolute;
+    inset:9px;
+    border-radius:3px;
+    background:var(--occupied);
+  }
+  .brand-name{
+    font-weight:800;
+    font-size:16px;
+    letter-spacing:-0.02em;
+  }
+  .brand-sub{
+    font-size:12px;
+    color:var(--ink-soft);
+    margin-top:1px;
+  }
+  .topbar-right{
+    display:flex;
+    align-items:center;
+    gap:18px;
+  }
+  .clock{
+    font-size:13px;
+    color:var(--ink-soft);
+  }
+  .clock .mono{ color:var(--ink); font-weight:600; }
+  .avatar{
+    width:34px;height:34px;
+    border-radius:50%;
+    background:var(--surface);
+    border:1px solid var(--line);
+    display:flex;align-items:center;justify-content:center;
+    font-size:12px;font-weight:700;
+  }
+
+  /* ---------- Body ---------- */
+  .body{
+    display:grid;
+    grid-template-columns:1fr 380px;
+    min-height:0;
+  }
+
+  /* ---------- Catalog ---------- */
+  .catalog{
+    padding:20px 28px 28px;
+    overflow-y:auto;
+    min-width:0;
+  }
+  .tabs{
+    display:flex;
+    gap:8px;
+    margin-bottom:20px;
+    flex-wrap:wrap;
+  }
+  .tab{
+    border:1px solid var(--line);
+    background:var(--paper);
+    padding:9px 16px;
+    border-radius:100px;
+    font-size:13.5px;
+    font-weight:600;
+    color:var(--ink-soft);
+    cursor:pointer;
+    transition:all .15s ease;
+  }
+  .tab.active{
+    background:var(--ink);
+    border-color:var(--ink);
+    color:var(--paper);
+  }
+  .tab:not(.active):hover{ background:var(--surface); color:var(--ink); }
+
+  .grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill,minmax(148px,1fr));
+    gap:12px;
+  }
+  .item{
+    text-align:left;
+    background:var(--surface);
+    border:1px solid transparent;
+    border-radius:var(--radius-md);
+    padding:16px 14px;
+    cursor:pointer;
+    min-height:104px;
+    display:flex;
+    flex-direction:column;
+    justify-content:space-between;
+    transition:transform .12s ease, background .12s ease, border-color .12s ease;
+  }
+  .item:hover{ background:var(--surface-hover); }
+  .item:active{ transform:scale(0.97); }
+  .item-dot{
+    width:26px;height:26px;
+    border-radius:8px;
+    margin-bottom:10px;
+  }
+  .item-name{
+    font-size:14px;
+    font-weight:600;
+    line-height:1.25;
+  }
+  .item-price{
+    font-size:13px;
+    color:var(--ink-soft);
+    margin-top:8px;
+  }
+
+  /* ---------- Cart rail ---------- */
+  .cart{
+    border-left:1px solid var(--line);
+    background:var(--surface);
+    display:flex;
+    flex-direction:column;
+    min-height:0;
+  }
+  .receipt-edge{
+    height:14px;
+    flex-shrink:0;
+    background:
+      radial-gradient(circle at 10px 0, transparent 6px, var(--surface) 6.5px) top,
+      var(--paper);
+    background-size:20px 14px;
+    background-repeat:repeat-x;
+    border-bottom:1px dashed var(--line);
+  }
+  .cart-status{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:16px 20px 4px;
+  }
+  .status-chip{
+    display:inline-flex;
+    align-items:center;
+    gap:7px;
+    background:var(--occupied-soft);
+    color:var(--occupied);
+    font-size:12.5px;
+    font-weight:700;
+    padding:6px 12px;
+    border-radius:100px;
+  }
+  .status-chip .dot{
+    width:7px;height:7px;
+    border-radius:50%;
+    background:var(--occupied);
+  }
+  .cart-title{
+    padding:6px 20px 14px;
+    font-size:13px;
+    color:var(--ink-soft);
+  }
+
+  .cart-items{
+    flex:1;
+    overflow-y:auto;
+    padding:0 20px;
+    display:flex;
+    flex-direction:column;
+    gap:2px;
+  }
+  .cart-line{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    padding:12px 0;
+    border-bottom:1px solid var(--line);
+  }
+  .cart-line-info{ flex:1; min-width:0; }
+  .cart-line-name{ font-size:14px; font-weight:600; }
+  .cart-line-unit{ font-size:12px; color:var(--ink-soft); margin-top:2px; }
+  .stepper{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:100px;
+    padding:3px;
+  }
+  .stepper button{
+    width:22px;height:22px;
+    border-radius:50%;
+    border:none;
+    background:transparent;
+    font-size:14px;
+    font-weight:700;
+    color:var(--ink);
+    cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .stepper button:hover{ background:var(--surface); }
+  .stepper .qty{ font-size:13px; width:16px; text-align:center; }
+  .cart-line-price{
+    font-size:14px;
+    font-weight:600;
+    width:56px;
+    text-align:right;
+  }
+
+  .cart-summary{
+    padding:16px 20px;
+    border-top:1px solid var(--line);
+  }
+  .summary-row{
+    display:flex;
+    justify-content:space-between;
+    font-size:13.5px;
+    color:var(--ink-soft);
+    margin-bottom:8px;
+  }
+  .summary-row.total{
+    color:var(--ink);
+    font-weight:700;
+    font-size:16px;
+    margin-top:10px;
+    padding-top:12px;
+    border-top:1px solid var(--line);
+  }
+  .charge-btn{
+    width:100%;
+    margin-top:16px;
+    background:var(--ink);
+    color:var(--paper);
+    border:none;
+    border-radius:var(--radius-sm);
+    padding:16px;
+    font-size:15px;
+    font-weight:700;
+    font-family:inherit;
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:8px;
+    transition:opacity .15s ease;
+  }
+  .charge-btn:hover{ opacity:.88; }
+  .charge-sub{
+    text-align:center;
+    font-size:11.5px;
+    color:var(--ink-soft);
+    margin-top:10px;
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="topbar">
+    <div class="brand">
+      <div class="brand-mark"></div>
+      <div>
+        <div class="brand-name">Occupy</div>
+        <div class="brand-sub">Front Counter · Register 1</div>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <div class="clock">Sat 30 Aug · <span class="mono" id="clock">4:12 PM</span></div>
+      <div class="avatar">JM</div>
+    </div>
+  </div>
+
+  <div class="body">
+    <div class="catalog">
+      <div class="tabs">
+        <div class="tab active">Coffee</div>
+        <div class="tab">Food</div>
+        <div class="tab">Pastries</div>
+        <div class="tab">Retail</div>
+        <div class="tab">Seasonal</div>
+      </div>
+
+      <div class="grid" id="grid"></div>
+    </div>
+
+    <div class="cart">
+      <div class="receipt-edge"></div>
+      <div class="cart-status">
+        <span class="status-chip"><span class="dot"></span>Tab occupied</span>
+        <span style="font-size:12px;color:var(--ink-soft)">4 items</span>
+      </div>
+      <div class="cart-title">Table 4 · opened 3:58 PM</div>
+
+      <div class="cart-items" id="cartItems"></div>
+
+      <div class="cart-summary">
+        <div class="summary-row"><span>Subtotal</span><span class="mono">$18.25</span></div>
+        <div class="summary-row"><span>Tax</span><span class="mono">$1.60</span></div>
+        <div class="summary-row total"><span>Total</span><span class="mono">$19.85</span></div>
+        <button class="charge-btn">Charge <span class="mono">$19.85</span></button>
+        <div class="charge-sub">Or press Enter to charge default card on file</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const items = [
+  {name:"Cortado", price:4.50, color:"#ff4b2e"},
+  {name:"Drip Coffee", price:3.25, color:"#8a5cf6"},
+  {name:"Oat Latte", price:5.25, color:"#1fae5c"},
+  {name:"Cold Brew", price:4.75, color:"#0e7bd6"},
+  {name:"Americano", price:3.75, color:"#e0a300"},
+  {name:"Matcha Latte", price:5.75, color:"#2f9e44"},
+  {name:"Espresso Shot", price:2.75, color:"#121212"},
+  {name:"Hot Chocolate", price:4.25, color:"#8a5a2b"},
+];
+document.getElementById('grid').innerHTML = items.map(i => `
+  <button class="item">
+    <span class="item-dot" style="background:${i.color}"></span>
+    <span class="item-name">${i.name}</span>
+    <span class="item-price mono">$${i.price.toFixed(2)}</span>
+  </button>
+`).join('');
+
+const cart = [
+  {name:"Oat Latte", unit:5.25, qty:2},
+  {name:"Cortado", unit:4.50, qty:1},
+  {name:"Espresso Shot", unit:2.75, qty:1},
+];
+document.getElementById('cartItems').innerHTML = cart.map(c => `
+  <div class="cart-line">
+    <div class="cart-line-info">
+      <div class="cart-line-name">${c.name}</div>
+      <div class="cart-line-unit mono">$${c.unit.toFixed(2)} each</div>
+    </div>
+    <div class="stepper">
+      <button>–</button>
+      <span class="qty mono">${c.qty}</span>
+      <button>+</button>
+    </div>
+    <div class="cart-line-price mono">$${(c.unit*c.qty).toFixed(2)}</div>
+  </div>
+`).join('');
+
+function tick(){
+  const d = new Date();
+  let h = d.getHours(), m = d.getMinutes();
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  document.getElementById('clock').textContent = `${h}:${m.toString().padStart(2,'0')} ${ampm}`;
+}
+tick(); setInterval(tick, 15000);
+</script>
+</body>
+</html>

@@ -1,0 +1,142 @@
+.floor {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.floor__heading {
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+.floor__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+/* Same surface tile as the item grid. Occupied locations carry the 2px
+   state accent the design system allows — never a solid fill. */
+.location {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 104px;
+  padding: 14px 16px;
+  border: 2px solid transparent;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.location:hover {
+  background: var(--surface-hover);
+}
+
+.location:active {
+  transform: scale(0.97);
+}
+
+.location:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
+}
+
+.location--occupied {
+  border-left-color: var(--occupied);
+}
+
+.location--current {
+  background: var(--paper);
+  border-color: var(--ink);
+}
+
+.location__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.location__name {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.location__meta {
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+.location__tab {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
+.location__tab-info {
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+.location__total {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* ---------- Picker ----------
+   In the assign dialog the grid sits on a --surface panel, so contrast comes
+   from three clearly different tile treatments rather than a hairline:
+   free = raised white card, occupied = recessed with the state accent,
+   this tab = ink, the system's "active" fill (same as an active pill). */
+
+.floor--picking .location {
+  border: 1px solid var(--line);
+  background: var(--paper);
+}
+
+.floor--picking .location:hover {
+  border-color: var(--ink);
+  background: var(--paper);
+}
+
+.floor--picking .location__name {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.floor--picking .location--occupied {
+  border-color: transparent;
+  border-left: 3px solid var(--occupied);
+  background: var(--surface-hover);
+}
+
+.floor--picking .location--occupied:hover {
+  border-color: var(--ink);
+  border-left-color: var(--occupied);
+  background: var(--surface-hover);
+}
+
+.floor--picking .location--occupied .location__tab {
+  border-top-color: var(--paper);
+}
+
+.floor--picking .location--current,
+.floor--picking .location--current:hover {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+  cursor: default;
+}
+
+.floor--picking .location--current .location__meta {
+  color: var(--line);
+}

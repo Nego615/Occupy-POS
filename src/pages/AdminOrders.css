@@ -1,0 +1,281 @@
+/* ---------- Toolbar & filters ---------- */
+
+.orders-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.orders-filters {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+.orders-filters__right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.orders-filters__count {
+  margin-left: 4px;
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.orders-clear {
+  min-height: var(--hit-area);
+  padding: 0 6px;
+  border: none;
+  background: none;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+/* ---------- Summary strip ---------- */
+
+.orders-stats {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.orders-stats--no-tips {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.orders-stat {
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+}
+
+.orders-stat__label {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.orders-stat__value {
+  display: block;
+  font-size: 19px;
+  font-weight: 600;
+  margin-top: 6px;
+}
+
+.orders-stat__note {
+  font-size: 12px;
+  color: var(--ink-soft);
+  margin-top: 2px;
+}
+
+/* ---------- Table + receipt ---------- */
+
+.orders-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 18px;
+  align-items: start;
+}
+
+.orders-table-wrap {
+  padding: 6px 8px;
+  overflow-x: auto;
+}
+
+.orders-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+
+.orders-table th {
+  text-align: left;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+.orders-table .orders-th--num {
+  text-align: right;
+}
+
+.orders-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.orders-sort:hover {
+  color: var(--ink);
+}
+
+.orders-sort__arrow {
+  font-size: 11px;
+}
+
+.orders-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+}
+
+.orders-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.orders-row {
+  cursor: pointer;
+}
+
+.orders-row:hover td {
+  background: var(--surface-hover);
+}
+
+.orders-row--selected td,
+.orders-row--selected:hover td {
+  background: var(--paper);
+}
+
+/* Rounded ends on the highlighted row, so it reads as one pill-ish band. */
+.orders-row td:first-child {
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+}
+
+.orders-row td:last-child {
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+.orders-row__id {
+  min-height: var(--hit-area);
+  padding: 0 4px;
+  margin-left: -4px;
+  border: none;
+  background: none;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.orders-row--selected .orders-row__id {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.orders-row__tab {
+  min-width: 180px;
+}
+
+.orders-row__name {
+  display: block;
+  font-weight: 600;
+}
+
+.orders-row__items {
+  display: block;
+  font-size: 12px;
+  color: var(--ink-soft);
+  margin-top: 2px;
+  max-width: 280px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.orders-row__when,
+.orders-row__method {
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.orders-row__muted {
+  color: var(--ink-soft);
+}
+
+.orders-row__total {
+  text-align: right;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.orders-empty {
+  margin: 0;
+  padding: 40px 16px;
+  text-align: center;
+  font-size: 13.5px;
+  color: var(--ink-soft);
+}
+
+.orders-empty .orders-clear {
+  min-height: 0;
+  padding: 0;
+  font-size: inherit;
+}
+
+.orders-more {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  border-top: 1px solid var(--line);
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+
+/* The receipt follows the table as it scrolls inside the admin main column. */
+.orders-detail {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 52px);
+  min-height: 320px;
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+@media (max-width: 1180px) {
+  .orders-stats,
+  .orders-stats--no-tips {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .orders-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .orders-detail {
+    position: static;
+    max-height: none;
+  }
+}

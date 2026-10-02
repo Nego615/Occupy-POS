@@ -1,0 +1,18 @@
+.counter {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  height: 100%;
+  min-height: 640px;
+}
+
+/* Route switcher in the top bar. Uses the same pill vocabulary as the
+   category tabs — no second nav idiom. */
+.counter__nav {
+  display: flex;
+  gap: 8px;
+}
+
+.counter__nav .pill {
+  padding: 8px 14px;
+  font-size: 13px;
+}

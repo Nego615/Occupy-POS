@@ -1,0 +1,276 @@
+/* ---------- Which part of the month ---------- */
+
+.pay-parts {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.pay-parts__label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.pay-parts__status {
+  font-weight: 500;
+  opacity: 0.75;
+}
+
+/* ---------- Tiles ---------- */
+
+.pay-tiles {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.pay-tiles--no-tips {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.pay-tile {
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+}
+
+.pay-tile__label {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.pay-tile__value {
+  display: block;
+  font-size: 21px;
+  font-weight: 600;
+  margin-top: 6px;
+}
+
+.pay-tile__note {
+  font-size: 12px;
+  color: var(--ink-soft);
+  margin-top: 2px;
+}
+
+/* ---------- Period table ---------- */
+
+.pay-section {
+  margin-bottom: 18px;
+}
+
+.pay-section__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.pay-section__head .panel__title {
+  margin-bottom: 0;
+}
+
+.pay-section__so-far {
+  font-weight: 500;
+  color: var(--ink-soft);
+}
+
+.pay-close {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.pay-close__why {
+  max-width: 420px;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  text-align: right;
+}
+
+.pay-table-wrap {
+  overflow-x: auto;
+}
+
+.pay-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+
+.pay-table th {
+  text-align: left;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+.pay-table td {
+  padding: 10px;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.pay-table th:first-child,
+.pay-table td:first-child {
+  padding-left: 0;
+}
+
+.pay-table th:last-child,
+.pay-table td:last-child {
+  padding-right: 0;
+}
+
+.pay-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.pay-table tfoot td {
+  border-top: 1px solid var(--ink);
+  border-bottom: none;
+  font-weight: 700;
+}
+
+.pay-table .pay-table__num {
+  text-align: right;
+}
+
+.pay-table__name {
+  display: block;
+  font-weight: 600;
+}
+
+.pay-table__sub {
+  display: block;
+  font-size: 12px;
+  color: var(--ink-soft);
+  margin-top: 1px;
+}
+
+.pay-table__soft {
+  color: var(--ink-soft);
+}
+
+.pay-table__strong {
+  font-weight: 700;
+}
+
+.pay-note {
+  margin: 12px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+
+.pay-empty {
+  margin: 0;
+  padding: 24px 0;
+  font-size: 13.5px;
+  color: var(--ink-soft);
+  text-align: center;
+}
+
+.pay-empty--left {
+  padding: 8px 0;
+  text-align: left;
+  line-height: 1.5;
+}
+
+/* ---------- Rates + history ---------- */
+
+.pay-cols {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.rate-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.rate-row:last-child {
+  border-bottom: none;
+}
+
+.rate-row__name {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.rate-row__role {
+  display: block;
+  font-size: 12px;
+  color: var(--ink-soft);
+  margin-top: 1px;
+}
+
+.rate-row__amount {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.rate-row__unit {
+  width: 22px;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+
+.rate-row__unit:first-child {
+  width: auto;
+}
+
+.rate-input {
+  width: 100px;
+  min-height: var(--hit-area);
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  font-size: 13.5px;
+  text-align: right;
+  color: var(--ink);
+}
+
+.rate-input[aria-invalid='true'] {
+  border-color: var(--occupied);
+}
+
+.rate-row__error {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 12px;
+  color: var(--occupied);
+}
+
+@media (max-width: 1180px) {
+  .pay-tiles,
+  .pay-tiles--no-tips {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .pay-cols {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

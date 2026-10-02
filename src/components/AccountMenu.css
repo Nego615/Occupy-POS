@@ -1,0 +1,81 @@
+.account {
+  position: relative;
+}
+
+.account__trigger {
+  position: relative;
+  width: var(--hit-area);
+  height: var(--hit-area);
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.account__trigger:hover,
+.account__trigger[aria-expanded='true'] {
+  border-color: var(--ink);
+}
+
+/* On-the-clock dot — also stated in words inside the menu. */
+.account__dot {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--open);
+  border: 2px solid var(--paper);
+}
+
+/* Popover — a floating surface, so it may carry --shadow. */
+.account__menu {
+  position: absolute;
+  z-index: 20;
+  width: 250px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--paper);
+  box-shadow: var(--shadow);
+}
+
+.account--right .account__menu {
+  top: calc(100% + 8px);
+  right: 0;
+}
+
+.account--left-up .account__menu {
+  bottom: calc(100% + 8px);
+  left: 0;
+}
+
+.account__who {
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.account__name {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.account__role {
+  font-size: 12px;
+  color: var(--ink-soft);
+  margin-top: 2px;
+}
+
+.account__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}

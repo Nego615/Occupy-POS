@@ -1,0 +1,79 @@
+.btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  font-weight: 700;
+  line-height: 1.2;
+  cursor: pointer;
+  /* No box-shadow: buttons are flat. Borders do the separating. */
+  transition: opacity 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+/* Guarantees the 44px hit area even when the visual button is shorter. */
+.btn::after {
+  content: '';
+  position: absolute;
+  inset: 50% 0 auto;
+  transform: translateY(-50%);
+  min-height: var(--hit-area);
+  height: 100%;
+}
+
+.btn:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ---- Variants ---- */
+
+.btn--primary {
+  background: var(--ink);
+  color: var(--paper);
+  border: none;
+}
+
+.btn--primary:hover:not(:disabled) {
+  opacity: 0.88;
+}
+
+.btn--secondary {
+  background: var(--paper);
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
+
+.btn--secondary:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+/* ---- Sizes ---- */
+
+.btn--sm {
+  padding: 10px 16px;
+  font-size: 12.5px;
+}
+
+.btn--md {
+  padding: 12px 18px;
+  font-size: 13.5px;
+}
+
+/* Primary countertop action — Charge, Save item, Confirm. */
+.btn--lg {
+  padding: 16px 20px;
+  font-size: 15px;
+}
+
+.btn--block {
+  display: flex;
+  width: 100%;
+}

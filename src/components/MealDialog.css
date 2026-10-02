@@ -1,0 +1,167 @@
+/* Modal surface — the one place the system's --shadow is allowed. */
+.meal-dialog {
+  width: min(640px, calc(100vw - 32px));
+  max-height: calc(100vh - 64px);
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+}
+
+.meal-dialog::backdrop {
+  background: rgba(18, 18, 18, 0.32);
+}
+
+.meal-dialog__body {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 20px 24px 24px;
+}
+
+.meal-dialog__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.meal-dialog__title {
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.meal-dialog__sub {
+  margin-top: 3px;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+.meal-dialog__close {
+  width: var(--hit-area);
+  height: var(--hit-area);
+  flex-shrink: 0;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--paper);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.meal-dialog__close:hover {
+  background: var(--surface-hover);
+}
+
+.meal-course {
+  margin: 0;
+  padding: 0;
+  border: none;
+  min-width: 0;
+}
+
+.meal-course__name {
+  margin-bottom: 8px;
+  padding: 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.meal-course__options {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+}
+
+.meal-course__empty {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+.meal-option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-height: 60px;
+  padding: 10px 12px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.meal-option:hover {
+  background: var(--surface-hover);
+}
+
+.meal-option--selected,
+.meal-option--selected:hover {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.meal-option:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.meal-option:disabled:hover {
+  background: var(--surface);
+}
+
+.meal-option__name {
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.meal-option__note {
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+.meal-option--selected .meal-option__note {
+  color: var(--line);
+}
+
+.meal-dialog__error {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--occupied);
+}
+
+.meal-dialog__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.meal-dialog__price {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.meal-dialog__amount {
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.meal-dialog__worth {
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}

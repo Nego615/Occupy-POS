@@ -1,0 +1,188 @@
+.admin {
+  display: grid;
+  grid-template-columns: 232px 1fr;
+  height: 100%;
+  min-height: 680px;
+}
+
+/* ---------- Sidebar ---------- */
+
+.admin__sidebar {
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  padding: 20px 14px;
+  background: var(--paper);
+  overflow-y: auto;
+}
+
+.admin__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px 22px;
+}
+
+.admin__brand .brand-mark {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+}
+
+.admin__brand .brand-mark::after {
+  inset: 8px;
+}
+
+.admin__brand-name {
+  font-weight: 800;
+  font-size: 15px;
+  letter-spacing: -0.02em;
+}
+
+.admin__brand-sub {
+  font-size: 11px;
+  color: var(--ink-soft);
+}
+
+.nav-section {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 14px 10px 6px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  text-decoration: none;
+  cursor: pointer;
+  /* Visual row is ~36px; padding-free hit extension keeps it tappable. */
+  min-height: var(--hit-area);
+  box-sizing: border-box;
+}
+
+.nav-item:hover {
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.nav-item--active {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.nav-item--active:hover {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.nav-item:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: calc(var(--focus-offset) * -1);
+}
+
+.nav-icon {
+  width: 16px;
+  text-align: center;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.admin__sidebar-footer {
+  margin-top: auto;
+  padding: 10px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.admin__avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11.5px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.admin__footer-name {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.admin__footer-role {
+  font-size: 11.5px;
+  color: var(--ink-soft);
+}
+
+/* ---------- Main column ---------- */
+
+.admin__main {
+  overflow-y: auto;
+  padding: 26px 32px 40px;
+  min-width: 0;
+}
+
+.page-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 22px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.page-title {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.page-sub {
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  margin-top: 3px;
+}
+
+.head-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.admin__exit {
+  margin-top: auto;
+}
+
+/* When the exit link takes the auto margin, the footer no longer needs it. */
+.admin__exit + .admin__sidebar-footer {
+  margin-top: 0;
+}
+
+/* Shared admin surface — used by every page under the sidebar. */
+.panel {
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  padding: 18px 20px;
+}
+
+.panel__title {
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 14px;
+}
+

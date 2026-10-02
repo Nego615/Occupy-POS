@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Occupy Admin — Overview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#121212; --ink-soft:#63615c; --paper:#ffffff;
+    --surface:#f5f4f1; --surface-hover:#eeece6; --line:#e4e2dc;
+    --occupied:#ff4b2e; --occupied-soft:#fff0ec;
+    --open:#1fae5c; --open-soft:#eafaf1;
+    --refund:#8a5cf6; --refund-soft:#f3efff;
+    --radius-lg:20px; --radius-md:14px; --radius-sm:10px;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:'Inter',system-ui,sans-serif;-webkit-font-smoothing:antialiased;}
+  .mono{font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums;}
+
+  .app{display:grid;grid-template-columns:232px 1fr;height:100vh;min-height:680px;}
+
+  /* ---------------- Sidebar ---------------- */
+  .sidebar{border-right:1px solid var(--line);display:flex;flex-direction:column;padding:20px 14px;background:var(--paper);}
+  .brand{display:flex;align-items:center;gap:10px;padding:6px 10px 22px;}
+  .brand-mark{width:30px;height:30px;border-radius:8px;background:var(--ink);position:relative;flex-shrink:0;}
+  .brand-mark::after{content:"";position:absolute;inset:8px;border-radius:3px;background:var(--occupied);}
+  .brand-name{font-weight:800;font-size:15px;letter-spacing:-0.02em;}
+  .brand-sub{font-size:11px;color:var(--ink-soft);}
+
+  .nav-section{font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:0.04em;padding:14px 10px 6px;}
+  .nav-item{
+    display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:var(--radius-sm);
+    font-size:13.5px;font-weight:600;color:var(--ink-soft);cursor:pointer;
+  }
+  .nav-item:hover{background:var(--surface);color:var(--ink);}
+  .nav-item.active{background:var(--ink);color:var(--paper);}
+  .nav-icon{width:16px;text-align:center;font-size:13px;flex-shrink:0;}
+
+  .sidebar-footer{margin-top:auto;padding:10px;border-top:1px solid var(--line);display:flex;align-items:center;gap:10px;}
+  .avatar{width:32px;height:32px;border-radius:50%;background:var(--surface);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:700;flex-shrink:0;}
+  .footer-name{font-size:13px;font-weight:600;}
+  .footer-role{font-size:11.5px;color:var(--ink-soft);}
+
+  /* ---------------- Main ---------------- */
+  .main{overflow-y:auto;padding:26px 32px 40px;}
+  .page-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:22px;flex-wrap:wrap;gap:12px;}
+  .page-title{font-size:20px;font-weight:800;letter-spacing:-0.02em;}
+  .page-sub{font-size:12.5px;color:var(--ink-soft);margin-top:3px;}
+  .head-actions{display:flex;gap:8px;align-items:center;}
+  .range-pill{display:flex;border:1px solid var(--line);border-radius:100px;overflow:hidden;}
+  .range-pill span{padding:8px 14px;font-size:12.5px;font-weight:600;color:var(--ink-soft);cursor:pointer;}
+  .range-pill span.active{background:var(--ink);color:var(--paper);}
+  .btn-secondary{padding:9px 16px;border-radius:var(--radius-sm);border:1px solid var(--line);background:var(--paper);font-weight:700;font-size:12.5px;font-family:inherit;cursor:pointer;}
+  .btn-secondary:hover{background:var(--surface);}
+
+  /* Stat cards */
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px;}
+  .stat-card{background:var(--surface);border-radius:var(--radius-md);padding:18px 20px;}
+  .stat-label{font-size:12px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:0.03em;}
+  .stat-value{font-size:26px;font-weight:700;margin-top:10px;}
+  .stat-delta{font-size:12px;font-weight:600;margin-top:8px;display:inline-flex;align-items:center;gap:4px;}
+  .stat-delta.up{color:var(--open);}
+  .stat-delta.down{color:var(--occupied);}
+
+  /* Chart card */
+  .chart-card{background:var(--surface);border-radius:var(--radius-md);padding:20px 22px;margin-bottom:20px;}
+  .chart-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:16px;}
+  .chart-title{font-size:14px;font-weight:700;}
+  .chart-total{font-size:12.5px;color:var(--ink-soft);}
+  .chart-bars{display:flex;align-items:flex-end;gap:6px;height:140px;}
+  .bar-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end;}
+  .bar{width:100%;background:var(--ink);border-radius:4px 4px 0 0;opacity:0.14;}
+  .bar.peak{opacity:1;}
+  .bar-label{font-size:10.5px;color:var(--ink-soft);}
+
+  /* Two column */
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
+  .panel{background:var(--surface);border-radius:var(--radius-md);padding:18px 20px;}
+  .panel-title{font-size:14px;font-weight:700;margin-bottom:14px;}
+
+  .rank-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line);}
+  .rank-row:last-child{border-bottom:none;}
+  .rank-num{width:20px;font-size:12.5px;color:var(--ink-soft);font-weight:600;}
+  .rank-dot{width:20px;height:20px;border-radius:6px;flex-shrink:0;}
+  .rank-name{flex:1;font-size:13.5px;font-weight:600;}
+  .rank-count{font-size:12px;color:var(--ink-soft);}
+  .rank-amt{font-size:13.5px;font-weight:700;}
+
+  .activity-row{display:flex;align-items:flex-start;gap:12px;padding:10px 0;border-bottom:1px solid var(--line);}
+  .activity-row:last-child{border-bottom:none;}
+  .activity-dot{width:8px;height:8px;border-radius:50%;margin-top:6px;flex-shrink:0;}
+  .activity-dot.paid{background:var(--open);}
+  .activity-dot.occupied{background:var(--occupied);}
+  .activity-dot.refunded{background:var(--refund);}
+  .activity-text{font-size:13px;flex:1;}
+  .activity-text b{font-weight:700;}
+  .activity-time{font-size:11.5px;color:var(--ink-soft);white-space:nowrap;}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="sidebar">
+    <div class="brand">
+      <div class="brand-mark"></div>
+      <div>
+        <div class="brand-name">Occupy</div>
+        <div class="brand-sub">Admin</div>
+      </div>
+    </div>
+
+    <div class="nav-section">Business</div>
+    <div class="nav-item active"><span class="nav-icon">◧</span>Overview</div>
+    <div class="nav-item"><span class="nav-icon">▤</span>Orders</div>
+    <div class="nav-item"><span class="nav-icon">◫</span>Items &amp; catalog</div>
+    <div class="nav-item"><span class="nav-icon">◔</span>Reports</div>
+
+    <div class="nav-section">Team</div>
+    <div class="nav-item"><span class="nav-icon">◐</span>Staff</div>
+    <div class="nav-item"><span class="nav-icon">⎘</span>Timecards</div>
+
+    <div class="nav-section">Setup</div>
+    <div class="nav-item"><span class="nav-icon">▭</span>Locations</div>
+    <div class="nav-item"><span class="nav-icon">⚙</span>Settings</div>
+
+    <div class="sidebar-footer">
+      <div class="avatar">JM</div>
+      <div>
+        <div class="footer-name">Jamie Ruiz</div>
+        <div class="footer-role">Owner · Front Counter</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="page-head">
+      <div>
+        <div class="page-title">Overview</div>
+        <div class="page-sub">Front Counter · Saturday, Aug 30</div>
+      </div>
+      <div class="head-actions">
+        <div class="range-pill">
+          <span>Today</span><span class="active">Week</span><span>Month</span>
+        </div>
+        <button class="btn-secondary">Export report</button>
+      </div>
+    </div>
+
+    <div class="stats">
+      <div class="stat-card">
+        <div class="stat-label">Net sales</div>
+        <div class="stat-value mono">$4,218.60</div>
+        <div class="stat-delta up">↑ 12.4% vs last week</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Transactions</div>
+        <div class="stat-value mono">312</div>
+        <div class="stat-delta up">↑ 6.1% vs last week</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Avg. ticket</div>
+        <div class="stat-value mono">$13.52</div>
+        <div class="stat-delta down">↓ 1.8% vs last week</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Refunds</div>
+        <div class="stat-value mono">$46.25</div>
+        <div class="stat-delta down">↓ 0.9% vs last week</div>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-head">
+        <div class="chart-title">Sales by day</div>
+        <div class="chart-total mono">$4,218.60 this week</div>
+      </div>
+      <div class="chart-bars" id="chart"></div>
+    </div>
+
+    <div class="cols">
+      <div class="panel">
+        <div class="panel-title">Top items this week</div>
+        <div id="ranks"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-title">Recent activity</div>
+        <div id="activity"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const week = [
+  {d:"Mon", v:520}, {d:"Tue", v:610}, {d:"Wed", v:480},
+  {d:"Thu", v:705}, {d:"Fri", v:890}, {d:"Sat", v:960}, {d:"Sun", v:53},
+];
+const max = Math.max(...week.map(w=>w.v));
+document.getElementById('chart').innerHTML = week.map(w => `
+  <div class="bar-col">
+    <div class="bar ${w.v===max?'peak':''}" style="height:${(w.v/max*100).toFixed(0)}%"></div>
+    <div class="bar-label">${w.d}</div>
+  </div>
+`).join('');
+
+const ranks = [
+  {name:"Oat Latte", count:"84 sold", amt:"$441.00", color:"#1fae5c"},
+  {name:"Cortado", count:"61 sold", amt:"$274.50", color:"#ff4b2e"},
+  {name:"Drip Coffee", count:"58 sold", amt:"$188.50", color:"#8a5cf6"},
+  {name:"Croissant", count:"47 sold", amt:"$164.50", color:"#e0a300"},
+  {name:"Cold Brew", count:"39 sold", amt:"$185.25", color:"#0e7bd6"},
+];
+document.getElementById('ranks').innerHTML = ranks.map((r,i) => `
+  <div class="rank-row">
+    <span class="rank-num mono">${i+1}</span>
+    <span class="rank-dot" style="background:${r.color}"></span>
+    <span class="rank-name">${r.name}</span>
+    <span class="rank-count">${r.count}</span>
+    <span class="rank-amt mono">${r.amt}</span>
+  </div>
+`).join('');
+
+const activity = [
+  {type:"paid", text:"<b>Table 4</b> closed out · Card ·4471", time:"2m ago"},
+  {type:"occupied", text:"<b>Table 2</b> tab opened", time:"8m ago"},
+  {type:"paid", text:"<b>Walk-in #1044</b> paid · Cash", time:"11m ago"},
+  {type:"refunded", text:"<b>Walk-in #1041</b> refunded $5.25", time:"22m ago"},
+  {type:"paid", text:"<b>Table 7</b> closed out · Card ·9021", time:"34m ago"},
+];
+document.getElementById('activity').innerHTML = activity.map(a => `
+  <div class="activity-row">
+    <span class="activity-dot ${a.type}"></span>
+    <span class="activity-text">${a.text}</span>
+    <span class="activity-time">${a.time}</span>
+  </div>
+`).join('');
+</script>
+</body>
+</html>

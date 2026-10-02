@@ -1,0 +1,66 @@
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 28px;
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+
+.topbar__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.brand-mark {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: var(--ink);
+  position: relative;
+  flex-shrink: 0;
+}
+
+/* The one place --occupied appears outside a chip: a 14px brand square. */
+/* An uploaded logo fills the square, letterboxed so nothing is cropped. */
+.brand-mark--logo {
+  background: transparent;
+  object-fit: contain;
+}
+
+.brand-mark::after {
+  content: '';
+  position: absolute;
+  inset: 9px;
+  border-radius: 3px;
+  background: var(--occupied);
+}
+
+.brand-name {
+  font-weight: 800;
+  font-size: 16px;
+  letter-spacing: -0.02em;
+}
+
+.brand-sub {
+  font-size: 12px;
+  color: var(--ink-soft);
+  margin-top: 1px;
+}
+
+.topbar__right {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.topbar__clock {
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+.topbar__time {
+  color: var(--ink);
+  font-weight: 600;
+}

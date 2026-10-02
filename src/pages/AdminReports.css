@@ -1,0 +1,292 @@
+/* ---------- Layout: report menu + body ---------- */
+
+.reports {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 22px;
+  align-items: start;
+}
+
+.reports__menu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  position: sticky;
+  top: 0;
+}
+
+.report-link {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 10px 12px;
+  min-height: var(--hit-area);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.report-link:hover {
+  background: var(--surface);
+}
+
+.report-link--on,
+.report-link--on:hover {
+  background: var(--surface);
+  box-shadow: inset 3px 0 0 var(--ink);
+}
+
+.report-link:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: calc(var(--focus-offset) * -1);
+}
+
+.report-link__label {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.report-link__blurb {
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+.reports__body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.report-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.report-head__title {
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.report-head__range {
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+
+/* ---------- Summary tiles ---------- */
+
+.report-tiles {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.report-tile {
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+}
+
+.report-tile__label {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.report-tile__value {
+  font-family: var(--font-mono);
+  font-size: 21px;
+  font-weight: 600;
+  margin-top: 6px;
+}
+
+.report-tile__note {
+  font-size: 12px;
+  color: var(--ink-soft);
+  margin-top: 2px;
+}
+
+/* ---------- Chart card ---------- */
+
+.report-card {
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  padding: 18px 20px 14px;
+}
+
+.report-card__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.report-card__title {
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.report-card__head .report-card__title {
+  margin-bottom: 0;
+}
+
+.report-card__note {
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+
+/* ---------- Tables ---------- */
+
+.report-table-wrap {
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  padding: 6px 8px;
+  overflow-x: auto;
+}
+
+.report-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+
+.report-table th {
+  text-align: left;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+.report-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+.report-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.report-table tfoot td {
+  border-top: 1px solid var(--ink);
+  border-bottom: none;
+  font-weight: 700;
+}
+
+.report-table .report-table__num {
+  text-align: right;
+}
+
+.report-table__strong {
+  font-weight: 700;
+}
+
+.report-table__soft {
+  color: var(--ink-soft);
+}
+
+.report-table__rank {
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+
+.report-table__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+}
+
+.report-table__dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+/* Share bar — single hue in ink, the leader fills the track. */
+.share {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  width: 100%;
+  min-width: 160px;
+}
+
+.share__track {
+  flex: 1;
+  max-width: 140px;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.share__fill {
+  display: block;
+  height: 100%;
+  background: var(--ink);
+  border-radius: 0 4px 4px 0;
+}
+
+.share__pct {
+  width: 48px;
+  text-align: right;
+  font-size: 12.5px;
+}
+
+.report-empty {
+  margin: 0;
+  padding: 40px 16px;
+  text-align: center;
+  font-size: 13.5px;
+  color: var(--ink-soft);
+  background: var(--surface);
+  border-radius: var(--radius-md);
+}
+
+@media (max-width: 1100px) {
+  .reports {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .reports__menu {
+    position: static;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .report-link__blurb {
+    display: none;
+  }
+}
+
+/* ---------- Cost reports ---------- */
+
+.report-subhead {
+  font-size: 14px;
+  font-weight: 700;
+  margin-top: 4px;
+}
+
+.report-note {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}

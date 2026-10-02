@@ -1,0 +1,97 @@
+/* Portalled to <body>, hidden on screen, and the only thing that prints. */
+.print-receipt {
+  display: none;
+}
+
+@media print {
+  /* The app itself never prints — only the tape below. */
+  #root {
+    display: none !important;
+  }
+
+  .print-receipt {
+    display: block;
+    width: 302px; /* ~80mm receipt tape */
+    margin: 0 auto;
+    padding: 8px 0 24px;
+    color: #000;
+    font-family: var(--font-ui);
+    font-size: 12px;
+  }
+
+  /* Thermal tape is one colour; grey it here so the preview matches the paper. */
+  .print-receipt__logo {
+    display: block;
+    max-width: 140px;
+    max-height: 64px;
+    margin: 0 auto 6px;
+    filter: grayscale(1);
+  }
+
+  .print-receipt__brand {
+    text-align: center;
+    font-weight: 800;
+    font-size: 15px;
+    letter-spacing: -0.02em;
+  }
+
+  .print-receipt__station {
+    text-align: center;
+    font-size: 11px;
+    margin-top: 2px;
+  }
+
+  .print-receipt__head {
+    margin-top: 14px;
+    padding-top: 10px;
+    border-top: 1px dashed #000;
+    font-size: 11.5px;
+    line-height: 1.6;
+  }
+
+  .print-receipt__lines {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px dashed #000;
+  }
+
+  .print-receipt__row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 3px 0;
+  }
+
+  .print-receipt__qty {
+    margin-left: 6px;
+  }
+
+  /* A set meal's picks, or the promotion that priced a line. */
+  .print-receipt__part {
+    padding: 0 0 2px 12px;
+    font-size: 0.9em;
+  }
+
+  .print-receipt__totals {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px dashed #000;
+  }
+
+  .print-receipt__total {
+    font-weight: 700;
+    font-size: 13px;
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px solid #000;
+  }
+
+  .print-receipt__foot {
+    margin-top: 16px;
+    padding-top: 10px;
+    border-top: 1px dashed #000;
+    text-align: center;
+    font-size: 11px;
+    line-height: 1.6;
+  }
+}

@@ -1,0 +1,419 @@
+.editor {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  height: 100%;
+  min-height: 640px;
+}
+
+/* ---------- Editor top bar ---------- */
+
+.editor__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 28px;
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+
+.editor__bar-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.editor__back {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 15px;
+  flex-shrink: 0;
+}
+
+.editor__back:hover {
+  background: var(--surface);
+}
+
+.editor__back::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: var(--hit-area);
+  height: var(--hit-area);
+}
+
+.editor__title {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.editor__sub {
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+.editor__actions {
+  display: flex;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+/* ---------- Body ---------- */
+
+.editor__body {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  min-height: 0;
+}
+
+.editor__form {
+  padding: 28px;
+  overflow-y: auto;
+  max-width: 560px;
+  width: 100%;
+}
+
+.field {
+  margin-bottom: 22px;
+}
+
+.field__label {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.field__optional {
+  text-transform: none;
+  font-weight: 400;
+}
+
+.field input[type='text'],
+.field textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--ink);
+  background: var(--paper);
+  min-height: var(--hit-area);
+}
+
+.field textarea {
+  resize: vertical;
+  min-height: 72px;
+}
+
+.field input[type='text']:focus-visible,
+.field textarea:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
+}
+
+.price-input {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  background: var(--paper);
+  min-height: var(--hit-area);
+}
+
+.price-input:focus-within {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
+}
+
+.price-input__symbol {
+  color: var(--ink-soft);
+}
+
+.price-input input {
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 16px;
+  font-weight: 600;
+  width: 100%;
+  color: var(--ink);
+}
+
+.field__error {
+  margin-top: 8px;
+  font-size: 12.5px;
+  color: var(--occupied);
+}
+
+/* ---------- Swatches ---------- */
+
+.swatch-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.swatch {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  cursor: pointer;
+  border: 2px solid transparent;
+  padding: 0;
+}
+
+.swatch::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: var(--hit-area);
+  height: var(--hit-area);
+}
+
+/* Selection is marked by a check, not by color alone. */
+.swatch--active::after {
+  content: '✓';
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 13px;
+}
+
+.swatch:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
+}
+
+/* ---------- Toggles ---------- */
+
+.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 0;
+  border-top: 1px solid var(--line);
+}
+
+.toggle-row__label {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.toggle-row__sub {
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  margin-top: 2px;
+}
+
+/* ---------- Preview rail ---------- */
+
+.editor__preview {
+  border-left: 1px solid var(--line);
+  background: var(--surface);
+  padding: 28px 22px;
+  overflow-y: auto;
+}
+
+.editor__preview-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: 14px;
+}
+
+.editor__preview-tile {
+  max-width: 180px;
+}
+
+.editor__preview-note {
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  margin-top: 16px;
+  line-height: 1.5;
+}
+
+/* ---------- Stock ---------- */
+
+/* The stock panel outranks the plain fields around it: its own --surface
+   panel, and the biggest number on the form. */
+.stock-panel {
+  margin-bottom: 22px;
+  padding: 18px 20px 16px;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.stock-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.stock-panel__label {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.stock-panel__count {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.stock-panel__input {
+  width: 150px;
+  padding: 8px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--ink);
+}
+
+.stock-panel__input:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
+}
+
+.stock-panel__unit {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.stock-panel__help {
+  margin: 10px 0 0;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+
+.stock-panel .field__error {
+  margin-bottom: 0;
+}
+
+/* Threshold is secondary: one quiet sentence with a small inline field. */
+.stock-panel__low {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+.stock-panel__low input {
+  width: 64px;
+  min-height: var(--hit-area);
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+  color: var(--ink);
+}
+
+.stock-panel__low input:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
+}
+
+/* Delete's confirm step names the consequence in the state color. */
+.btn.editor__delete--confirm,
+.btn.editor__delete--confirm:hover:not(:disabled) {
+  border-color: var(--occupied);
+  background: var(--occupied-soft);
+  color: var(--occupied);
+}
+
+.editor__missing {
+  padding: 48px 28px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+  font-size: 14px;
+}
+
+.editor__missing p {
+  margin: 0;
+  color: var(--ink-soft);
+}
+
+/* ---------- Stock panel: read-only count and buying-in details ---------- */
+
+.stock-panel__readout {
+  display: inline-block;
+  min-width: 2ch;
+}
+
+.stock-panel__buying {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 14px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.stock-panel__buy-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.stock-panel__buy-field--wide {
+  grid-column: 1 / -1;
+}
+
+.stock-panel__par,
+.stock-panel__select {
+  min-height: var(--hit-area);
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  font-size: 13.5px;
+  color: var(--ink);
+}
+
+.stock-panel__select {
+  font-family: inherit;
+}
