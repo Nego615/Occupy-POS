@@ -17,7 +17,7 @@
 
 .staff-row {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) 150px 150px 190px 64px;
+  grid-template-columns: minmax(220px, 1fr) 150px 150px 190px 64px 96px;
   align-items: center;
   gap: 16px;
   padding: 12px 0;
@@ -76,6 +76,16 @@
 .staff-row__active {
   display: flex;
   justify-content: flex-end;
+}
+
+.staff-row__delete {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.staff-delete--confirm {
+  border-color: var(--occupied);
+  color: var(--occupied);
 }
 
 .staff-input {

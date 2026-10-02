@@ -232,7 +232,7 @@ export function AdminStock() {
 
 function ItemPanel({ item, supplierName }: { item: CatalogItem; supplierName: string }) {
   const navigate = useNavigate();
-  const { movements, staff, adjustStock, settings } = usePos();
+  const { movements, allStaff: staff, adjustStock, settings } = usePos();
   const [reason, setReason] = useState<'count' | 'waste' | 'correction'>('count');
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');

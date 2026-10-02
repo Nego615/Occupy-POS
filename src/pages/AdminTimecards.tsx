@@ -35,7 +35,7 @@ const RANGES: { id: RangeId; label: string; days: number }[] = [
  * a manager corrects when someone forgets to clock out.
  */
 export function AdminTimecards() {
-  const { staff, shifts, clockIn, clockOut, can, settings } = usePos();
+  const { staff, allStaff, shifts, clockIn, clockOut, can, settings } = usePos();
   // Wages are payroll data — managers run timecards but don't see what people earn.
   const showPay = can('payroll');
   const now = useMinutesNow();
@@ -44,7 +44,7 @@ export function AdminTimecards() {
   const [toClockIn, setToClockIn] = useState('');
 
   const days = RANGES.find((r) => r.id === range)!.days;
-  const byId = useMemo(() => new Map(staff.map((m) => [m.id, m])), [staff]);
+  const byId = useMemo(() => new Map(allStaff.map((m) => [m.id, m])), [allStaff]);
 
   const open = shifts.filter((s) => s.clockOut === null);
   const offClock = staff.filter((m) => m.active && !open.some((s) => s.staffId === m.id));

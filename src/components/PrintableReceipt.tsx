@@ -19,7 +19,7 @@ import { usePos } from '../lib/store';
  * order data.
  */
 export function PrintableReceipt({ order }: { order: Order }) {
-  const { settings, staff } = usePos();
+  const { settings, allStaff: staff } = usePos();
   const discount = orderDiscount(order);
   const change = changeGiven(order.payments);
   const cashier = staff.find((m) => m.id === order.staffId)?.name;

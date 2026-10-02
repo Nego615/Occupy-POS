@@ -659,7 +659,7 @@ export function AdminSettings() {
           label="Start over"
           hint={`Deletes every order, shift, stock movement, and setting saved ${
             shopEmail ? 'for this shop, on every device,' : 'here'
-          } and reloads the demo data. This can’t be undone.`}
+          } and starts the shop setup again. This can’t be undone.`}
         >
           <Button
             variant="secondary"

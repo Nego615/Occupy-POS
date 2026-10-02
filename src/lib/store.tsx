@@ -278,13 +278,20 @@ type PosStore = {
   /** Business-wide settings. */
   settings: Settings;
   updateSettings: (next: Settings) => void;
-  /** Everyone on the team, active or not. */
+  /** Everyone on the team, active or not. Deleted people are left out. */
   staff: StaffMember[];
+  /** Everyone ever on the team, deleted people included — for names on old orders and timecards. */
+  allStaff: StaffMember[];
   /** Adds a staff member with a fresh PIN. The PIN is returned once and never stored in the clear. */
   addStaff: (member: Omit<StaffMember, 'id' | 'pinHash'>) => { member: StaffMember; pin: string };
   updateStaff: (id: string, patch: Partial<Omit<StaffMember, 'id' | 'pinHash'>>) => void;
   /** Gives someone a fresh PIN and returns it — the only time it can be read. */
   resetPin: (id: string) => string;
+  /**
+   * Removes someone from the team. Their past orders and timecards keep their
+   * name. Refused for whoever is signed in and for the last active owner.
+   */
+  deleteStaff: (id: string) => boolean;
   /** Every shift on record, newest first. */
   shifts: Shift[];
   /** Starts a shift now. Refused if they're inactive or already on the clock. */
@@ -297,7 +304,7 @@ type PosStore = {
     patch: Partial<Omit<ShiftRecord, 'id' | 'staffId' | 'date'>>,
   ) => void;
   removeShift: (id: string) => void;
-  /** Wipes everything saved on this device and starts again from the demo data. */
+  /** Wipes everything saved and starts again from the new-shop setup. */
   resetAllData: () => Promise<void>;
 } & InventoryStore;
 
@@ -311,6 +318,39 @@ function pruneIdle(tabs: StoredTab[], keepOrderId: number): StoredTab[] {
   return tabs.filter(
     (t) => t.orderId === keepOrderId || t.locationId !== null || t.cart.length > 0,
   );
+}
+
+/**
+ * What a brand-new shop starts from: its owner and settings, and every other
+ * slice saved empty so none of the demo data is seeded. Includes the
+ * inventory slices that useInventory restores.
+ */
+export function newShopSnapshot(
+  owner: { name: string; pin: string },
+  settings: Partial<Settings>,
+): Snapshot {
+  const id = `staff-${Date.now().toString(36)}`;
+  const member: StaffMember = { id, name: owner.name, role: 'owner', pinHash: hashPin(id, owner.pin), active: true };
+  return {
+    tabs: [freshTab(1, null)],
+    activeTab: 1,
+    orders: [],
+    catalog: [],
+    locations: [],
+    promotions: [],
+    setMeals: [],
+    staff: [member],
+    payrollRuns: [],
+    settings,
+    shifts: [],
+    kitchenTickets: [],
+    movements: [],
+    suppliers: [],
+    purchaseOrders: [],
+    bills: [],
+    countDraft: null,
+    stockCounts: [],
+  };
 }
 
 function freshTab(orderId: number, locationId: string | null): StoredTab {
@@ -425,7 +465,7 @@ export function PosProvider({
   const [setMeals, setSetMeals] = useState<SetMeal[]>(() => restored(snapshot, 'setMeals', SET_MEALS));
   // Order numbers carry on from the highest one saved, open or closed.
   const nextOrderId = useRef(
-    Math.max(1046, ...storedTabs.map((t) => t.orderId), ...closedRecords.map((o) => o.id)) + 1,
+    Math.max(0, ...storedTabs.map((t) => t.orderId), ...closedRecords.map((o) => o.id)) + 1,
   );
   const [staff, setStaff] = useState<StaffMember[]>(() => restored(snapshot, 'staff', STAFF));
   const [signedInId, setSignedInId] = useState<string | null>(null);
@@ -1028,6 +1068,29 @@ export function PosProvider({
     [staff],
   );
 
+  const deleteStaff = useCallback(
+    (id: string) => {
+      const member = staff.find((m) => m.id === id);
+      const owners = staff.filter((m) => m.role === 'owner' && m.active && !m.deleted);
+      if (!member || id === signedInId) return false;
+      if (member.role === 'owner' && member.active && owners.length === 1) return false;
+      // Kept, inactive and with no PIN, so history can still show their name.
+      setStaff((prev) =>
+        prev.map((m) => (m.id === id ? { ...m, active: false, deleted: true, pinHash: '' } : m)),
+      );
+      const now = minutesNow();
+      setShifts((prev) =>
+        prev.map((s) =>
+          s.staffId === id && s.clockOut === null ? { ...s, clockOut: Math.max(now, s.clockIn) } : s,
+        ),
+      );
+      return true;
+    },
+    [staff, signedInId],
+  );
+
+  const visibleStaff = useMemo(() => staff.filter((m) => !m.deleted), [staff]);
+
   const updateStaff = useCallback(
     (id: string, patch: Partial<Omit<StaffMember, 'id' | 'pinHash'>>) => {
       setStaff((prev) => prev.map((m) => (m.id === id ? { ...m, ...patch } : m)));
@@ -1149,10 +1212,12 @@ export function PosProvider({
       addLocation,
       updateLocation,
       removeLocation,
-      staff,
+      staff: visibleStaff,
+      allStaff: staff,
       addStaff,
       updateStaff,
       resetPin,
+      deleteStaff,
       shifts,
       clockIn,
       clockOut,
@@ -1215,10 +1280,12 @@ export function PosProvider({
       addLocation,
       updateLocation,
       removeLocation,
+      visibleStaff,
       staff,
       addStaff,
       updateStaff,
       resetPin,
+      deleteStaff,
       shifts,
       clockIn,
       clockOut,

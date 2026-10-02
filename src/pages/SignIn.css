@@ -90,7 +90,8 @@
   font-weight: 600;
 }
 
-.signin__field input {
+.signin__field input,
+.signin__field select {
   min-height: var(--hit-area);
   padding: 10px 12px;
   border: 1px solid var(--line);

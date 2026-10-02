@@ -21,8 +21,8 @@ type Filter = 'active' | 'inactive';
 
 /**
  * The team — who can sign in, in what role, at what rate. Edits apply in
- * place, like Locations. People are deactivated rather than deleted so their
- * timecards stay intact for payroll.
+ * place, like Locations. Deactivating keeps someone on the list; deleting
+ * takes them off it, though past orders and timecards still show their name.
  */
 export function AdminStaff() {
   const { staff, shifts, addStaff, settings } = usePos();
@@ -74,6 +74,7 @@ export function AdminStaff() {
           <span className="staff-row__rate">Pay</span>
           <span className="staff-row__pin">Register PIN</span>
           <span className="staff-row__active">Active</span>
+          <span className="staff-row__delete" />
         </div>
         {members.length === 0 ? (
           <p className="staff__empty">
@@ -112,7 +113,8 @@ function StaffRow({
   clockedInAt?: number;
   autoFocus: boolean;
 }) {
-  const { staff, updateStaff, resetPin, can } = usePos();
+  const { staff, me, updateStaff, resetPin, deleteStaff, can } = usePos();
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [name, setName] = useState(member.name);
   const [error, setError] = useState<string | null>(null);
   // PINs are stored hashed, so one can only be shown at the moment it's set.
@@ -246,6 +248,27 @@ function StaffRow({
           label={`${member.name} active`}
           disabled={lastOwner}
         />
+      </span>
+
+      <span className="staff-row__delete">
+        <Button
+          variant="secondary"
+          size="sm"
+          className={confirmingDelete ? 'staff-delete staff-delete--confirm' : 'staff-delete'}
+          onClick={() => (confirmingDelete ? deleteStaff(member.id) : setConfirmingDelete(true))}
+          onBlur={() => setConfirmingDelete(false)}
+          disabled={lastOwner || member.id === me?.id}
+          title={
+            lastOwner
+              ? 'The only owner can’t be deleted.'
+              : member.id === me?.id
+                ? 'You can’t delete yourself while signed in.'
+                : undefined
+          }
+          aria-label={confirmingDelete ? `Confirm deleting ${member.name}` : `Delete ${member.name}`}
+        >
+          {confirmingDelete ? 'Confirm' : 'Delete'}
+        </Button>
       </span>
     </div>
   );

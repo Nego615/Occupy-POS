@@ -3,12 +3,23 @@ import { createRoot } from 'react-dom/client';
 import './styles/global.css';
 import { App } from './App';
 import { cloudRepository } from './lib/cloud';
-import { openRepository } from './lib/persist';
-import { PosProvider } from './lib/store';
+import { openRepository, type PosRepository, type Snapshot } from './lib/persist';
+import { PosProvider, newShopSnapshot } from './lib/store';
 import { supabase } from './lib/supabase';
 import { DeviceSignIn } from './pages/DeviceSignIn';
+import { OwnerSetup } from './pages/OwnerSetup';
 
 const root = createRoot(document.getElementById('root')!);
+
+function renderApp(repo: PosRepository, snapshot: Snapshot) {
+  root.render(
+    <StrictMode>
+      <PosProvider repo={repo} snapshot={snapshot}>
+        <App />
+      </PosProvider>
+    </StrictMode>,
+  );
+}
 
 // Saved state is read once, before the first render, so the store starts
 // from it rather than flashing seed data and swapping.
@@ -17,11 +28,15 @@ async function start(storeId?: string) {
   const { repo, snapshot } = await openRepository(
     client && storeId ? (local) => cloudRepository(client, storeId, local) : undefined,
   );
+  if ('staff' in snapshot) return renderApp(repo, snapshot);
+  // Nothing saved yet: a new shop, set up by its owner instead of the demo data.
   root.render(
     <StrictMode>
-      <PosProvider repo={repo} snapshot={snapshot}>
-        <App />
-      </PosProvider>
+      <OwnerSetup
+        onDone={({ businessName, ownerName, currency, pin }) =>
+          renderApp(repo, newShopSnapshot({ name: ownerName, pin }, { businessName, currency }))
+        }
+      />
     </StrictMode>,
   );
 }

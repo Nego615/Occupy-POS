@@ -158,6 +158,17 @@ function StartCount() {
   );
   const chosen = options.find((o) => o.id === scope) ?? options[0];
 
+  if (!chosen) {
+    return (
+      <section className="panel count-start" aria-labelledby="start-count">
+        <h2 className="panel__title" id="start-count">
+          Start a count
+        </h2>
+        <p className="inv-note">Add items to the menu first — there’s nothing to count yet.</p>
+      </section>
+    );
+  }
+
   return (
     <section className="panel count-start" aria-labelledby="start-count">
       <h2 className="panel__title" id="start-count">

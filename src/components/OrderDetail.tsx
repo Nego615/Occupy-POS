@@ -58,7 +58,7 @@ export function OrderDetail({
   onOpenTab,
   headingLevel: Heading = 'h2',
 }: OrderDetailProps) {
-  const { me, can, staff, catalog, settings, refundOrder } = usePos();
+  const { me, can, allStaff: staff, catalog, settings, refundOrder } = usePos();
   // Units to refund per line index, while the refund panel is open.
   const [refunding, setRefunding] = useState<Map<number, number> | null>(null);
   const [reason, setReason] = useState<string>(REFUND_REASONS[0]);

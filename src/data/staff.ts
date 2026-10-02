@@ -134,6 +134,8 @@ export type StaffMember = {
   pinHash: string;
   /** Deactivated staff keep their timecard history but can't sign in or clock in. */
   active: boolean;
+  /** Removed from the team. Kept only so past orders and timecards can show the name. */
+  deleted?: boolean;
 };
 
 export function initials(name: string): string {
