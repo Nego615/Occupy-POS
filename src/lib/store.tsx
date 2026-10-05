@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { CATALOG, stockLimit, type CatalogItem } from '../data/catalog';
 import { DEFAULT_SETTINGS, type Settings } from '../data/settings';
@@ -77,7 +77,7 @@ import type { PayrollRun } from './payroll';
 import { setActiveCurrency } from './currency';
 import type { PosRepository, Snapshot } from './persist';
 import { useInventory, type InventoryStore } from './useInventory';
-import { restored, usePersist } from './usePersist';
+import { restored, useNextId, usePersist, useRemote } from './usePersist';
 import { formatTime } from './useClock';
 
 /** A tab as the store keeps it. Its name isn't stored — it follows the location. */
@@ -353,6 +353,11 @@ export function newShopSnapshot(
   };
 }
 
+/** Stands in for the active tab for the one render before a fresh one replaces it. */
+function placeholderTab(orderId: number): OpenTab {
+  return { ...freshTab(orderId, null), name: 'Walk-in', openedAt: '' };
+}
+
 function freshTab(orderId: number, locationId: string | null): StoredTab {
   return {
     orderId,
@@ -463,10 +468,6 @@ export function PosProvider({
     restored(snapshot, 'promotions', PROMOTIONS),
   );
   const [setMeals, setSetMeals] = useState<SetMeal[]>(() => restored(snapshot, 'setMeals', SET_MEALS));
-  // Order numbers carry on from the highest one saved, open or closed.
-  const nextOrderId = useRef(
-    Math.max(0, ...storedTabs.map((t) => t.orderId), ...closedRecords.map((o) => o.id)) + 1,
-  );
   const [staff, setStaff] = useState<StaffMember[]>(() => restored(snapshot, 'staff', STAFF));
   const [signedInId, setSignedInId] = useState<string | null>(null);
   const [payrollRuns, setPayrollRuns] = useState<PayrollRun[]>(() =>
@@ -482,7 +483,14 @@ export function PosProvider({
   const [kitchenTickets, setKitchenTickets] = useState<KitchenTicket[]>(() =>
     restored(snapshot, 'kitchenTickets', () => seedTickets().sort((a, b) => a.sentAt - b.sentAt)),
   );
-  const nextTicketId = useRef(Math.max(0, ...kitchenTickets.map((k) => k.id)) + 1);
+  // Order and ticket numbers carry on from the highest saved — shared with
+  // the other screens when synced, so two tills never hand out the same one.
+  const nextOrderId = useNextId(
+    repo,
+    'order',
+    Math.max(0, ...storedTabs.map((t) => t.orderId), ...closedRecords.map((o) => o.id)) + 1,
+  );
+  const nextTicketId = useNextId(repo, 'ticket', Math.max(0, ...kitchenTickets.map((k) => k.id)) + 1);
 
   usePersist(repo, 'tabs', storedTabs);
   usePersist(repo, 'activeTab', activeId);
@@ -496,6 +504,28 @@ export function PosProvider({
   usePersist(repo, 'settings', settings);
   usePersist(repo, 'shifts', shiftRecords);
   usePersist(repo, 'kitchenTickets', kitchenTickets);
+
+  // Changes from the other screens signed in to this shop.
+  useRemote(repo, 'tabs', setTabs);
+  useRemote(repo, 'orders', setClosedOrders);
+  useRemote(repo, 'catalog', setCatalog);
+  useRemote(repo, 'locations', setLocations);
+  useRemote(repo, 'promotions', setPromotions);
+  useRemote(repo, 'setMeals', setSetMeals);
+  useRemote(repo, 'staff', setStaff);
+  useRemote(repo, 'payrollRuns', setPayrollRuns);
+  useRemote(repo, 'settings', setSettings);
+  useRemote(repo, 'shifts', setShifts);
+  useRemote(repo, 'kitchenTickets', setKitchenTickets);
+
+  // The tab on this register was closed or paid on another screen: start a
+  // fresh walk-in rather than jumping to someone else's tab.
+  useEffect(() => {
+    if (storedTabs.some((t) => t.orderId === activeId)) return;
+    const fresh = freshTab(nextOrderId(), null);
+    setTabs((prev) => [...prev, fresh]);
+    setActiveId(fresh.orderId);
+  }, [storedTabs, activeId, nextOrderId]);
 
   // Day counts ("today", "3 days ago") are worked out from saved dates, and
   // re-worked when the date rolls over.
@@ -532,7 +562,7 @@ export function PosProvider({
   );
 
   // There is always an active tab; fall back defensively rather than crash.
-  const tab = tabs.find((t) => t.orderId === activeId) ?? tabs[0];
+  const tab = tabs.find((t) => t.orderId === activeId) ?? tabs[0] ?? placeholderTab(activeId);
   const cart = tab.cart;
   const totals = useMemo(
     () => computeTotals(cart, settings.taxRate, tab.discount),
@@ -626,7 +656,7 @@ export function PosProvider({
       lines: SentLine[],
       kind: KitchenTicket['kind'],
     ) => {
-      const id = nextTicketId.current++;
+      const id = nextTicketId();
       const sentAt = Date.now();
       setKitchenTickets((prev) => [
         ...prev,
@@ -719,7 +749,7 @@ export function PosProvider({
         switchTab(existing.orderId);
         return;
       }
-      const fresh = freshTab(nextOrderId.current++, locationId);
+      const fresh = freshTab(nextOrderId(), locationId);
       setTabs((prev) => [...pruneIdle(prev, fresh.orderId), fresh]);
       setActiveId(fresh.orderId);
     },
@@ -809,7 +839,7 @@ export function PosProvider({
       };
       setClosedOrders((prev) => [record, ...prev]);
 
-      const fresh = freshTab(nextOrderId.current++, null);
+      const fresh = freshTab(nextOrderId(), null);
       setTabs((prev) => [
         ...pruneIdle(
           prev.filter((t) => t.orderId !== tab.orderId),

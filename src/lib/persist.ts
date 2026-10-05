@@ -1,3 +1,5 @@
+import type { RemoteChange } from './records';
+
 /**
  * Where the store's state lives between sessions. The provider only knows
  * this interface, so a server-backed repository can replace the IndexedDB one
@@ -9,6 +11,13 @@ export interface PosRepository {
   save(key: string, value: unknown): Promise<void>;
   /** Forgets everything — the next load starts from seed data. */
   clear(): Promise<void>;
+  /** Changes other devices make, as they arrive. Returns an unsubscribe. Only when shared. */
+  subscribe?(listener: (change: RemoteChange) => void): () => void;
+  /**
+   * A number for `counter` (order numbers, ticket numbers…) that no other
+   * device will hand out, at least `floor`. Only when shared.
+   */
+  nextId?(counter: string, floor: number): number;
 }
 
 /** Saved slices by key. A missing key means "use the seed". */

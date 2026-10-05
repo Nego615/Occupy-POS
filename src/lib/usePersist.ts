@@ -1,5 +1,6 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect, useRef, type Dispatch, type SetStateAction } from 'react';
 import type { PosRepository, Snapshot } from './persist';
+import { applyChange } from './records';
 
 /** How long a slice sits unchanged before it's written — typing in a field doesn't write per key. */
 const SAVE_DELAY_MS = 250;
@@ -33,4 +34,31 @@ export function nextSeq(ids: string[], prefix: string, floor = 1): number {
     if (Number.isFinite(n)) max = Math.max(max, n);
   }
   return max + 1;
+}
+
+/** Applies changes other devices make to `key` as they arrive. */
+export function useRemote<T>(repo: PosRepository, key: string, set: Dispatch<SetStateAction<T>>): void {
+  useEffect(
+    () =>
+      repo.subscribe?.((change) => {
+        // Applied to the current state, so this screen's unsaved edits to other records survive.
+        if (change.key === key) set((prev) => applyChange(prev, change));
+      }),
+    [repo, key, set],
+  );
+}
+
+/**
+ * Hands out numbers for `counter` — order numbers, ticket numbers. Shared
+ * across devices when the repository supports it; otherwise one past the
+ * highest in use. `inUse` is that "one past the highest", from current state.
+ */
+export function useNextId(repo: PosRepository, counter: string, inUse: number): () => number {
+  const floor = useRef(inUse);
+  floor.current = Math.max(floor.current, inUse);
+  return useCallback(() => {
+    const n = repo.nextId?.(counter, floor.current) ?? floor.current;
+    floor.current = Math.max(floor.current, n + 1);
+    return n;
+  }, [repo, counter]);
 }

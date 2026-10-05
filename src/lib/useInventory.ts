@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
 import type { CatalogItem } from '../data/catalog';
 import {
   PURCHASE_ORDERS,
@@ -16,7 +16,7 @@ import {
 import type { StaffMember } from '../data/staff';
 import { round } from './cart';
 import type { PosRepository, Snapshot } from './persist';
-import { nextSeq, restored, usePersist } from './usePersist';
+import { nextSeq, restored, useNextId, usePersist, useRemote } from './usePersist';
 import {
   applyMovements,
   billStatus,
@@ -112,13 +112,15 @@ export function useInventory(
   const [stockCounts, setStockCounts] = useState<StockCount[]>(() =>
     restored(snapshot, 'stockCounts', []),
   );
-  // Numbering carries on from whatever was saved.
-  const nextPo = useRef(nextSeq(purchaseOrders.map((p) => p.id), 'PO-', 1005));
-  const nextBill = useRef(nextSeq(bills.map((b) => b.id), 'BILL-', 4));
-  const nextPayment = useRef(
+  // Numbering carries on from whatever was saved — shared across screens when synced.
+  const nextPo = useNextId(repo, 'po', nextSeq(purchaseOrders.map((p) => p.id), 'PO-', 1005));
+  const nextBill = useNextId(repo, 'bill', nextSeq(bills.map((b) => b.id), 'BILL-', 4));
+  const nextPayment = useNextId(
+    repo,
+    'payment',
     nextSeq(bills.flatMap((b) => b.payments.map((p) => p.id)), 'PAY-', 3),
   );
-  const nextCount = useRef(nextSeq(stockCounts.map((c) => c.id), 'COUNT-'));
+  const nextCount = useNextId(repo, 'count', nextSeq(stockCounts.map((c) => c.id), 'COUNT-'));
 
   usePersist(repo, 'movements', movements);
   usePersist(repo, 'suppliers', suppliers);
@@ -126,6 +128,33 @@ export function useInventory(
   usePersist(repo, 'bills', bills);
   usePersist(repo, 'countDraft', countDraft);
   usePersist(repo, 'stockCounts', stockCounts);
+
+  useRemote(repo, 'movements', setMovements);
+  useRemote(repo, 'suppliers', setSuppliers);
+  useRemote(repo, 'purchaseOrders', setPurchaseOrders);
+  useRemote(repo, 'bills', setBills);
+  useRemote(repo, 'countDraft', setCountDraft);
+  useRemote(repo, 'stockCounts', setStockCounts);
+
+  // With several screens selling at once, each writes its own idea of an
+  // item's stock. The ledger is the agreed record, so on-hand numbers are
+  // re-added from it — every screen lands on the same figure.
+  const shared = repo.subscribe !== undefined;
+  useEffect(() => {
+    if (!shared) return;
+    const ledger = new Map<string, number>();
+    for (const m of movements) ledger.set(m.itemId, (ledger.get(m.itemId) ?? 0) + m.change);
+    setCatalog((prev) => {
+      let changed = false;
+      const next = prev.map((item) => {
+        const stock = ledger.has(item.id) ? Math.max(0, ledger.get(item.id)!) : item.stock;
+        if (stock === item.stock) return item;
+        changed = true;
+        return { ...item, stock };
+      });
+      return changed ? next : prev;
+    });
+  }, [shared, movements, setCatalog]);
 
   const logStock = useCallback(
     (entries: StockEntry[]) => {
@@ -193,7 +222,7 @@ export function useInventory(
         existing && existing.status === 'draft'
           ? { ...existing, supplierId: draft.supplierId, lines, expectedAt: draft.expectedAt, notes: draft.notes }
           : {
-              id: `PO-${nextPo.current++}`,
+              id: `PO-${nextPo()}`,
               supplierId: draft.supplierId,
               status: 'draft',
               lines,
@@ -242,13 +271,14 @@ export function useInventory(
       setPurchaseOrders((prev) => prev.map((p) => (p.id === poId ? result.order : p)));
 
       const terms = suppliers.find((s) => s.id === order.supplierId)?.paymentTermsDays ?? 0;
+      const billNo = nextBill();
       const bill = newBill(
         order.supplierId,
         order.id,
-        invoiceRef.trim() || `${order.id}-${nextBill.current}`,
+        invoiceRef.trim() || `${order.id}-${billNo}`,
         result.amount,
         terms,
-        nextBill.current++,
+        billNo,
       );
       setBills((prev) => [bill, ...prev]);
       return bill;
@@ -281,7 +311,7 @@ export function useInventory(
 
   const postCount = useCallback(() => {
     if (!countDraft) return null;
-    const id = `COUNT-${nextCount.current++}`;
+    const id = `COUNT-${nextCount()}`;
     // Compared with stock as it is now, so sales during the count don't show as losses.
     const lines = countDraft.itemIds
       .filter((itemId) => countDraft.counted[itemId] !== undefined)
@@ -338,7 +368,7 @@ export function useInventory(
             payments: [
               ...b.payments,
               {
-                id: `PAY-${nextPayment.current++}`,
+                id: `PAY-${nextPayment()}`,
                 amount: pay,
                 method,
                 date: todayIso(),
