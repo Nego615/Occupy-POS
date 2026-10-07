@@ -18,14 +18,41 @@
   background: var(--paper);
 }
 
+/* Logo above the name and station line, all centred. */
 .signin__brand {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
+  text-align: center;
   align-self: stretch;
+  /* Sits closer to the card's top edge than the other sign-in cards' titles do. */
+  margin-top: -12px;
   padding-bottom: 20px;
   margin-bottom: 22px;
   border-bottom: 1px solid var(--line);
+}
+
+/* Three times the top bar's 32px mark, with the built-in mark's inner square scaled to match. */
+.signin__brand .brand-mark {
+  width: 96px;
+  height: 96px;
+  border-radius: 27px;
+}
+
+.signin__brand .brand-mark::after {
+  inset: 27px;
+  border-radius: 9px;
+}
+
+/* An uploaded logo keeps its own shape rather than being letterboxed into the
+   square, so a wide logo has no blank bands above and below it. */
+.signin__brand .brand-mark--logo {
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 96px;
+  border-radius: 0;
 }
 
 .signin__title {

@@ -74,7 +74,8 @@ export function SignIn() {
         <div className="signin__brand">
           <BrandMark logo={settings.logo} />
           <div>
-            <div className="brand-name">{settings.businessName}</div>
+            {/* The logo stands in for the name on screen; screen readers still hear it. */}
+            <div className="sr-only">{settings.businessName}</div>
             <div className="brand-sub">
               {settings.locationName} · {date} · <Mono>{time}</Mono>
             </div>
