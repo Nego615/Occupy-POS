@@ -243,13 +243,6 @@
   }
 }
 
-.ticket__type {
-  color: var(--occupied);
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  font-size: 11.5px;
-}
-
 .ticket-line__note {
   display: block;
   font-size: 12.5px;

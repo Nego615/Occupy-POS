@@ -4,19 +4,6 @@ import { roundMoney } from '../lib/currency';
 
 export type OrderStatus = 'paid' | 'occupied' | 'refunded';
 
-/** Eat in, take away, or send out — the kitchen and the receipt show it. */
-export type OrderType = 'dine-in' | 'takeaway' | 'delivery';
-
-export const ORDER_TYPES: { id: OrderType; label: string }[] = [
-  { id: 'dine-in', label: 'Dine in' },
-  { id: 'takeaway', label: 'Takeaway' },
-  { id: 'delivery', label: 'Delivery' },
-];
-
-export function orderTypeLabel(type: OrderType): string {
-  return ORDER_TYPES.find((t) => t.id === type)!.label;
-}
-
 /** How money was taken. Card is a standalone terminal; mobile is M-Pesa, Tigo Pesa, Airtel Money and the like. */
 export type TenderMethod = 'card' | 'cash' | 'mobile';
 
@@ -78,6 +65,8 @@ export type OrderLine = {
   partIds?: string[];
   /** "No onions", "extra hot". */
   note?: string;
+  /** Stock one of it used, for a portion — 0.5 for a half. Absent means 1. */
+  units?: number;
   /**
    * What one cost to buy in when it sold — a set meal's is its picks' costs
    * added up. Frozen at sale so margins don't move when costs change later.
@@ -96,7 +85,6 @@ export type OrderRecord = {
   status: OrderStatus;
   /** ISO timestamp the tab was closed (or opened, while it's still open). */
   at: string;
-  orderType?: OrderType;
   /** Staff id of whoever took payment. */
   staffId?: string;
   lines: OrderLine[];
@@ -254,8 +242,8 @@ export function refundValue(
 }
 
 /**
- * The catalog items lines went out with — set meals counted by their picks.
- * What a refund puts back on the shelf. `qtyOf` overrides each line's count.
+ * The catalog items lines went out with — set meals counted by their picks,
+ * portions by their share of a unit. What a refund puts back on the shelf. `qtyOf` overrides each line's count.
  */
 export function orderItems(
   order: OrderRecord,
@@ -266,12 +254,12 @@ export function orderItems(
     const qty = qtyOf(index);
     if (qty <= 0) return;
     const picks = line.parts
-      ? line.parts.map((name, j) => ({ itemId: line.partIds?.[j], name }))
-      : [{ itemId: line.itemId, name: line.name }];
-    for (const pick of picks) {
+      ? line.parts.map((name, j) => ({ itemId: line.partIds?.[j], name, units: 1 }))
+      : [{ itemId: line.itemId, name: line.name, units: line.units ?? 1 }];
+    for (const { units, ...pick } of picks) {
       const existing = items.find((i) => (pick.itemId ? i.itemId === pick.itemId : i.name === pick.name));
-      if (existing) existing.qty += qty;
-      else items.push({ ...pick, qty });
+      if (existing) existing.qty += qty * units;
+      else items.push({ ...pick, qty: qty * units });
     }
   });
   return items;
@@ -336,7 +324,6 @@ function seed(order: {
     name: order.name,
     status: order.status,
     at: atOf(order.daysAgo, hour, minute),
-    orderType: order.name === 'Walk-in' ? 'takeaway' : 'dine-in',
     staffId: order.staffId,
     lines,
     tax,
@@ -501,7 +488,6 @@ function generateHistory(): OrderRecord[] {
         name,
         status: refunded ? 'refunded' : 'paid',
         at: atOf(daysAgo, hour, minute),
-        orderType: name === 'Walk-in' ? 'takeaway' : 'dine-in',
         staffId: pick(CASHIERS),
         lines,
         tax,

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router';
 import './Register.css';
 import { AssignTabDialog } from '../components/AssignTabDialog';
 import { Button } from '../components/Button';
-import { LineDialog, PriceDialog, TabDiscountDialog } from '../components/CounterDialogs';
+import { LineDialog, PortionDialog, PriceDialog, TabDiscountDialog } from '../components/CounterDialogs';
 import { ItemTile } from '../components/ItemTile';
 import { MealDialog } from '../components/MealDialog';
 import { Money, Mono } from '../components/Mono';
@@ -14,6 +14,9 @@ import { StatusChip } from '../components/StatusChip';
 import { Stepper } from '../components/Stepper';
 import {
   categoryLabel,
+  roundStock,
+  STOCK_SLACK,
+  stockFits,
   type CatalogItem,
   type CategoryId,
 } from '../data/catalog';
@@ -27,7 +30,7 @@ import {
   type Promotion,
   type SetMeal,
 } from '../data/deals';
-import { ORDER_TYPES, paidAmount } from '../data/orders';
+import { paidAmount } from '../data/orders';
 import { discountLabel, itemLine, itemQuantities, lineCap, lineItems, round, type CartLine } from '../lib/cart';
 import { usePos } from '../lib/store';
 import { useNow } from '../lib/useClock';
@@ -45,6 +48,8 @@ export function Register() {
   const [query, setQuery] = useState('');
   // The open-price item being priced, or 'custom' for a custom amount.
   const [pricing, setPricing] = useState<CatalogItem | 'custom' | null>(null);
+  // The item whose serving — whole or a portion — is being picked.
+  const [portioning, setPortioning] = useState<CatalogItem | null>(null);
   const [editingLine, setEditingLine] = useState<string | null>(null);
   const [discounting, setDiscounting] = useState(false);
   const {
@@ -55,7 +60,6 @@ export function Register() {
     addItem,
     addOpenPriceItem,
     addCustomAmount,
-    setOrderType,
     setQty,
     clearTab,
     settings,
@@ -111,7 +115,7 @@ export function Register() {
     if (kitchen.length === 0) return null;
     return Math.max(
       ...kitchen.map((i) =>
-        Math.min(line.qty, unsent.find((l) => l.itemId === i.itemId)?.qty ?? 0),
+        Math.min(line.qty, unsent.find((l) => l.itemId === i.itemId && l.name === i.name)?.qty ?? 0),
       ),
     );
   }
@@ -200,7 +204,7 @@ export function Register() {
             meals.map((m) => {
                 const ready = m.courses.every((c) =>
                   courseOptions(c, catalog).some(
-                    (i) => i.available && i.stock - (onTab.get(i.id) ?? 0) > 0,
+                    (i) => i.available && stockFits(i, onTab.get(i.id) ?? 0),
                   ),
                 );
                 return (
@@ -219,6 +223,7 @@ export function Register() {
           {showItems &&
             visibleItems.map((item) => {
                 const stock = tileStock(item, onTab.get(item.id) ?? 0, settings.lowStockDefault);
+                const openPrice = item.openPrice && settings.openPriceEnabled;
                 const promo = bestPromo(promotions, item, at);
                 const price = promo ? itemPrice(item, promo) : item.price;
                 return (
@@ -231,7 +236,13 @@ export function Register() {
                     color={item.color}
                     note={stock.note}
                     disabled={stock.soldOut}
-                    onClick={() => (item.openPrice ? setPricing(item) : addItem(item))}
+                    onClick={() =>
+                      openPrice
+                        ? setPricing(item)
+                        : item.portions?.length
+                          ? setPortioning(item)
+                          : addItem(item)
+                    }
                   />
                 );
               })}
@@ -246,6 +257,7 @@ export function Register() {
           }
           onClose={() => setPricing(null)}
         />
+        <PortionDialog item={portioning} onClose={() => setPortioning(null)} />
         <LineDialog lineKey={editingLine} onClose={() => setEditingLine(null)} />
         <TabDiscountDialog open={discounting} onClose={() => setDiscounting(false)} />
       </main>
@@ -281,7 +293,7 @@ export function Register() {
             onClick={() => setAssigning(true)}
             aria-label={`${tab.name} — change table or room`}
           >
-            {tab.name}
+            <span className="cart__assign-name">{tab.name}</span>
             {tab.locationId === null && (
               <span className="cart__assign-hint" aria-hidden="true">
                 Assign table
@@ -291,23 +303,9 @@ export function Register() {
               ▾
             </span>
           </button>
-          <span>
+          <span className="cart__title-meta">
             <Mono>{`#${tab.orderId}`}</Mono> · opened <Mono>{tab.openedAt}</Mono>
           </span>
-        </div>
-
-        <div className="cart__type" role="group" aria-label="Order type">
-          {ORDER_TYPES.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              className={tab.orderType === t.id ? 'cart__type-btn cart__type-btn--active' : 'cart__type-btn'}
-              aria-pressed={tab.orderType === t.id}
-              onClick={() => setOrderType(t.id)}
-            >
-              {t.label}
-            </button>
-          ))}
         </div>
 
         <AssignTabDialog open={assigning} onClose={() => setAssigning(false)} />
@@ -445,8 +443,10 @@ function tileStock(
   onTab: number,
   lowDefault: number,
 ): { note?: string; soldOut: boolean } {
-  const remaining = item.stock - onTab;
-  if (remaining <= 0) {
+  const remaining = roundStock(item.stock - onTab);
+  // Sold out once not even the smallest serving fits.
+  const smallest = Math.min(1, ...(item.portions ?? []).map((p) => p.units));
+  if (remaining + STOCK_SLACK < smallest) {
     return { note: onTab > 0 ? 'All on this tab' : 'Sold out', soldOut: true };
   }
   if (remaining <= (item.lowStockAt ?? lowDefault)) {

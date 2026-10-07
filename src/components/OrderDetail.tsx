@@ -14,7 +14,6 @@ import {
   orderItems,
   orderSubtotal,
   orderTotal,
-  orderTypeLabel,
   refundValue,
   refundedAmount,
   refundedQty,
@@ -115,7 +114,6 @@ export function OrderDetail({
         <div className="detail__sub">
           {closedLabel} <Mono>{when ?? order.time}</Mono>
           {order.method ? ` · ${order.method}` : ' · Not yet tendered'}
-          {order.orderType && ` · ${orderTypeLabel(order.orderType)}`}
           {cashier && ` · ${cashier}`}
         </div>
         <div className="detail__status">

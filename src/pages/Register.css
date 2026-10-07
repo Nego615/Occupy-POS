@@ -108,9 +108,10 @@
 
 .cart__title {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 6px 12px;
   padding: 6px 20px 14px;
   font-size: 13px;
   color: var(--ink-soft);
@@ -134,6 +135,21 @@
   color: var(--ink);
   cursor: pointer;
   transition: border-color 0.15s ease;
+  /* Name, hint, and caret stay on one line; when the rail is tight the order
+     number wraps below instead of squeezing this. */
+  flex-shrink: 0;
+  max-width: 100%;
+  white-space: nowrap;
+}
+
+.cart__assign-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cart__title-meta {
+  white-space: nowrap;
 }
 
 .cart__assign:hover {
@@ -310,37 +326,6 @@
   color: var(--ink-soft);
 }
 
-.cart__type {
-  display: flex;
-  gap: 6px;
-  padding: 0 20px 12px;
-}
-
-.cart__type-btn {
-  flex: 1;
-  min-height: 36px;
-  border: 1px solid var(--line);
-  border-radius: 100px;
-  background: var(--paper);
-  font-family: inherit;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--ink-soft);
-  cursor: pointer;
-}
-
-.cart__type-btn:not(.cart__type-btn--active):hover {
-  background: var(--surface-hover);
-  color: var(--ink);
-}
-
-.cart__type-btn--active {
-  background: var(--ink);
-  border-color: var(--ink);
-  color: var(--paper);
-}
-
-.cart__type-btn:focus-visible,
 .cart__discount:focus-visible,
 button.cart-line__info:focus-visible {
   outline: var(--focus-width) solid var(--focus-color);

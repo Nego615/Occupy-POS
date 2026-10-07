@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import './MealDialog.css';
 import { courseOptions, type SetMeal } from '../data/deals';
-import type { CatalogItem } from '../data/catalog';
+import { STOCK_SLACK, type CatalogItem } from '../data/catalog';
 import { itemQuantities } from '../lib/cart';
 import { usePos } from '../lib/store';
 import { Button } from './Button';
@@ -22,7 +22,8 @@ export function MealDialog({ meal, onClose }: { meal: SetMeal | null; onClose: (
   /** How many of `item` are left to pick, after the tab and the other courses' picks. */
   function left(item: CatalogItem, course: number): number {
     const elsewhere = picks.filter((id, i) => i !== course && id === item.id).length;
-    return item.stock - (onTab.get(item.id) ?? 0) - elsewhere;
+    // Meals take whole units — a half left over doesn't make one.
+    return Math.floor(item.stock - (onTab.get(item.id) ?? 0) - elsewhere + STOCK_SLACK);
   }
   const options = (course: number) =>
     meal ? courseOptions(meal.courses[course], catalog).filter((i) => i.available) : [];

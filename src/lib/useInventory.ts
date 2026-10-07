@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
-import type { CatalogItem } from '../data/catalog';
+import { roundStock, type CatalogItem } from '../data/catalog';
 import {
   PURCHASE_ORDERS,
   SUPPLIERS,
@@ -147,7 +147,7 @@ export function useInventory(
     setCatalog((prev) => {
       let changed = false;
       const next = prev.map((item) => {
-        const stock = ledger.has(item.id) ? Math.max(0, ledger.get(item.id)!) : item.stock;
+        const stock = ledger.has(item.id) ? Math.max(0, roundStock(ledger.get(item.id)!)) : item.stock;
         if (stock === item.stock) return item;
         changed = true;
         return { ...item, stock };

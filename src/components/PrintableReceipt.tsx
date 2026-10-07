@@ -7,7 +7,6 @@ import {
   orderDiscount,
   orderSubtotal,
   orderTotal,
-  orderTypeLabel,
   type Order,
 } from '../data/orders';
 import { stationLabel } from '../data/settings';
@@ -37,7 +36,6 @@ export function PrintableReceipt({ order }: { order: Order }) {
           {order.status === 'occupied' ? 'Opened' : 'Closed'}{' '}
           <span className="mono">{order.time}</span>
         </div>
-        {order.orderType && <div>{orderTypeLabel(order.orderType)}</div>}
         {cashier && <div>Served by {cashier}</div>}
         {order.payments.length === 0 && <div>Not yet tendered</div>}
         {order.status === 'refunded' && <div>REFUNDED</div>}

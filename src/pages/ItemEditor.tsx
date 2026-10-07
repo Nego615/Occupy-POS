@@ -9,8 +9,11 @@ import { StatusChip } from '../components/StatusChip';
 import { Switch } from '../components/Switch';
 import {
   categoryLabel,
+  parseUnits,
   stockState,
+  unitsLabel,
   type CategoryId,
+  type Portion,
   type StockState,
 } from '../data/catalog';
 import { activeCurrency, isAmountText } from '../lib/currency';
@@ -35,7 +38,13 @@ type ItemDraft = {
   cost: string;
   supplierId: string;
   parLevel: string;
+  portions: PortionDraft[];
 };
+
+/** A portion row as typed — strings, like the rest of the draft. */
+type PortionDraft = { id: string; label: string; price: string; units: string };
+
+let portionSeq = 0;
 
 const BLANK: ItemDraft = {
   name: '',
@@ -53,7 +62,22 @@ const BLANK: ItemDraft = {
   cost: '',
   supplierId: '',
   parLevel: '',
+  portions: [],
 };
+
+/** Why a portion row can't be saved, or null if it can. `others` are the rest of the rows. */
+function portionError(row: PortionDraft, others: PortionDraft[]): string | null {
+  const label = row.label.trim().toLowerCase();
+  if (!label) return 'Name the portion, like Half.';
+  if (label === 'whole') return 'The whole item is already offered — name the portion something else.';
+  if (others.some((o) => o.label.trim().toLowerCase() === label)) return 'Two portions can’t share a name.';
+  if (!(isAmountText(row.price) && Number.parseFloat(row.price) > 0)) {
+    return `Enter the portion’s price above ${formatMoney(0)}.`;
+  }
+  const units = parseUnits(row.units);
+  if (units === null || units > 10) return 'Enter its share of one unit, like 1/2 or 0.25.';
+  return null;
+}
 
 /** Stock counts: whole units, no sign, up to 9999. */
 const WHOLE_NUMBER = /^\d{1,4}$/;
@@ -89,6 +113,12 @@ export function ItemEditor() {
             cost: item.cost !== undefined ? String(item.cost) : '',
             supplierId: item.supplierId ?? '',
             parLevel: item.parLevel !== undefined ? String(item.parLevel) : '',
+            portions: (item.portions ?? []).map((p) => ({
+              id: p.id,
+              label: p.label,
+              price: p.price.toFixed(activeCurrency().decimals),
+              units: unitsLabel(p.units),
+            })),
           }
         : { ...BLANK, category: categories[0]?.id ?? '', lowStockAt: String(settings.lowStockDefault) },
     // Categories are read once, for a new item's starting pick.
@@ -113,9 +143,42 @@ export function ItemEditor() {
   const stockValue = creating ? Number.parseInt(draft.stock, 10) || 0 : item?.stock ?? 0;
   const lowValue = Number.parseInt(draft.lowStockAt, 10) || 0;
   const draftStock = stockValid && lowValid ? stockState({ stock: stockValue, lowStockAt: lowValue }, settings.lowStockDefault) : null;
+  const portionErrors = draft.portions.map((row, i) =>
+    portionError(row, draft.portions.filter((_, j) => j !== i)),
+  );
+  const portionsValid = portionErrors.every((e) => e === null);
   const dirty = JSON.stringify(draft) !== JSON.stringify(saved);
   const canSave =
-    (creating || dirty) && priceValid && nameValid && categoryValid && stockValid && lowValid && costValid && parValid;
+    (creating || dirty) &&
+    priceValid &&
+    nameValid &&
+    categoryValid &&
+    stockValid &&
+    lowValid &&
+    costValid &&
+    parValid &&
+    portionsValid;
+
+  const setPortion = (index: number, patch: Partial<PortionDraft>) =>
+    set(
+      'portions',
+      draft.portions.map((row, i) => (i === index ? { ...row, ...patch } : row)),
+    );
+
+  // The first portion starts as a half at half the price — the usual case.
+  function addPortion() {
+    const first = draft.portions.length === 0;
+    const half = priceValid ? (priceValue / 2).toFixed(activeCurrency().decimals) : '';
+    set('portions', [
+      ...draft.portions,
+      {
+        id: `p${Date.now().toString(36)}${++portionSeq}`,
+        label: first ? 'Half' : '',
+        price: first ? half : '',
+        units: first ? '1/2' : '',
+      },
+    ]);
+  }
   const draftCategory = categoryLabel(categories, draft.category);
 
   // A stale link to a deleted item lands here rather than on someone else's item.
@@ -180,6 +243,16 @@ export function ItemEditor() {
       cost: draft.cost === '' ? undefined : Number(draft.cost),
       supplierId: draft.supplierId || undefined,
       parLevel: draft.parLevel === '' ? undefined : Number(draft.parLevel),
+      portions: draft.portions.length
+        ? draft.portions.map(
+            (p): Portion => ({
+              id: p.id,
+              label: p.label.trim(),
+              price: Number.parseFloat(p.price),
+              units: parseUnits(p.units)!,
+            }),
+          )
+        : undefined,
       // Left at the Settings default, it stays unset so it keeps following the default.
       lowStockAt:
         item?.lowStockAt === undefined && lowValue === settings.lowStockDefault
@@ -424,6 +497,76 @@ export function ItemEditor() {
             </p>
           </section>
 
+          <section className="field portions" aria-labelledby="portions-heading">
+            <span className="field__label" id="portions-heading">
+              Portions <span className="field__optional">(optional)</span>
+            </span>
+            <p className="portions__help">
+              Sell part of one unit at its own price — a half chicken, a quarter cake. The price above is
+              for the whole one. Each portion takes its share off stock, so two halves use one unit.
+              {draft.openPrice && settings.openPriceEnabled && (
+                <> Not offered while the price is set at the counter.</>
+              )}
+            </p>
+            {draft.portions.length > 0 && (
+              <div className="portions__head" aria-hidden="true">
+                <span>Name</span>
+                <span>Price</span>
+                <span>Share of a unit</span>
+              </div>
+            )}
+            {draft.portions.map((row, i) => (
+              <div key={row.id} className="portions__item">
+                <div className="portions__row">
+                  <input
+                    type="text"
+                    value={row.label}
+                    maxLength={20}
+                    placeholder="Half"
+                    onChange={(e) => setPortion(i, { label: e.target.value })}
+                    aria-label={`Portion ${i + 1} name`}
+                    aria-invalid={portionErrors[i] !== null}
+                  />
+                  <div className="price-input">
+                    <span className="price-input__symbol mono" aria-hidden="true">
+                      {activeCurrency().symbol}
+                    </span>
+                    <input
+                      className="mono"
+                      type="text"
+                      inputMode="decimal"
+                      value={row.price}
+                      onChange={(e) => setPortion(i, { price: e.target.value.trim() })}
+                      aria-label={`Portion ${i + 1} price`}
+                    />
+                  </div>
+                  <input
+                    className="mono"
+                    type="text"
+                    value={row.units}
+                    placeholder="1/2"
+                    onChange={(e) => setPortion(i, { units: e.target.value })}
+                    aria-label={`Portion ${i + 1} share of one unit`}
+                  />
+                  <button
+                    type="button"
+                    className="portions__remove"
+                    onClick={() => set('portions', draft.portions.filter((_, j) => j !== i))}
+                    aria-label={`Remove portion ${row.label.trim() || i + 1}`}
+                  >
+                    <span aria-hidden="true">×</span>
+                  </button>
+                </div>
+                {portionErrors[i] && <p className="field__error">{portionErrors[i]}</p>}
+              </div>
+            ))}
+            <div>
+              <Button variant="secondary" size="sm" onClick={addPortion}>
+                Add a portion
+              </Button>
+            </div>
+          </section>
+
           <div className="field">
             <span className="field__label">Category</span>
             <PillRow label="Category">
@@ -488,13 +631,28 @@ export function ItemEditor() {
               <div className="toggle-row__sub" id="open-price-sub">
                 Asks for the price each time it’s rung up — for market-price fish, by-weight produce, or
                 deposits. The price above is just a guide.
+                {!settings.openPriceEnabled && (
+                  <>
+                    {' '}
+                    Turned off for the whole shop
+                    {can('settings') ? (
+                      <>
+                        {' '}
+                        — switch it on in <Link to="/admin/settings">Settings</Link>.
+                      </>
+                    ) : (
+                      '.'
+                    )}
+                  </>
+                )}
               </div>
             </div>
             <Switch
-              checked={draft.openPrice}
+              checked={draft.openPrice && settings.openPriceEnabled}
               onChange={(v) => set('openPrice', v)}
               label="Price set at the counter"
               describedBy="open-price-sub"
+              disabled={!settings.openPriceEnabled}
             />
           </div>
         </form>

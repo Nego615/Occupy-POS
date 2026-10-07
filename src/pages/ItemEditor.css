@@ -417,3 +417,68 @@
 .stock-panel__select {
   font-family: inherit;
 }
+
+/* Portions — one row per serving: name, price, share of a unit, remove. */
+.portions {
+  gap: 10px;
+}
+
+.portions__help {
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+.portions__head,
+.portions__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1.2fr) minmax(0, 1fr) var(--hit-area);
+  gap: 8px;
+  align-items: center;
+}
+
+.portions__head {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.portions__item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.portions__remove {
+  width: var(--hit-area);
+  height: var(--hit-area);
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--paper);
+  font-size: 20px;
+  line-height: 1;
+  color: inherit;
+  cursor: pointer;
+}
+
+.portions__remove:hover {
+  background: var(--surface-hover);
+}
+
+.portions__remove:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
+}
+
+@media (max-width: 520px) {
+  .portions__head {
+    display: none;
+  }
+
+  .portions__row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) var(--hit-area);
+  }
+
+  .portions__row > :first-child {
+    grid-column: 1 / -1;
+  }
+}

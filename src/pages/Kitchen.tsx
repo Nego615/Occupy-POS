@@ -8,7 +8,6 @@ import { Pill } from '../components/Pill';
 import { StatusChip } from '../components/StatusChip';
 import { TopBar } from '../components/TopBar';
 import { formatElapsed, type KitchenTicket } from '../data/kitchen';
-import { orderTypeLabel } from '../data/orders';
 import { usePos } from '../lib/store';
 import { formatTime, useNow } from '../lib/useClock';
 
@@ -169,9 +168,6 @@ function Ticket({
           <div className="ticket__tab">{ticket.tabName}</div>
           <div className="ticket__meta">
             <Mono>{`#${ticket.orderId}`}</Mono> · sent <Mono>{formatTime(new Date(ticket.sentAt))}</Mono>
-            {ticket.orderType && ticket.orderType !== 'dine-in' && (
-              <strong className="ticket__type"> · {orderTypeLabel(ticket.orderType)}</strong>
-            )}
           </div>
         </div>
         <Mono className="ticket__timer">{formatElapsed(now - ticket.sentAt)}</Mono>

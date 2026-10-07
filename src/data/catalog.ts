@@ -23,6 +23,21 @@ export type CatalogItem = {
   parLevel?: number;
   /** Priced at the counter each time it's sold — `price` is only a guide. */
   openPrice?: boolean;
+  /**
+   * Servings sold besides the whole one at `price` — a half chicken, a
+   * quarter cake. Unset sells only whole.
+   */
+  portions?: Portion[];
+};
+
+/** A serving of an item sold at its own price, drawing `units` of its stock. */
+export type Portion = {
+  id: string;
+  /** "Half", "Quarter", "Slice". */
+  label: string;
+  price: number;
+  /** How much of one stock unit it uses — 0.5 for a half, 0.25 for a quarter. */
+  units: number;
 };
 
 export const LOW_STOCK_DEFAULT = 5;
@@ -42,6 +57,47 @@ export function stockState(
 /** How many of `item` can be rung up. */
 export function stockLimit(item: CatalogItem): number {
   return Math.max(0, item.stock);
+}
+
+/**
+ * Stock is kept to 4 decimal places, so portions like thirds add back up to
+ * whole units instead of drifting.
+ */
+export function roundStock(n: number): number {
+  return Math.round(n * 1e4) / 1e4;
+}
+
+/** Slack when checking portions against stock, so the last third still sells after rounding. */
+export const STOCK_SLACK = 1e-3;
+
+/** Whether `units` more of `item` can be rung up with `inCart` already on the tab. */
+export function stockFits(item: CatalogItem, inCart: number, units = 1): boolean {
+  return inCart + units <= stockLimit(item) + STOCK_SLACK;
+}
+
+/** The whole item first, then its portions — what the register offers when it has any. */
+export function servings(item: CatalogItem): Portion[] {
+  return [{ id: WHOLE, label: 'Whole', price: item.price, units: 1 }, ...(item.portions ?? [])];
+}
+
+/** The id `servings` gives the whole item. */
+export const WHOLE = 'whole';
+
+/** "1/2", "3/4", "0.3" — a portion's share of a stock unit, as admins type and read it. */
+export function unitsLabel(units: number): string {
+  for (let den = 2; den <= 12; den++) {
+    const num = Math.round(units * den);
+    if (num > 0 && Math.abs(num / den - units) < STOCK_SLACK) return num === den ? '1' : `${num}/${den}`;
+  }
+  return String(roundStock(units));
+}
+
+/** "1/2", "0.5", "3/4" → the number; null unless it's above 0. */
+export function parseUnits(text: string): number | null {
+  const t = text.trim();
+  const frac = /^(\d+)\s*\/\s*(\d+)$/.exec(t);
+  const n = frac ? Number(frac[1]) / Number(frac[2]) : /^\d*\.?\d+$/.test(t) ? Number(t) : NaN;
+  return Number.isFinite(n) && n > 0 ? n : null;
 }
 
 export type CategoryId = string;

@@ -1,5 +1,4 @@
 import { lineItems, type CartLine } from '../lib/cart';
-import type { OrderType } from './orders';
 
 /** What a tab has already sent to the kitchen, per item and note. */
 export type SentLine = {
@@ -10,9 +9,11 @@ export type SentLine = {
   note?: string;
 };
 
-/** Sent lines match on the item and its note. */
-function sameDish(a: Pick<SentLine, 'itemId' | 'note'>, b: Pick<SentLine, 'itemId' | 'note'>): boolean {
-  return a.itemId === b.itemId && (a.note ?? '') === (b.note ?? '');
+type DishId = Pick<SentLine, 'itemId' | 'name' | 'note'>;
+
+/** Sent lines match on the item, its name — a half isn't a whole — and its note. */
+function sameDish(a: DishId, b: DishId): boolean {
+  return a.itemId === b.itemId && a.name === b.name && (a.note ?? '') === (b.note ?? '');
 }
 
 /** Every item on the tab as the kitchen counts it — by item and note, set meals by their picks. */
@@ -50,14 +51,12 @@ export type KitchenTicket = {
   fire: number;
   /** A void tells the kitchen to stop making items taken off a tab after they were sent. */
   kind: 'order' | 'void';
-  /** Eat in, take away, or delivery — how the kitchen packs it. */
-  orderType?: OrderType;
   lines: TicketLine[];
   /** Epoch ms the kitchen cleared it off the screen; null while it's still up. */
   bumpedAt: number | null;
 };
 
-function sentQty(sent: SentLine[], dish: Pick<SentLine, 'itemId' | 'note'>): number {
+function sentQty(sent: SentLine[], dish: DishId): number {
   return sent.find((s) => sameDish(s, dish))?.qty ?? 0;
 }
 

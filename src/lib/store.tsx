@@ -3,10 +3,11 @@ import type { ReactNode, SetStateAction } from 'react';
 import {
   CATALOG,
   CATEGORIES,
-  stockLimit,
+  stockFits,
   withUsedCategories,
   type CatalogItem,
   type Category,
+  type Portion,
 } from '../data/catalog';
 import { DEFAULT_SETTINGS, type Settings } from '../data/settings';
 import {
@@ -42,7 +43,6 @@ import {
   type Order,
   type OrderLine,
   type OrderRecord,
-  type OrderType,
   type Payment,
   type Refund,
 } from '../data/orders';
@@ -62,13 +62,13 @@ import {
   computeTotals,
   customLine,
   discountLabel,
-  itemLine,
   itemQuantities,
   lineCap,
   lineItems,
   mealLine,
   mergeLines,
   openPriceLine,
+  portionLine,
   round,
   editLine as withLineEdit,
   setLineQty,
@@ -90,7 +90,6 @@ type StoredTab = {
   locationId: string | null;
   /** ISO timestamp. */
   openedIso: string;
-  orderType: OrderType;
   cart: CartLine[];
   /** Kitchen items already sent. Whatever's on the cart beyond this is waiting to be sent. */
   sent: SentLine[];
@@ -133,7 +132,6 @@ const INITIAL_TABS = (): StoredTab[] => [
     orderId: 1045,
     locationId: 't2',
     openedIso: todayAt(16, 41),
-    orderType: 'dine-in',
     cart: [
       { key: 'cold-brew', itemId: 'cold-brew', name: 'Cold Brew', unitPrice: 6_000, qty: 1 },
       { key: 'turkey-club', itemId: 'turkey-club', name: 'Turkey Club', unitPrice: 15_000, qty: 1 },
@@ -146,7 +144,6 @@ const INITIAL_TABS = (): StoredTab[] => [
     orderId: 1046,
     locationId: 't4',
     openedIso: todayAt(15, 58),
-    orderType: 'dine-in',
     cart: [
       { key: 'oat-latte', itemId: 'oat-latte', name: 'Oat Latte', unitPrice: 6_500, qty: 2 },
       { key: 'cortado', itemId: 'cortado', name: 'Cortado', unitPrice: 5_500, qty: 1 },
@@ -190,8 +187,11 @@ type PosStore = {
   totals: CartTotals;
   /** Open tabs (as occupied orders) followed by closed ones, newest first. */
   orders: Order[];
-  /** Rings up one of `item`, at its promotion price if one's running now. */
-  addItem: (item: CatalogItem) => void;
+  /**
+   * Rings up one of `item` — or one `portion` of it — at its promotion price
+   * if one's running now.
+   */
+  addItem: (item: CatalogItem, portion?: Portion) => void;
   /** Rings up one of an open-price item at the price typed in. */
   addOpenPriceItem: (item: CatalogItem, price: number) => void;
   /** Rings up a one-off amount that isn't in the catalog. */
@@ -207,7 +207,6 @@ type PosStore = {
   editLine: (key: string, note: string, discount: ManualDiscount | null) => void;
   /** Takes a discount off the whole tab; null takes it off. */
   setTabDiscount: (discount: ManualDiscount | null) => void;
-  setOrderType: (type: OrderType) => void;
   /** Automatic discounts — happy hour and the like. */
   promotions: Promotion[];
   savePromotion: (promo: Promotion) => void;
@@ -364,7 +363,6 @@ function freshTab(orderId: number, locationId: string | null): StoredTab {
     orderId,
     locationId,
     openedIso: new Date().toISOString(),
-    orderType: locationId ? 'dine-in' : 'takeaway',
     cart: [],
     sent: [],
     payments: [],
@@ -379,9 +377,10 @@ function freshTab(orderId: number, locationId: string | null): StoredTab {
 function toOrderLines(cart: CartLine[], catalog?: CatalogItem[]): OrderLine[] {
   const costOf = (itemId: string) => catalog?.find((i) => i.id === itemId)?.cost;
   return cart.map((l) => {
-    const costs = lineItems(l).map((p) => costOf(p.itemId));
+    const parts = lineItems(l);
+    const costs = parts.map((p) => costOf(p.itemId));
     const unitCost = costs.every((c) => c !== undefined)
-      ? round(costs.reduce((sum: number, c) => sum + c!, 0))
+      ? round(costs.reduce((sum: number, c, i) => sum + c! * parts[i].units, 0))
       : undefined;
     return {
       itemId: l.itemId,
@@ -394,6 +393,7 @@ function toOrderLines(cart: CartLine[], catalog?: CatalogItem[]): OrderLine[] {
         ? { parts: l.parts.map((p) => p.name), partIds: l.parts.map((p) => p.itemId) }
         : {}),
       ...(l.note ? { note: l.note } : {}),
+      ...(l.units !== undefined ? { units: l.units } : {}),
       ...(catalog && unitCost !== undefined ? { unitCost } : {}),
     };
   });
@@ -419,7 +419,6 @@ function tabAsOrder(tab: OpenTab, taxRate: number): Order {
     locationId: tab.locationId ?? undefined,
     status: 'occupied',
     at: tab.openedIso,
-    orderType: tab.orderType,
     lines: toOrderLines(tab.cart),
     ...(totals.orderDiscount > 0 && tab.discount
       ? { discount: totals.orderDiscount, discountLabel: discountLabel(tab.discount) }
@@ -599,13 +598,14 @@ export function PosProvider({
     [updateActiveTab],
   );
 
-  // Items can't be rung up past what's on hand — counting any in set meals.
+  // Items can't be rung up past what's on hand — counting any in set meals,
+  // and portions by their share.
   const addItem = useCallback(
-    (item: CatalogItem) => {
-      const line = itemLine(item, bestPromo(promotions, item, new Date()));
+    (item: CatalogItem, portion?: Portion) => {
+      const line = portionLine(item, portion ?? null, bestPromo(promotions, item, new Date()));
       updateActiveCart((lines) => {
         const inCart = itemQuantities(lines).get(item.id) ?? 0;
-        return inCart >= stockLimit(item) ? lines : addLine(lines, line);
+        return stockFits(item, inCart, line.units) ? addLine(lines, line) : lines;
       });
     },
     [updateActiveCart, promotions],
@@ -616,7 +616,7 @@ export function PosProvider({
       if (!(price > 0)) return;
       updateActiveCart((lines) => {
         const inCart = itemQuantities(lines).get(item.id) ?? 0;
-        return inCart >= stockLimit(item) ? lines : addLine(lines, openPriceLine(item, price));
+        return stockFits(item, inCart) ? addLine(lines, openPriceLine(item, price)) : lines;
       });
     },
     [updateActiveCart],
@@ -635,7 +635,7 @@ export function PosProvider({
       if (picks.length !== meal.courses.length) return false;
       const counts = itemQuantities(cart);
       for (const p of picks) counts.set(p.id, (counts.get(p.id) ?? 0) + 1);
-      if (picks.some((p) => (counts.get(p.id) ?? 0) > stockLimit(p))) return false;
+      if (picks.some((p) => !stockFits(p, counts.get(p.id) ?? 0, 0))) return false;
       updateActiveCart((lines) => addLine(lines, mealLine(meal, picks)));
       return true;
     },
@@ -657,7 +657,7 @@ export function PosProvider({
 
   const fireTicket = useCallback(
     (
-      from: { orderId: number; name: string; orderType: OrderType },
+      from: { orderId: number; name: string },
       lines: SentLine[],
       kind: KitchenTicket['kind'],
     ) => {
@@ -675,7 +675,6 @@ export function PosProvider({
               ? 0
               : prev.filter((k) => k.orderId === from.orderId && k.kind === 'order').length + 1,
           kind,
-          orderType: from.orderType,
           lines: ticketLines(lines),
           bumpedAt: null,
         },
@@ -725,11 +724,6 @@ export function PosProvider({
         const { discount: _old, ...rest } = t;
         return discount && discount.value > 0 ? { ...rest, discount } : rest;
       }),
-    [updateActiveTab],
-  );
-
-  const setOrderType = useCallback(
-    (orderType: OrderType) => updateActiveTab((t) => ({ ...t, orderType })),
     [updateActiveTab],
   );
 
@@ -828,8 +822,7 @@ export function PosProvider({
         locationId: tab.locationId ?? undefined,
         status: 'paid',
         at: new Date().toISOString(),
-        orderType: tab.orderType,
-        staffId: me?.id,
+            staffId: me?.id,
         lines,
         ...(totals.orderDiscount > 0 && tab.discount
           ? {
@@ -1197,7 +1190,6 @@ export function PosProvider({
       setQty,
       editLine,
       setTabDiscount,
-      setOrderType,
       promotions,
       savePromotion,
       createPromotion,
@@ -1264,7 +1256,6 @@ export function PosProvider({
       setQty,
       editLine,
       setTabDiscount,
-      setOrderType,
       promotions,
       savePromotion,
       createPromotion,

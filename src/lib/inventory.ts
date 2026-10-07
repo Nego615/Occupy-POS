@@ -1,4 +1,4 @@
-import { stockState, type CatalogItem } from '../data/catalog';
+import { roundStock, stockState, type CatalogItem } from '../data/catalog';
 import {
   addDays,
   daysBetween,
@@ -50,13 +50,13 @@ export function applyMovements(
   for (const entry of entries) {
     if (!stock.has(entry.itemId) || entry.change === 0) continue;
     const before = stock.get(entry.itemId)!;
-    const after = Math.max(0, before + entry.change);
+    const after = Math.max(0, roundStock(before + entry.change));
     stock.set(entry.itemId, after);
     movements.push({
       id: `mv-${Date.now().toString(36)}-${++movementSeq}`,
       itemId: entry.itemId,
       itemName: names.get(entry.itemId)!,
-      change: after - before,
+      change: roundStock(after - before),
       stockAfter: after,
       reason: entry.reason,
       note: entry.note,

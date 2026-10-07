@@ -188,3 +188,62 @@
     grid-template-columns: repeat(3, 1fr);
   }
 }
+
+/* Portion picker — one full-width row per serving. */
+.portion-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.portion-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 52px;
+  padding: 0 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  font-family: inherit;
+  font-size: 15px;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.portion-option:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+.portion-option:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
+}
+
+.portion-option:disabled {
+  cursor: not-allowed;
+  color: var(--ink-soft);
+}
+
+.portion-option__label {
+  font-weight: 800;
+}
+
+.portion-option__share {
+  font-weight: 400;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+.portion-option__price {
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.portion-option__price s {
+  font-weight: 400;
+  color: var(--ink-soft);
+}

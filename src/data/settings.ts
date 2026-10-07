@@ -43,6 +43,12 @@ export type Settings = {
   /** Methods offered at checkout, and whether bills can be split. Always at least one method. */
   paymentMethods: PaymentMethodId[];
 
+  /**
+   * Let items marked "price set at the counter" ask for their price when rung
+   * up. Off, every item rings up at its set price.
+   */
+  openPriceEnabled: boolean;
+
   /** Low-stock warning for items that don't set their own. */
   lowStockDefault: number;
 
@@ -70,6 +76,7 @@ export const DEFAULT_SETTINGS: Settings = {
   tipPresets: [0.15, 0.18, 0.2],
   defaultTip: 1,
   paymentMethods: ['card', 'cash', 'mobile', 'split'],
+  openPriceEnabled: false,
   lowStockDefault: LOW_STOCK_DEFAULT,
   kitchenCategories: ['food'],
   kitchenLateMinutes: 10,

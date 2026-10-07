@@ -1,4 +1,4 @@
-import type { CatalogItem } from '../data/catalog';
+import { STOCK_SLACK, WHOLE, type CatalogItem, type Portion } from '../data/catalog';
 import { discounted, type Promotion, type SetMeal } from '../data/deals';
 import { formatCurrency, roundMoney } from './currency';
 
@@ -14,7 +14,7 @@ export type CartLine = {
   /**
    * Identifies the line on the tab. A plain item's id; with a promotion, the
    * id and the promotion, so happy-hour and full-price units sit apart; for a
-   * set meal, the meal and its picks.
+   * portion, the id and the portion; for a set meal, the meal and its picks.
    */
   key: string;
   /** The catalog item — or, for a set meal, the meal's id. */
@@ -33,6 +33,8 @@ export type CartLine = {
   note?: string;
   /** A discount given by hand on this line, on top of any promotion. */
   manual?: LineDiscount;
+  /** Stock one of it uses, for a portion — 0.5 for a half. Absent means 1. */
+  units?: number;
 };
 
 /** A discount given by hand — on one line or on the whole tab. */
@@ -68,15 +70,37 @@ export type CartTotals = {
 
 /** A line for one of `item`, priced by `promo` if one's running. */
 export function itemLine(item: CatalogItem, promo: Promotion | null): Omit<CartLine, 'qty'> {
-  const base = { key: item.id, itemId: item.id, name: item.name, unitPrice: item.price };
+  return portionLine(item, null, promo);
+}
+
+/**
+ * A line for one `portion` of `item` — "Roast Chicken (Half)" — priced by
+ * `promo` if one's running. A null or whole portion is the plain item.
+ */
+export function portionLine(
+  item: CatalogItem,
+  portion: Portion | null,
+  promo: Promotion | null,
+): Omit<CartLine, 'qty'> {
+  const whole = !portion || portion.id === WHOLE;
+  const listPrice = whole ? item.price : portion.price;
+  const base: Omit<CartLine, 'qty'> = whole
+    ? { key: item.id, itemId: item.id, name: item.name, unitPrice: item.price }
+    : {
+        key: `${item.id}#${portion.id}`,
+        itemId: item.id,
+        name: `${item.name} (${portion.label})`,
+        unitPrice: portion.price,
+        units: portion.units,
+      };
   if (!promo) return base;
-  const price = round(discounted(promo, item.price));
-  if (price >= item.price) return base;
+  const price = round(discounted(promo, listPrice));
+  if (price >= listPrice) return base;
   return {
     ...base,
-    key: `${item.id}~${promo.id}`,
+    key: `${base.key}~${promo.id}`,
     unitPrice: price,
-    listPrice: item.price,
+    listPrice,
     promo: promo.name,
   };
 }
@@ -228,20 +252,27 @@ export function setLineQty(lines: CartLine[], key: string, qty: number): CartLin
     : lines.map((l) => (l.key === key ? { ...l, qty } : l));
 }
 
-/** Catalog items one of `line` uses — itself, or a set meal's picks. */
-export function lineItems(line: Pick<CartLine, 'itemId' | 'name' | 'parts'>): { itemId: string; name: string }[] {
-  return line.parts ?? [{ itemId: line.itemId, name: line.name }];
+/**
+ * Catalog items one of `line` uses — itself, or a set meal's picks — and how
+ * much stock of each: a portion's share, otherwise 1.
+ */
+export function lineItems(
+  line: Pick<CartLine, 'itemId' | 'name' | 'parts' | 'units'>,
+): { itemId: string; name: string; units: number }[] {
+  return line.parts
+    ? line.parts.map((p) => ({ itemId: p.itemId, name: p.name, units: 1 }))
+    : [{ itemId: line.itemId, name: line.name, units: line.units ?? 1 }];
 }
 
 /**
- * How many of each catalog item `lines` hold, counting set meals' picks —
- * what stock and the kitchen go by.
+ * How much stock of each catalog item `lines` use, counting set meals' picks
+ * and portions by their share — two halves are 1.
  */
 export function itemQuantities(lines: CartLine[]): Map<string, number> {
   const counts = new Map<string, number>();
   for (const line of lines) {
     for (const item of lineItems(line)) {
-      counts.set(item.itemId, (counts.get(item.itemId) ?? 0) + line.qty);
+      counts.set(item.itemId, (counts.get(item.itemId) ?? 0) + line.qty * item.units);
     }
   }
   return counts;
@@ -257,12 +288,12 @@ export function lineCap(lines: CartLine[], key: string, catalog: CatalogItem[]):
   const counts = itemQuantities(lines);
   let cap = Infinity;
   const perUnit = new Map<string, number>();
-  for (const item of lineItems(line)) perUnit.set(item.itemId, (perUnit.get(item.itemId) ?? 0) + 1);
+  for (const item of lineItems(line)) perUnit.set(item.itemId, (perUnit.get(item.itemId) ?? 0) + item.units);
   for (const [itemId, each] of perUnit) {
     const item = catalog.find((i) => i.id === itemId);
     if (!item) continue;
     const elsewhere = (counts.get(itemId) ?? 0) - each * line.qty;
-    cap = Math.min(cap, Math.floor((Math.max(0, item.stock) - elsewhere) / each));
+    cap = Math.min(cap, Math.floor((Math.max(0, item.stock) - elsewhere + STOCK_SLACK) / each));
   }
   return Math.max(0, cap);
 }

@@ -3,7 +3,9 @@ import './CounterDialogs.css';
 import { ApprovalDialog } from './ApprovalDialog';
 import { Button } from './Button';
 import { Money, formatMoney } from './Mono';
-import { discountLabel, discountOff, type ManualDiscount } from '../lib/cart';
+import { servings, stockFits, unitsLabel, type CatalogItem } from '../data/catalog';
+import { bestPromo } from '../data/deals';
+import { discountLabel, discountOff, itemQuantities, portionLine, type ManualDiscount } from '../lib/cart';
 import { activeCurrency, isAmountText } from '../lib/currency';
 import { usePos } from '../lib/store';
 
@@ -144,6 +146,59 @@ export function PriceDialog({
           Add {amount !== null && <Money value={amount} />}
         </Button>
       </form>
+    </Modal>
+  );
+}
+
+/**
+ * Asks which serving of an item sold in portions to ring up — the whole one
+ * or a portion. Servings there isn't enough stock left for are greyed out.
+ */
+export function PortionDialog({ item, onClose }: { item: CatalogItem | null; onClose: () => void }) {
+  const { cart, promotions, addItem } = usePos();
+  const inCart = item ? (itemQuantities(cart).get(item.id) ?? 0) : 0;
+  const promo = item ? bestPromo(promotions, item, new Date()) : null;
+
+  return (
+    <Modal open={item !== null} title={item?.name ?? ''} sub="Which serving?" onClose={onClose}>
+      <div className="portion-options">
+        {item &&
+          servings(item).map((s) => {
+            const line = portionLine(item, s, promo);
+            const fits = stockFits(item, inCart, s.units);
+            return (
+              <button
+                key={s.id}
+                type="button"
+                className="portion-option"
+                disabled={!fits}
+                onClick={() => {
+                  addItem(item, s);
+                  onClose();
+                }}
+              >
+                <span className="portion-option__label">
+                  {s.label}
+                  {s.units !== 1 && <span className="portion-option__share mono"> · {unitsLabel(s.units)}</span>}
+                </span>
+                <span className="portion-option__price">
+                  {fits ? (
+                    <>
+                      {line.listPrice !== undefined && (
+                        <s>
+                          <Money value={line.listPrice} />
+                        </s>
+                      )}{' '}
+                      <Money value={line.unitPrice} />
+                    </>
+                  ) : (
+                    'Not enough left'
+                  )}
+                </span>
+              </button>
+            );
+          })}
+      </div>
     </Modal>
   );
 }

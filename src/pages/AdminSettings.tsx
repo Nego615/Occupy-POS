@@ -38,6 +38,7 @@ type Draft = {
   tipPcts: [string, string, string];
   defaultTip: 'none' | '0' | '1' | '2';
   paymentMethods: PaymentMethodId[];
+  openPriceEnabled: boolean;
   lowStockDefault: string;
   kitchenCategories: CategoryId[];
   kitchenLateMinutes: string;
@@ -64,6 +65,7 @@ function toDraft(s: Settings): Draft {
     tipPcts: s.tipPresets.map(pct) as [string, string, string],
     defaultTip: s.defaultTip === null ? 'none' : (String(s.defaultTip) as Draft['defaultTip']),
     paymentMethods: [...s.paymentMethods],
+    openPriceEnabled: s.openPriceEnabled,
     lowStockDefault: String(s.lowStockDefault),
     kitchenCategories: [...s.kitchenCategories],
     kitchenLateMinutes: String(s.kitchenLateMinutes),
@@ -145,6 +147,7 @@ function fromDraft(d: Draft, current: Settings): { settings: Settings } | { erro
       paymentMethods: PAYMENT_METHODS.map((m) => m.id).filter((id) =>
         d.paymentMethods.includes(id),
       ),
+      openPriceEnabled: d.openPriceEnabled,
       lowStockDefault: lowStock!,
       kitchenCategories: [...d.kitchenCategories],
       kitchenLateMinutes: late!,
@@ -488,6 +491,20 @@ export function AdminSettings() {
             {errors.paymentMethods}
           </p>
         )}
+      </Section>
+
+      <Section title="Pricing">
+        <Row
+          id="openPriceEnabled"
+          label="Price at the counter"
+          hint="Lets items marked “price set at the counter” ask for their price each time they’re rung up. Off, every item rings up at its set price."
+        >
+          <Switch
+            checked={draft.openPriceEnabled}
+            onChange={(v) => set('openPriceEnabled', v)}
+            label="Price at the counter"
+          />
+        </Row>
       </Section>
 
       <Section title="Inventory">
