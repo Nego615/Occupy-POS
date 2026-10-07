@@ -103,8 +103,20 @@ export function memoryRepository(initial: Snapshot = {}): PosRepository {
 }
 
 /**
+ * The shop's data lives in the cloud, the cloud can't be reached, and this
+ * device has no copy of its own. Starting empty here would look like a brand
+ * new shop and send the owner through setup again.
+ */
+export class CloudUnreachable extends Error {
+  constructor() {
+    super('Couldn’t reach the shop account, and this device has no saved copy.');
+    this.name = 'CloudUnreachable';
+  }
+}
+
+/**
  * IndexedDB when the browser has it, memory otherwise — wrapped by `cloud`
- * (e.g. Supabase sync) when given. Never throws.
+ * (e.g. Supabase sync) when given. Throws only CloudUnreachable.
  */
 export async function openRepository(
   cloud?: (local: PosRepository) => PosRepository,
@@ -115,6 +127,7 @@ export async function openRepository(
       const repo = cloud ? cloud(local) : local;
       return { repo, snapshot: await repo.load() };
     } catch (err) {
+      if (err instanceof CloudUnreachable) throw err;
       console.warn('Saved data unavailable, running in memory only.', err);
     }
   }

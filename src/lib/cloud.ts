@@ -1,5 +1,12 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { SCHEMA_VERSION, VERSION_KEY, indexedDbRepository, type PosRepository, type Snapshot } from './persist';
+import {
+  CloudUnreachable,
+  SCHEMA_VERSION,
+  VERSION_KEY,
+  indexedDbRepository,
+  type PosRepository,
+  type Snapshot,
+} from './persist';
 import {
   COUNTERS,
   SLICES,
@@ -282,6 +289,8 @@ export function cloudRepository(client: SupabaseClient, storeId: string, local: 
       try {
         rows = await fetchRows(null);
       } catch (err) {
+        // Nothing here to start from — don't let an empty device pass for a new shop.
+        if (!('staff' in localSnap)) throw new CloudUnreachable();
         console.warn('Cloud unavailable, starting from this device’s copy.', err);
         // The local copy already includes this device's queued edits.
         remember(localSnap);

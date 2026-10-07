@@ -15,7 +15,14 @@ export type OwnerDetails = {
  * First run for a new shop: the owner names the business and themselves and
  * picks their PIN. The shop then starts empty — no demo staff, menu, or history.
  */
-export function OwnerSetup({ onDone }: { onDone: (details: OwnerDetails) => void }) {
+export function OwnerSetup({
+  onDone,
+  synced = false,
+}: {
+  onDone: (details: OwnerDetails) => void;
+  /** Signed in to a shop account — the shop might already be set up on a device that hasn't uploaded yet. */
+  synced?: boolean;
+}) {
   const [businessName, setBusinessName] = useState('');
   const [ownerName, setOwnerName] = useState('');
   const [currency, setCurrency] = useState<CurrencyCode>(DEFAULT_SETTINGS.currency);
@@ -96,6 +103,12 @@ export function OwnerSetup({ onDone }: { onDone: (details: OwnerDetails) => void
           <Button type="submit" size="lg" block>
             Create shop
           </Button>
+          {synced && (
+            <p className="signin__note">
+              Already set up this shop on another device? Make sure that device is online, then
+              reload this page instead.
+            </p>
+          )}
         </div>
       </form>
     </main>
