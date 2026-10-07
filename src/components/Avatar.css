@@ -19,13 +19,3 @@
 }
 
 /* Signal color as a small dot — the sanctioned accent use, always with a label nearby. */
-.avatar__dot {
-  position: absolute;
-  right: -1px;
-  bottom: -1px;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--open);
-  border: 2px solid var(--surface);
-}

@@ -1,26 +1,16 @@
-import { type Order } from '../data/orders';
-import {
-  TIP_ELIGIBLE,
-  shiftMinutes,
-  type Shift,
-  type StaffMember,
-} from '../data/staff';
+import { type StaffMember } from '../data/staff';
 import { money } from './analytics';
 import { round } from './cart';
+import { roundMoney } from './currency';
 import { dateOfDaysAgo, daysAgoOf } from '../data/history';
 
 /**
- * Gross pay for a pay period: hourly wages with weekly overtime, monthly
- * salaries, and the period's tips pooled by hours. Gross only — taxes and
- * deductions belong to whatever actually runs payroll.
+ * Gross pay for a pay period: each person's monthly salary. Gross only —
+ * taxes and deductions belong to whatever actually runs payroll.
  *
  * Pay runs monthly, by calendar month — either in one go, or split: a
  * mid-month payment for the 1st–15th and the rest (16th–end) at month end.
  * Salaried staff get half their salary in each part.
- *
- * Overtime is still a weekly rule, so hours are grouped into Monday–Sunday
- * weeks inside whatever is being paid; a week that straddles the boundary
- * counts only its days on this side of it.
  */
 
 export type PayPeriodId = 'this-month' | 'last-month';
@@ -37,7 +27,7 @@ export type PayPeriod = {
   newest: number;
   /** Oldest day in the period (the 1st), as daysAgo. */
   oldest: number;
-  /** The current month — its hours run only to today. */
+  /** The current month. */
   inProgress: boolean;
 };
 
@@ -71,7 +61,6 @@ export function payPeriods(today = new Date()): PayPeriod[] {
   ];
 }
 
-export const OVERTIME_MULTIPLIER = 1.5;
 /** Hours in an average month of 40-hour weeks: 40 × 52 ÷ 12. */
 export const FULL_TIME_HOURS_PER_MONTH = (40 * 52) / 12;
 
@@ -99,7 +88,7 @@ export type PayRange = {
   dates: string;
   newest: number;
   oldest: number;
-  /** Still running — its hours count up to today. */
+  /** Still running. */
   inProgress: boolean;
 };
 
@@ -150,129 +139,24 @@ export function payRange(period: PayPeriod, part: PayPart): PayRange | null {
   };
 }
 
-/** Monday of the week a day falls in, as "YYYY-MM-DD" — the overtime bucket. */
-function weekOf(daysAgo: number): string {
-  const d = dateOfDaysAgo(daysAgo);
-  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
-  return d.toISOString().slice(0, 10);
-}
-
 export type PayLine = {
   member: StaffMember;
-  /** Paid minutes worked in the period. */
-  minutes: number;
-  overtimeMinutes: number;
-  /** Straight-time plus overtime, for hourly staff. */
-  wages: number;
   /** The month's salary — or half of it, for a mid-month or month-end part. */
-  salary: number;
-  tips: number;
   gross: number;
 };
 
 export type Payroll = {
   lines: PayLine[];
-  /** Tips on paid orders in the period, before splitting. */
-  tipPool: number;
-  /** Staff still on the clock inside the period — it can't be closed out yet. */
-  openShifts: StaffMember[];
-  totals: { wages: number; salary: number; tips: number; gross: number; overtimeMinutes: number };
+  totals: { gross: number };
 };
 
-export function computePayroll(
-  staff: StaffMember[],
-  shifts: Shift[],
-  orders: Order[],
-  range: Pick<PayRange, 'newest' | 'oldest' | 'part'>,
-  nowMinutes: number,
-  /** From Settings: weekly overtime threshold, and whether tips go through payroll. */
-  options: { overtimeHours: number; tipPooling: boolean },
-): Payroll {
-  const overtimeAfter = options.overtimeHours * 60;
-  const inPeriod = (daysAgo: number) => daysAgo >= range.newest && daysAgo <= range.oldest;
-  const periodShifts = shifts.filter((s) => inPeriod(s.daysAgo));
-
-  const tipPool = round(
-    orders
-      .filter((o) => o.status === 'paid' && inPeriod(o.daysAgo))
-      .reduce((sum, o) => sum + o.tip, 0),
-  );
-
-  // Hours first — the tip split needs everyone's before anyone's tips are known.
-  const worked = staff.map((member) => {
-    const mine = periodShifts.filter((s) => s.staffId === member.id);
-    // Overtime is weekly, so tally each Monday–Sunday week on its own.
-    const weeks = new Map<string, number>();
-    for (const shift of mine) {
-      const key = weekOf(shift.daysAgo);
-      weeks.set(key, (weeks.get(key) ?? 0) + shiftMinutes(shift, nowMinutes));
-    }
-    let minutes = 0;
-    let overtimeMinutes = 0;
-    for (const week of weeks.values()) {
-      minutes += week;
-      overtimeMinutes += Math.max(0, week - overtimeAfter);
-    }
-    return { member, minutes, overtimeMinutes };
-  });
-
-  const hourly = (m: StaffMember) => m.hourlyRate !== undefined;
-  // With pooling off, tips are handed out directly and never enter payroll.
-  const eligible = worked.filter(
-    (w) =>
-      options.tipPooling && hourly(w.member) && TIP_ELIGIBLE.includes(w.member.role) && w.minutes > 0,
-  );
-  const eligibleMinutes = eligible.reduce((sum, w) => sum + w.minutes, 0);
-
-  const lines: PayLine[] = worked
-    .map(({ member, minutes, overtimeMinutes }) => {
-      const rate = member.hourlyRate;
-      const wages =
-        rate === undefined
-          ? 0
-          : round(
-              ((minutes - overtimeMinutes) / 60) * rate +
-                (overtimeMinutes / 60) * rate * OVERTIME_MULTIPLIER,
-            );
-      // Salaried people are paid for the period whether or not they clocked in —
-      // but only if they're still on staff.
-      const salary =
-        rate === undefined && member.monthlySalary && member.active
-          ? salaryFor(member.monthlySalary, range.part)
-          : 0;
-      const tips =
-        eligibleMinutes > 0 && eligible.some((e) => e.member.id === member.id)
-          ? round((tipPool * minutes) / eligibleMinutes)
-          : 0;
-      return {
-        member,
-        minutes,
-        overtimeMinutes,
-        wages,
-        salary,
-        tips,
-        gross: round(wages + salary + tips),
-      };
-    })
-    .filter((l) => l.gross > 0 || l.minutes > 0)
+export function computePayroll(staff: StaffMember[], range: Pick<PayRange, 'part'>): Payroll {
+  const lines: PayLine[] = staff
+    // Only people still on staff are paid.
+    .filter((member) => member.active && member.monthlySalary)
+    .map((member) => ({ member, gross: salaryFor(member.monthlySalary!, range.part) }))
     .sort((a, b) => b.gross - a.gross);
-
-  const sum = (pick: (l: PayLine) => number) => round(lines.reduce((s, l) => s + pick(l), 0));
-
-  return {
-    lines,
-    tipPool,
-    openShifts: staff.filter((m) =>
-      periodShifts.some((s) => s.staffId === m.id && s.clockOut === null),
-    ),
-    totals: {
-      wages: sum((l) => l.wages),
-      salary: sum((l) => l.salary),
-      tips: sum((l) => l.tips),
-      gross: sum((l) => l.gross),
-      overtimeMinutes: lines.reduce((s, l) => s + l.overtimeMinutes, 0),
-    },
-  };
+  return { lines, totals: { gross: round(lines.reduce((s, l) => s + l.gross, 0)) } };
 }
 
 /**
@@ -296,12 +180,28 @@ export type PayrollRun = {
   paidAt: string;
   paidBy: string;
   gross: number;
-  lines: { staffId: string; name: string; hours: number; gross: number }[];
+  /** `hours` is only on runs from before staff were all salaried. */
+  lines: { staffId: string; name: string; hours?: number; gross: number }[];
 };
 
-/** "TSh 4,500/hr", "TSh 2,000,000/mo", or "Not set". */
+/**
+ * Staff saved when people could be paid by the hour, moved onto a monthly
+ * salary at full time (40h a week, ≈173h a month). Hands back `staff` itself
+ * when nobody needed it.
+ */
+export function salaried(staff: StaffMember[]): StaffMember[] {
+  let changed = false;
+  const next = staff.map((member) => {
+    const { hourlyRate, ...rest } = member as StaffMember & { hourlyRate?: number };
+    if (hourlyRate === undefined) return member;
+    changed = true;
+    return { ...rest, monthlySalary: roundMoney(hourlyRate * FULL_TIME_HOURS_PER_MONTH) || undefined };
+  });
+  return changed ? next : staff;
+}
+
+/** "TSh 2,000,000/mo", or "Not set". */
 export function payLabel(member: StaffMember): string {
-  if (member.hourlyRate !== undefined) return `${money(member.hourlyRate)}/hr`;
   if (member.monthlySalary) return `${money(member.monthlySalary)}/mo`;
   return 'Not set';
 }

@@ -55,11 +55,6 @@ export type Settings = {
   autoLockMinutes: number | null;
   /** Wrong PINs in a row before sign-in locks for 30 seconds. */
   maxPinTries: number;
-
-  /** Weekly hours after which overtime pay applies. */
-  overtimeHours: number;
-  /** Pool tips and share them by hours among baristas and servers. */
-  tipPooling: boolean;
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -80,8 +75,6 @@ export const DEFAULT_SETTINGS: Settings = {
   kitchenLateMinutes: 10,
   autoLockMinutes: 15,
   maxPinTries: 5,
-  overtimeHours: 40,
-  tipPooling: true,
 };
 
 export const AUTO_LOCK_OPTIONS: { value: number | null; label: string }[] = [

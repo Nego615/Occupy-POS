@@ -17,7 +17,7 @@
 
 .staff-row {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) 150px 150px 190px 64px 96px;
+  grid-template-columns: minmax(220px, 1fr) 150px 150px 240px 64px 96px;
   align-items: center;
   gap: 16px;
   padding: 12px 0;
@@ -133,6 +133,35 @@
   width: 40px;
   font-size: 13.5px;
   letter-spacing: 0.1em;
+}
+
+.staff-row__pin--editing {
+  flex-wrap: wrap;
+  gap: 6px 8px;
+}
+
+.staff-input--pin {
+  width: 64px;
+  letter-spacing: 0.15em;
+}
+
+.staff-pin-generate {
+  min-height: var(--hit-area);
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.staff-row__pin-error {
+  flex-basis: 100%;
+  margin: 0;
 }
 
 /* ---------- Role table ---------- */

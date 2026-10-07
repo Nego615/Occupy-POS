@@ -17,7 +17,7 @@ export function RequireSignIn() {
   const here = `${location.pathname}${location.search}`;
 
   // Auto-lock: no tap, click, key, or scroll for `lockAfter` minutes signs
-  // out, and sign-in returns to this screen. Tabs and shifts are untouched.
+  // out, and sign-in returns to this screen. Open tabs are untouched.
   useEffect(() => {
     if (!me || lockAfter === null) return;
     let timer = 0;

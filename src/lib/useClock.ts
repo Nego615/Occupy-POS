@@ -34,18 +34,3 @@ export function useNow(everyMs = 1000): number {
   return now;
 }
 
-/** Minutes after midnight, re-read every 30s so open shifts count up. */
-export function useMinutesNow(): number {
-  const now = () => {
-    const d = new Date();
-    return d.getHours() * 60 + d.getMinutes();
-  };
-  const [minutes, setMinutes] = useState(now);
-
-  useEffect(() => {
-    const id = window.setInterval(() => setMinutes(now()), 30_000);
-    return () => window.clearInterval(id);
-  }, []);
-
-  return minutes;
-}

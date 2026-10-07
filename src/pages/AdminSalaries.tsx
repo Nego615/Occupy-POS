@@ -1,15 +1,12 @@
 import { useMemo, useState } from 'react';
 import './AdminSalaries.css';
 import { Button } from '../components/Button';
-import { FilterSelect } from '../components/FilterSelect';
 import { Mono } from '../components/Mono';
 import { Pill, PillRow } from '../components/Pill';
 import { StatusChip } from '../components/StatusChip';
-import { TIP_ELIGIBLE, formatDuration, roleLabel, type StaffMember } from '../data/staff';
+import { roleLabel, type StaffMember } from '../data/staff';
 import { downloadCsv, money } from '../lib/analytics';
 import {
-  FULL_TIME_HOURS_PER_MONTH,
-  OVERTIME_MULTIPLIER,
   PAY_PARTS,
   computePayroll,
   payLabel,
@@ -22,14 +19,12 @@ import {
 import { activeCurrency, roundMoney, isAmountText } from '../lib/currency';
 import { toCsv } from '../lib/reports';
 import { usePos } from '../lib/store';
-import { formatDate, useMinutesNow } from '../lib/useClock';
+import { formatDate } from '../lib/useClock';
 
 /**
- * What the team is owed for a month, and the rates it's worked out from.
- * Owner-only (the `payroll` permission). Pay runs monthly: hours × rate with
- * weekly overtime, each salaried person's monthly salary, and the month's tips
- * pooled by hours among baristas and servers. Marking a month paid freezes it
- * into the history.
+ * What the team is owed for a month, and the salaries it's worked out from.
+ * Owner-only (the `payroll` permission). Everyone is paid a monthly salary.
+ * Marking a month paid freezes it into the history.
  *
  * A month is paid whole, or in two parts: mid-month (1st–15th) then the rest
  * (16th–end). Whichever way a month starts decides what's left — once the
@@ -37,9 +32,7 @@ import { formatDate, useMinutesNow } from '../lib/useClock';
  * out both halves.
  */
 export function AdminSalaries() {
-  const { staff, shifts, orders, me, payrollRuns, recordPayrollRun, settings } = usePos();
-  const { overtimeHours, tipPooling, tipsEnabled } = settings;
-  const now = useMinutesNow();
+  const { staff, me, payrollRuns, recordPayrollRun, settings } = usePos();
   // The closed month is the one normally being paid.
   const [periodId, setPeriodId] = useState<PayPeriodId>('last-month');
   const [confirming, setConfirming] = useState(false);
@@ -63,19 +56,13 @@ export function AdminSalaries() {
   const dates = range?.dates ?? 'from the 16th';
 
   const payroll = useMemo(
-    () =>
-      range
-        ? computePayroll(staff, shifts, orders, range, now, { overtimeHours, tipPooling })
-        : EMPTY_PAYROLL,
-    // range is rebuilt each render; its key and bounds are what matter.
-    [staff, shifts, orders, range?.key, range?.newest, range?.oldest, now, overtimeHours, tipPooling],
+    () => (range ? computePayroll(staff, range) : EMPTY_PAYROLL),
+    // range is rebuilt each render; whether there is one, and its part, are what matter.
+    [staff, range?.part, range === null],
   );
+  const unset = staff.filter((m) => m.active && !m.monthlySalary);
 
   const paid = runFor(part);
-  const undistributed = tipPooling ? Math.max(0, payroll.tipPool - payroll.totals.tips) : 0;
-  // With tips turned off, tips only show for a period that still has some from before.
-  const showTips = tipsEnabled || payroll.tipPool > 0;
-  const cols = <T,>(row: T[]): T[] => (showTips ? row : row.filter((_, i) => i !== 7));
 
   // Why "Mark as paid" is off, in the order someone would fix things.
   const blocked = paid
@@ -88,13 +75,9 @@ export function AdminSalaries() {
           ? 'Pay mid-month (1st–15th) first, or pay the whole month in one go.'
           : !range
             ? 'The rest of the month starts on the 16th.'
-            : payroll.openShifts.length > 0
-              ? `${payroll.openShifts.map((m) => m.name).join(', ')} ${
-                  payroll.openShifts.length === 1 ? 'is' : 'are'
-                } still on the clock — clock out before paying.`
-              : payroll.lines.length === 0
-                ? 'Nothing to pay for these dates.'
-                : null;
+            : payroll.lines.length === 0
+              ? 'Nothing to pay for these dates.'
+              : null;
 
   function selectPeriod(id: PayPeriodId) {
     setPeriodId(id);
@@ -130,7 +113,6 @@ export function AdminSalaries() {
       lines: payroll.lines.map((l) => ({
         staffId: l.member.id,
         name: l.member.name,
-        hours: l.minutes / 60,
         gross: l.gross,
       })),
     });
@@ -140,18 +122,13 @@ export function AdminSalaries() {
   function exportCsv() {
     downloadCsv(
       toCsv([
-        cols(['staff', 'role', 'pay', 'hours', 'overtime_hours', 'wages', 'salary', 'tips', 'gross']),
-        ...payroll.lines.map((l) => cols([
+        ['staff', 'role', 'salary', 'gross'],
+        ...payroll.lines.map((l) => [
           l.member.name,
           roleLabel(l.member.role),
           payLabel(l.member),
-          (l.minutes / 60).toFixed(2),
-          (l.overtimeMinutes / 60).toFixed(2),
-          l.wages.toFixed(2),
-          l.salary.toFixed(2),
-          l.tips.toFixed(2),
           l.gross.toFixed(2),
-        ])),
+        ]),
       ]),
       `occupy-payroll-${key}.csv`,
     );
@@ -200,31 +177,17 @@ export function AdminSalaries() {
         </PillRow>
       </div>
 
-      <div className={showTips ? 'pay-tiles' : 'pay-tiles pay-tiles--no-tips'}>
-        <Tile label="Gross pay" value={money(payroll.totals.gross)} note={`${payroll.lines.length} people`} />
+      <div className="pay-tiles">
+        <Tile label="Gross pay" value={money(payroll.totals.gross)} />
         <Tile
-          label="Hourly wages"
-          value={money(payroll.totals.wages)}
+          label="People paid"
+          value={String(payroll.lines.length)}
           note={
-            payroll.totals.overtimeMinutes > 0
-              ? `incl. ${formatDuration(payroll.totals.overtimeMinutes)} overtime`
-              : 'no overtime'
+            unset.length > 0
+              ? `${unset.length} active ${unset.length === 1 ? 'person has' : 'people have'} no salary set`
+              : undefined
           }
         />
-        <Tile label="Salaries" value={money(payroll.totals.salary)} />
-        {showTips && (
-          <Tile
-            label={tipPooling ? 'Tips pooled' : 'Tips'}
-            value={money(payroll.tipPool)}
-            note={
-              !tipPooling
-                ? 'pooling off — paid out directly, not in payroll'
-                : undistributed > 0.005
-                ? `${money(undistributed)} unassigned — nobody eligible worked`
-                : 'split by hours worked'
-            }
-          />
-        )}
       </div>
 
       {/* ---------- Pay for the period ---------- */}
@@ -232,7 +195,6 @@ export function AdminSalaries() {
         <div className="pay-section__head">
           <h2 className="panel__title" id="pay-title">
             {part === 'whole' ? `Pay for ${period.month}` : `${PART_TITLE[part]} · ${dates}`}
-            {range?.inProgress && <span className="pay-section__so-far"> · so far</span>}
           </h2>
           <div className="pay-close">
             {paid ? (
@@ -241,15 +203,7 @@ export function AdminSalaries() {
               </StatusChip>
             ) : (
               <>
-                {blocked ? (
-                  <span className="pay-close__why">{blocked}</span>
-                ) : (
-                  range?.inProgress && (
-                    <span className="pay-close__why">
-                      Still in progress — hours are counted up to today.
-                    </span>
-                  )
-                )}
+                {blocked && <span className="pay-close__why">{blocked}</span>}
                 <Button
                   size="sm"
                   onClick={markPaid}
@@ -266,7 +220,7 @@ export function AdminSalaries() {
         {payroll.lines.length === 0 ? (
           <p className="pay-empty">
             {range
-              ? `No hours, salaries${showTips ? ', or tips' : ''} for these dates.`
+              ? 'Nobody has a salary set yet — enter them under Salaries below.'
               : 'The rest of the month starts on the 16th.'}
           </p>
         ) : (
@@ -275,24 +229,7 @@ export function AdminSalaries() {
               <thead>
                 <tr>
                   <th scope="col">Staff</th>
-                  <th scope="col">Pay</th>
-                  <th scope="col" className="pay-table__num">
-                    Hours
-                  </th>
-                  <th scope="col" className="pay-table__num">
-                    Overtime
-                  </th>
-                  <th scope="col" className="pay-table__num">
-                    Wages
-                  </th>
-                  <th scope="col" className="pay-table__num">
-                    Salary
-                  </th>
-                  {showTips && (
-                    <th scope="col" className="pay-table__num">
-                      Tips
-                    </th>
-                  )}
+                  <th scope="col">Salary</th>
                   <th scope="col" className="pay-table__num">
                     Gross
                   </th>
@@ -303,27 +240,9 @@ export function AdminSalaries() {
                   <tr key={l.member.id}>
                     <td>
                       <span className="pay-table__name">{l.member.name}</span>
-                      <span className="pay-table__sub">
-                        {roleLabel(l.member.role)}
-                        {!l.member.active && ' · deactivated'}
-                      </span>
+                      <span className="pay-table__sub">{roleLabel(l.member.role)}</span>
                     </td>
                     <td className="pay-table__soft">{payLabel(l.member)}</td>
-                    <td className="pay-table__num">
-                      <Mono>{(l.minutes / 60).toFixed(2)}</Mono>
-                    </td>
-                    <td className="pay-table__num">
-                      {l.overtimeMinutes > 0 ? (
-                        <Mono>{(l.overtimeMinutes / 60).toFixed(2)}</Mono>
-                      ) : (
-                        <Dash />
-                      )}
-                    </td>
-                    <td className="pay-table__num">{l.wages ? <Mono>{money(l.wages)}</Mono> : <Dash />}</td>
-                    <td className="pay-table__num">{l.salary ? <Mono>{money(l.salary)}</Mono> : <Dash />}</td>
-                    {showTips && (
-                      <td className="pay-table__num">{l.tips ? <Mono>{money(l.tips)}</Mono> : <Dash />}</td>
-                    )}
                     <td className="pay-table__num">
                       <Mono className="pay-table__strong">{money(l.gross)}</Mono>
                     </td>
@@ -334,25 +253,6 @@ export function AdminSalaries() {
                 <tr>
                   <td colSpan={2}>Total</td>
                   <td className="pay-table__num">
-                    <Mono>
-                      {(payroll.lines.reduce((s, l) => s + l.minutes, 0) / 60).toFixed(2)}
-                    </Mono>
-                  </td>
-                  <td className="pay-table__num">
-                    <Mono>{(payroll.totals.overtimeMinutes / 60).toFixed(2)}</Mono>
-                  </td>
-                  <td className="pay-table__num">
-                    <Mono>{money(payroll.totals.wages)}</Mono>
-                  </td>
-                  <td className="pay-table__num">
-                    <Mono>{money(payroll.totals.salary)}</Mono>
-                  </td>
-                  {showTips && (
-                    <td className="pay-table__num">
-                      <Mono>{money(payroll.totals.tips)}</Mono>
-                    </td>
-                  )}
-                  <td className="pay-table__num">
                     <Mono>{money(payroll.totals.gross)}</Mono>
                   </td>
                 </tr>
@@ -361,18 +261,8 @@ export function AdminSalaries() {
           </div>
         )}
         <p className="pay-note">
-          Overtime is hours past {overtimeHours} in a Monday–Sunday week, at{' '}
-          {OVERTIME_MULTIPLIER}× rate.{' '}
-          {!showTips ? null : tipPooling ? (
-            <>
-              Tips from paid orders in the period are shared by hours among{' '}
-              {TIP_ELIGIBLE.map((r) => roleLabel(r).toLowerCase() + 's').join(' and ')}.
-            </>
-          ) : (
-            'Tip pooling is off, so tips aren’t included.'
-          )}{' '}
-          Salaried staff get their monthly salary — half at mid-month and half at month end
-          when a month is split. Change these rules in Settings.
+          Everyone on staff gets their monthly salary — half at mid-month and half at month end
+          when a month is split. Tips aren’t included; they’re paid out directly.
         </p>
       </section>
 
@@ -390,12 +280,7 @@ const PART_TITLE: Record<Exclude<PayPart, 'whole'>, string> = {
   second: 'Rest of month',
 };
 
-const EMPTY_PAYROLL: Payroll = {
-  lines: [],
-  tipPool: 0,
-  openShifts: [],
-  totals: { wages: 0, salary: 0, tips: 0, gross: 0, overtimeMinutes: 0 },
-};
+const EMPTY_PAYROLL: Payroll = { lines: [], totals: { gross: 0 } };
 
 /* ---------- Rates ---------- */
 
@@ -405,7 +290,7 @@ function PayRates() {
   return (
     <section className="panel" aria-labelledby="rates-title">
       <h2 className="panel__title" id="rates-title">
-        Pay rates
+        Salaries
       </h2>
       {active.map((m) => (
         <RateRow key={m.id} member={m} />
@@ -416,47 +301,24 @@ function PayRates() {
 
 function RateRow({ member }: { member: StaffMember }) {
   const { updateStaff } = usePos();
-  const type = member.hourlyRate !== undefined ? 'hourly' : 'salary';
-  const stored = type === 'hourly' ? member.hourlyRate : member.monthlySalary;
+  const stored = member.monthlySalary;
   const [draft, setDraft] = useState(stored !== undefined ? String(stored) : '');
   const [error, setError] = useState<string | null>(null);
   const errorId = `rate-error-${member.id}`;
   const currency = activeCurrency();
 
-  function switchType(next: string) {
-    setError(null);
-    if (next === type) return;
-    // Carry the pay across at full time (40h a week, ≈173h a month) as a starting point.
-    if (next === 'hourly') {
-      // No salary to convert from: start at 0 so the empty field asks for a rate.
-      const rate = member.monthlySalary
-        ? roundMoney(member.monthlySalary / FULL_TIME_HOURS_PER_MONTH)
-        : 0;
-      updateStaff(member.id, { hourlyRate: rate });
-      setDraft(rate ? String(rate) : '');
-    } else {
-      const monthly = roundMoney((member.hourlyRate ?? 0) * FULL_TIME_HOURS_PER_MONTH);
-      updateStaff(member.id, { hourlyRate: undefined, monthlySalary: monthly || undefined });
-      setDraft(monthly ? String(monthly) : '');
-    }
-  }
-
   function commit() {
     const text = draft.trim().replace(/,/g, '');
     const value = Number(text);
     if (text === '' || !isAmountText(text) || value <= 0) {
-      setError(
-        type === 'hourly'
-          ? `Enter the pay per hour in ${currency.code}${currency.decimals === 0 ? ', whole amounts' : ''}.`
-          : `Enter the pay per month in ${currency.code}, e.g. ${currency.example * 200}.`,
-      );
+      setError(`Enter the pay per month in ${currency.code}, e.g. ${currency.example * 200}.`);
       setDraft(stored !== undefined ? String(stored) : '');
       return;
     }
     setError(null);
     const rounded = roundMoney(value);
     setDraft(String(rounded));
-    updateStaff(member.id, type === 'hourly' ? { hourlyRate: rounded } : { monthlySalary: rounded });
+    updateStaff(member.id, { monthlySalary: rounded });
   }
 
   return (
@@ -465,10 +327,6 @@ function RateRow({ member }: { member: StaffMember }) {
         <span className="rate-row__name">{member.name}</span>
         <span className="rate-row__role">{roleLabel(member.role)}</span>
       </span>
-      <FilterSelect value={type} onChange={switchType} label={`Pay type for ${member.name}`}>
-        <option value="hourly">Hourly</option>
-        <option value="salary">Monthly salary</option>
-      </FilterSelect>
       <span className="rate-row__amount">
         <span className="rate-row__unit" aria-hidden="true">
           {currency.symbol}
@@ -487,12 +345,12 @@ function RateRow({ member }: { member: StaffMember }) {
           onKeyDown={(e) => {
             if (e.key === 'Enter') e.currentTarget.blur();
           }}
-          aria-label={`${type === 'hourly' ? 'Hourly rate' : 'Monthly salary'} for ${member.name}`}
+          aria-label={`Monthly salary for ${member.name}`}
           aria-invalid={error !== null}
           aria-describedby={error ? errorId : undefined}
         />
         <span className="rate-row__unit" aria-hidden="true">
-          {type === 'hourly' ? '/hr' : '/mo'}
+          /mo
         </span>
       </span>
       {error && (
@@ -561,14 +419,5 @@ function Tile({ label, value, note }: { label: string; value: string; note?: str
       <Mono className="pay-tile__value">{value}</Mono>
       {note && <div className="pay-tile__note">{note}</div>}
     </div>
-  );
-}
-
-function Dash() {
-  return (
-    <span className="pay-table__soft">
-      <span aria-hidden="true">—</span>
-      <span className="sr-only">None</span>
-    </span>
   );
 }

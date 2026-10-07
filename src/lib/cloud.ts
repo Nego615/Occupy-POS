@@ -76,7 +76,7 @@ export function unsyncedCount(): number {
 
 /**
  * Shares the shop between every device signed in to it. Each record (an
- * order, a tab, a menu item, a shift…) is its own row, so screens editing
+ * order, a tab, a menu item, a staff member…) is its own row, so screens editing
  * different records never overwrite each other, and changes from other
  * devices arrive live through Supabase Realtime.
  *

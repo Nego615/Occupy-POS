@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import type { ReactNode } from 'react';
+import type { ReactNode, SetStateAction } from 'react';
 import { CATALOG, stockLimit, type CatalogItem } from '../data/catalog';
 import { DEFAULT_SETTINGS, type Settings } from '../data/settings';
 import {
@@ -40,17 +40,13 @@ import {
   type Refund,
 } from '../data/orders';
 import {
-  SHIFTS,
   STAFF,
   hashPin,
-  hydrateShift,
-  minutesNow,
   hasPermission,
+  isPin,
   pinMatches,
   uniquePin,
   type Permission,
-  type Shift,
-  type ShiftRecord,
   type StaffMember,
 } from '../data/staff';
 import { isoDate } from '../data/history';
@@ -73,7 +69,7 @@ import {
   type CartTotals,
   type ManualDiscount,
 } from './cart';
-import type { PayrollRun } from './payroll';
+import { salaried, type PayrollRun } from './payroll';
 import { setActiveCurrency } from './currency';
 import type { PosRepository, Snapshot } from './persist';
 import { useInventory, type InventoryStore } from './useInventory';
@@ -280,30 +276,18 @@ type PosStore = {
   updateSettings: (next: Settings) => void;
   /** Everyone on the team, active or not. Deleted people are left out. */
   staff: StaffMember[];
-  /** Everyone ever on the team, deleted people included — for names on old orders and timecards. */
+  /** Everyone ever on the team, deleted people included — for names on old orders. */
   allStaff: StaffMember[];
   /** Adds a staff member with a fresh PIN. The PIN is returned once and never stored in the clear. */
   addStaff: (member: Omit<StaffMember, 'id' | 'pinHash'>) => { member: StaffMember; pin: string };
   updateStaff: (id: string, patch: Partial<Omit<StaffMember, 'id' | 'pinHash'>>) => void;
-  /** Gives someone a fresh PIN and returns it — the only time it can be read. */
-  resetPin: (id: string) => string;
+  /** Sets a PIN chosen by an admin. Returns why it was refused, or null once it's set. */
+  setPin: (id: string, pin: string) => string | null;
   /**
-   * Removes someone from the team. Their past orders and timecards keep their
+   * Removes someone from the team. Their past orders keep their
    * name. Refused for whoever is signed in and for the last active owner.
    */
   deleteStaff: (id: string) => boolean;
-  /** Every shift on record, newest first. */
-  shifts: Shift[];
-  /** Starts a shift now. Refused if they're inactive or already on the clock. */
-  clockIn: (staffId: string) => boolean;
-  /** Ends their open shift now, if they have one. */
-  clockOut: (staffId: string) => void;
-  /** Manager correction — times, break, or a missed clock-out. */
-  updateShift: (
-    id: string,
-    patch: Partial<Omit<ShiftRecord, 'id' | 'staffId' | 'date'>>,
-  ) => void;
-  removeShift: (id: string) => void;
   /** Wipes everything saved and starts again from the new-shop setup. */
   resetAllData: () => Promise<void>;
 } & InventoryStore;
@@ -342,7 +326,6 @@ export function newShopSnapshot(
     staff: [member],
     payrollRuns: [],
     settings,
-    shifts: [],
     kitchenTickets: [],
     movements: [],
     suppliers: [],
@@ -468,7 +451,13 @@ export function PosProvider({
     restored(snapshot, 'promotions', PROMOTIONS),
   );
   const [setMeals, setSetMeals] = useState<SetMeal[]>(() => restored(snapshot, 'setMeals', SET_MEALS));
-  const [staff, setStaff] = useState<StaffMember[]>(() => restored(snapshot, 'staff', STAFF));
+  const [staff, setRawStaff] = useState<StaffMember[]>(() => salaried(restored(snapshot, 'staff', STAFF)));
+  // Staff from before everyone was salaried — saved here, or sent by another screen — are converted as they arrive.
+  const setStaff = useCallback(
+    (next: SetStateAction<StaffMember[]>) =>
+      setRawStaff((prev) => salaried(typeof next === 'function' ? next(prev) : next)),
+    [],
+  );
   const [signedInId, setSignedInId] = useState<string | null>(null);
   const [payrollRuns, setPayrollRuns] = useState<PayrollRun[]>(() =>
     restored(snapshot, 'payrollRuns', []),
@@ -479,7 +468,6 @@ export function PosProvider({
   }));
   // Set during render, ahead of every child, so formatters never lag a switch.
   setActiveCurrency(settings.currency);
-  const [shiftRecords, setShifts] = useState<ShiftRecord[]>(() => restored(snapshot, 'shifts', SHIFTS));
   const [kitchenTickets, setKitchenTickets] = useState<KitchenTicket[]>(() =>
     restored(snapshot, 'kitchenTickets', () => seedTickets().sort((a, b) => a.sentAt - b.sentAt)),
   );
@@ -502,7 +490,6 @@ export function PosProvider({
   usePersist(repo, 'staff', staff);
   usePersist(repo, 'payrollRuns', payrollRuns);
   usePersist(repo, 'settings', settings);
-  usePersist(repo, 'shifts', shiftRecords);
   usePersist(repo, 'kitchenTickets', kitchenTickets);
 
   // Changes from the other screens signed in to this shop.
@@ -515,7 +502,6 @@ export function PosProvider({
   useRemote(repo, 'staff', setStaff);
   useRemote(repo, 'payrollRuns', setPayrollRuns);
   useRemote(repo, 'settings', setSettings);
-  useRemote(repo, 'shifts', setShifts);
   useRemote(repo, 'kitchenTickets', setKitchenTickets);
 
   // The tab on this register was closed or paid on another screen: start a
@@ -534,10 +520,6 @@ export function PosProvider({
     () => closedRecords.map(hydrateOrder),
     // `today` is a dependency so day counts are redone at midnight.
     [closedRecords, today],
-  );
-  const shifts = useMemo(
-    () => shiftRecords.map(hydrateShift),
-    [shiftRecords, today],
   );
 
   // Derived each render, so a role change or deactivation applies at once —
@@ -1089,11 +1071,13 @@ export function PosProvider({
     [staff],
   );
 
-  const resetPin = useCallback(
-    (id: string) => {
-      const pin = uniquePin(staff.filter((m) => m.id !== id));
+  const setPin = useCallback(
+    (id: string, pin: string) => {
+      if (!isPin(pin)) return 'A PIN is 4 digits.';
+      // PINs are how people sign in, so no two staff share one.
+      if (staff.some((m) => m.id !== id && pinMatches(m, pin))) return 'Someone else already uses that PIN.';
       setStaff((prev) => prev.map((m) => (m.id === id ? { ...m, pinHash: hashPin(id, pin) } : m)));
-      return pin;
+      return null;
     },
     [staff],
   );
@@ -1108,12 +1092,6 @@ export function PosProvider({
       setStaff((prev) =>
         prev.map((m) => (m.id === id ? { ...m, active: false, deleted: true, pinHash: '' } : m)),
       );
-      const now = minutesNow();
-      setShifts((prev) =>
-        prev.map((s) =>
-          s.staffId === id && s.clockOut === null ? { ...s, clockOut: Math.max(now, s.clockIn) } : s,
-        ),
-      );
       return true;
     },
     [staff, signedInId],
@@ -1124,57 +1102,9 @@ export function PosProvider({
   const updateStaff = useCallback(
     (id: string, patch: Partial<Omit<StaffMember, 'id' | 'pinHash'>>) => {
       setStaff((prev) => prev.map((m) => (m.id === id ? { ...m, ...patch } : m)));
-      // Deactivating someone mid-shift clocks them out rather than leaving it running.
-      if (patch.active === false) {
-        const now = minutesNow();
-        setShifts((prev) =>
-          prev.map((s) =>
-            s.staffId === id && s.clockOut === null ? { ...s, clockOut: Math.max(now, s.clockIn) } : s,
-          ),
-        );
-      }
     },
-    [],
+    [setStaff],
   );
-
-  const clockIn = useCallback(
-    (staffId: string) => {
-      const member = staff.find((m) => m.id === staffId);
-      const onClock = shiftRecords.some((s) => s.staffId === staffId && s.clockOut === null);
-      if (!member?.active || onClock) return false;
-      const shift: ShiftRecord = {
-        id: `shift-${Date.now().toString(36)}`,
-        staffId,
-        date: isoDate(new Date()),
-        clockIn: minutesNow(),
-        clockOut: null,
-        breakMinutes: 0,
-      };
-      setShifts((prev) => [shift, ...prev]);
-      return true;
-    },
-    [staff, shiftRecords],
-  );
-
-  const clockOut = useCallback((staffId: string) => {
-    const now = minutesNow();
-    setShifts((prev) =>
-      prev.map((s) =>
-        s.staffId === staffId && s.clockOut === null ? { ...s, clockOut: Math.max(now, s.clockIn) } : s,
-      ),
-    );
-  }, []);
-
-  const updateShift = useCallback(
-    (id: string, patch: Partial<Omit<ShiftRecord, 'id' | 'staffId' | 'date'>>) => {
-      setShifts((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
-    },
-    [],
-  );
-
-  const removeShift = useCallback((id: string) => {
-    setShifts((prev) => prev.filter((s) => s.id !== id));
-  }, []);
 
   const recordPayrollRun = useCallback(
     (run: Omit<PayrollRun, 'id'>) => {
@@ -1246,13 +1176,8 @@ export function PosProvider({
       allStaff: staff,
       addStaff,
       updateStaff,
-      resetPin,
+      setPin,
       deleteStaff,
-      shifts,
-      clockIn,
-      clockOut,
-      updateShift,
-      removeShift,
       me,
       signIn,
       signOut,
@@ -1314,13 +1239,8 @@ export function PosProvider({
       staff,
       addStaff,
       updateStaff,
-      resetPin,
+      setPin,
       deleteStaff,
-      shifts,
-      clockIn,
-      clockOut,
-      updateShift,
-      removeShift,
       me,
       signIn,
       signOut,

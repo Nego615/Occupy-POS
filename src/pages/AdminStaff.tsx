@@ -7,13 +7,7 @@ import { FilterSelect } from '../components/FilterSelect';
 import { Mono } from '../components/Mono';
 import { Pill, PillRow } from '../components/Pill';
 import { Switch } from '../components/Switch';
-import {
-  PERMISSIONS,
-  ROLES,
-  formatClock,
-  type RoleId,
-  type StaffMember,
-} from '../data/staff';
+import { PERMISSIONS, ROLES, uniquePin, type RoleId, type StaffMember } from '../data/staff';
 import { payLabel } from '../lib/payroll';
 import { usePos } from '../lib/store';
 
@@ -22,19 +16,16 @@ type Filter = 'active' | 'inactive';
 /**
  * The team — who can sign in, in what role, at what rate. Edits apply in
  * place, like Locations. Deactivating keeps someone on the list; deleting
- * takes them off it, though past orders and timecards still show their name.
+ * takes them off it, though past orders still show their name.
  */
 export function AdminStaff() {
-  const { staff, shifts, addStaff, settings } = usePos();
+  const { staff, addStaff, settings } = usePos();
   const [filter, setFilter] = useState<Filter>('active');
   // The new person's PIN is shown once, on their row — only its hash is kept.
   const [justAdded, setJustAdded] = useState<{ id: string; pin: string } | null>(null);
 
   const activeCount = staff.filter((m) => m.active).length;
   const members = staff.filter((m) => (filter === 'active' ? m.active : !m.active));
-  const onClock = new Map(
-    shifts.filter((s) => s.clockOut === null).map((s) => [s.staffId, s.clockIn]),
-  );
 
   function add() {
     // Pay starts unset ("Not set") — it's entered on Salaries, in the business currency.
@@ -49,8 +40,7 @@ export function AdminStaff() {
         <div>
           <h1 className="page-title">Staff</h1>
           <div className="page-sub">
-            {settings.locationName} · <Mono>{activeCount}</Mono> active · <Mono>{onClock.size}</Mono> on
-            the clock
+            {settings.locationName} · <Mono>{activeCount}</Mono> active
           </div>
         </div>
         <div className="head-actions">
@@ -87,7 +77,6 @@ export function AdminStaff() {
             <StaffRow
               key={member.id}
               member={member}
-              clockedInAt={onClock.get(member.id)}
               autoFocus={member.id === justAdded?.id}
               newPin={member.id === justAdded?.id ? justAdded.pin : undefined}
             />
@@ -102,25 +91,28 @@ export function AdminStaff() {
 
 function StaffRow({
   member,
-  clockedInAt,
   autoFocus,
   newPin,
 }: {
   member: StaffMember;
   /** A PIN just set for them, shown until the row loses focus. */
   newPin?: string;
-  /** Minutes after midnight, if they're on the clock now. */
-  clockedInAt?: number;
   autoFocus: boolean;
 }) {
-  const { staff, me, updateStaff, resetPin, deleteStaff, can } = usePos();
+  const { staff, me, updateStaff, setPin, deleteStaff, can } = usePos();
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [name, setName] = useState(member.name);
   const [error, setError] = useState<string | null>(null);
   // PINs are stored hashed, so one can only be shown at the moment it's set.
   const [revealPin, setRevealPin] = useState<string | null>(newPin ?? null);
+  // Null while not editing the PIN; otherwise what's typed so far.
+  const [pinDraft, setPinDraft] = useState<string | null>(null);
+  const [pinError, setPinError] = useState<string | null>(null);
+  const [pinSaved, setPinSaved] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
+  const pinRef = useRef<HTMLInputElement>(null);
   const errorId = `staff-error-${member.id}`;
+  const pinErrorId = `staff-pin-error-${member.id}`;
 
   // A newly added person lands with the placeholder name selected, ready to type over.
   useEffect(() => {
@@ -145,14 +137,48 @@ function StaffRow({
     if (next !== member.name) updateStaff(member.id, { name: next });
   }
 
-  function onResetPin() {
-    setRevealPin(resetPin(member.id));
+  function startPinEdit() {
+    setRevealPin(null);
+    setPinError(null);
+    setPinDraft('');
   }
+
+  function cancelPinEdit() {
+    setPinDraft(null);
+    setPinError(null);
+  }
+
+  /** Fills the field with an unused PIN, for the admin to read out before saving. */
+  function generatePin() {
+    setPinDraft(uniquePin(staff.filter((m) => m.id !== member.id)));
+    setPinError(null);
+    pinRef.current?.focus();
+  }
+
+  function savePin() {
+    if (pinDraft === null) return;
+    const problem = setPin(member.id, pinDraft);
+    if (problem) {
+      setPinError(problem);
+      pinRef.current?.focus();
+      return;
+    }
+    // Shown once, beside the button, until focus moves on.
+    setRevealPin(pinDraft);
+    setPinSaved(true);
+    setPinDraft(null);
+    setPinError(null);
+  }
+
+  // The field opens focused.
+  useEffect(() => {
+    if (pinDraft === '') pinRef.current?.focus();
+  }, [pinDraft]);
 
   return (
     <div className={member.active ? 'staff-row' : 'staff-row staff-row--inactive'}>
       <div className="staff-row__who">
-        <Avatar name={member.name} onClock={clockedInAt !== undefined} muted={!member.active} />
+        <Avatar name={member.name} muted={!member.active} />
         <div className="staff-row__name-wrap">
           <label className="sr-only" htmlFor={`staff-name-${member.id}`}>
             Name
@@ -175,13 +201,7 @@ function StaffRow({
             aria-invalid={error !== null}
             aria-describedby={error ? errorId : undefined}
           />
-          <span className="staff-row__status">
-            {!member.active
-              ? 'Deactivated · can’t sign in'
-              : clockedInAt !== undefined
-                ? `On the clock since ${formatClock(clockedInAt)}`
-                : 'Off the clock'}
-          </span>
+          {!member.active && <span className="staff-row__status">Deactivated · can’t sign in</span>}
           {error && (
             <p className="staff-row__error" id={errorId}>
               {error}
@@ -219,27 +239,76 @@ function StaffRow({
         )}
       </span>
 
-      <span className="staff-row__pin">
-        <span className="staff-pin mono" aria-live="polite">
-          {revealPin ? (
-            revealPin
-          ) : (
-            <>
-              <span aria-hidden="true">••••</span>
-              <span className="sr-only">Hidden</span>
-            </>
+      {pinDraft === null ? (
+        <span className="staff-row__pin">
+          <span className="staff-pin mono" aria-live="polite">
+            {revealPin ? (
+              revealPin
+            ) : (
+              <>
+                <span aria-hidden="true">••••</span>
+                <span className="sr-only">Hidden</span>
+              </>
+            )}
+          </span>
+          <Button
+            // Back from saving: focus here, so the revealed PIN hides as soon as the admin moves on.
+            autoFocus={pinSaved}
+            variant="secondary"
+            size="sm"
+            onClick={startPinEdit}
+            onBlur={() => {
+              setRevealPin(null);
+              setPinSaved(false);
+            }}
+            disabled={!member.active}
+            aria-label={revealPin ? `PIN set for ${member.name}. Change PIN` : `Change PIN for ${member.name}`}
+          >
+            {revealPin ? 'PIN set' : 'Change PIN'}
+          </Button>
+        </span>
+      ) : (
+        <span className="staff-row__pin staff-row__pin--editing">
+          <label className="sr-only" htmlFor={`staff-pin-${member.id}`}>
+            New PIN for {member.name}
+          </label>
+          <input
+            ref={pinRef}
+            id={`staff-pin-${member.id}`}
+            className="staff-input staff-input--pin mono"
+            type="text"
+            inputMode="numeric"
+            autoComplete="off"
+            maxLength={4}
+            placeholder="0000"
+            value={pinDraft}
+            onChange={(e) => {
+              setPinDraft(e.target.value.replace(/\D/g, '').slice(0, 4));
+              setPinError(null);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') savePin();
+              if (e.key === 'Escape') cancelPinEdit();
+            }}
+            aria-invalid={pinError !== null}
+            aria-describedby={pinError ? pinErrorId : undefined}
+          />
+          <Button size="sm" onClick={savePin}>
+            Save
+          </Button>
+          <Button variant="secondary" size="sm" onClick={cancelPinEdit}>
+            Cancel
+          </Button>
+          <button type="button" className="staff-pin-generate" onClick={generatePin}>
+            Generate one
+          </button>
+          {pinError && (
+            <p className="staff-row__error staff-row__pin-error" id={pinErrorId} role="alert">
+              {pinError}
+            </p>
           )}
         </span>
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={onResetPin}
-          onBlur={() => setRevealPin(null)}
-          disabled={!member.active}
-        >
-          {revealPin ? 'New PIN set' : 'Reset PIN'}
-        </Button>
-      </span>
+      )}
 
       <span className="staff-row__active">
         <Switch

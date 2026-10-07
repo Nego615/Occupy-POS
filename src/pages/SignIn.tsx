@@ -1,12 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router';
 import './SignIn.css';
-import { Avatar } from '../components/Avatar';
 import { BrandMark } from '../components/BrandMark';
-import { Button } from '../components/Button';
 import { Mono } from '../components/Mono';
 import { PinPad } from '../components/PinPad';
-import { homePath, roleLabel } from '../data/staff';
+import { homePath } from '../data/staff';
 import { usePos } from '../lib/store';
 import { useClock } from '../lib/useClock';
 
@@ -16,15 +14,13 @@ const LOCK_SECONDS = 30;
 type FromState = { from?: string } | null;
 
 /**
- * The lock screen. Every route sits behind it; a PIN signs someone in, and if
- * they aren't on the clock yet they're offered a one-tap clock-in on the way.
+ * The lock screen. Every route sits behind it; a PIN signs someone in.
  */
 export function SignIn() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { me, signIn, signOut, shifts, clockIn, settings } = usePos();
+  const { me, signIn, settings } = usePos();
   const { date, time } = useClock();
-  const [step, setStep] = useState<'pin' | 'clock'>('pin');
   const [failures, setFailures] = useState(0);
   const [lockedUntil, setLockedUntil] = useState<number | null>(null);
   const [secondsLeft, setSecondsLeft] = useState(0);
@@ -50,7 +46,7 @@ export function SignIn() {
   }, [lockedUntil]);
 
   // Already signed in (e.g. the back button) — nothing to do here.
-  if (me && step === 'pin') return <Navigate to={from ?? homePath(me)} replace />;
+  if (me) return <Navigate to={from ?? homePath(me)} replace />;
 
   function tryPin(pin: string): string | null {
     const member = signIn(pin);
@@ -68,18 +64,8 @@ export function SignIn() {
       } left.`;
     }
     setFailures(0);
-    const onClock = shifts.some((s) => s.staffId === member.id && s.clockOut === null);
-    if (onClock) {
-      navigate(from ?? homePath(member), { replace: true });
-    } else {
-      setStep('clock');
-    }
+    navigate(from ?? homePath(member), { replace: true });
     return null;
-  }
-
-  function continueIn(withClockIn: boolean) {
-    if (withClockIn && me) clockIn(me.id);
-    navigate(from ?? (me ? homePath(me) : '/counter/register'), { replace: true });
   }
 
   return (
@@ -95,47 +81,17 @@ export function SignIn() {
           </div>
         </div>
 
-        {step === 'pin' || !me ? (
-          <>
-            <h1 className="signin__title">Sign in</h1>
-            <p className="signin__sub">Enter your 4-digit staff PIN.</p>
-            <PinPad
-              label="Staff PIN"
-              onComplete={tryPin}
-              lockedMessage={
-                lockedUntil !== null
-                  ? `Too many wrong PINs. Try again in ${secondsLeft}s, or ask a manager.`
-                  : null
-              }
-            />
-          </>
-        ) : (
-          <div className="signin__clock">
-            <Avatar name={me.name} />
-            <h1 className="signin__title">Hi, {me.name.split(' ')[0]}</h1>
-            <p className="signin__sub">
-              {roleLabel(me.role)} · you’re not on the clock yet.
-            </p>
-            <div className="signin__actions">
-              <Button size="lg" block onClick={() => continueIn(true)}>
-                Clock in and continue
-              </Button>
-              <Button variant="secondary" block onClick={() => continueIn(false)}>
-                Continue without clocking in
-              </Button>
-              <button
-                type="button"
-                className="signin__not-me"
-                onClick={() => {
-                  signOut();
-                  setStep('pin');
-                }}
-              >
-                Not {me.name.split(' ')[0]}? Sign out
-              </button>
-            </div>
-          </div>
-        )}
+        <h1 className="signin__title">Sign in</h1>
+        <p className="signin__sub">Enter your 4-digit staff PIN.</p>
+        <PinPad
+          label="Staff PIN"
+          onComplete={tryPin}
+          lockedMessage={
+            lockedUntil !== null
+              ? `Too many wrong PINs. Try again in ${secondsLeft}s, or ask a manager.`
+              : null
+          }
+        />
       </div>
     </main>
   );

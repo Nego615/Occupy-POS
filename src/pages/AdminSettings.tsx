@@ -43,8 +43,6 @@ type Draft = {
   kitchenLateMinutes: string;
   autoLock: string;
   maxPinTries: string;
-  overtimeHours: string;
-  tipPooling: boolean;
 };
 
 type Errors = Partial<Record<keyof Draft | 'tipPcts0' | 'tipPcts1' | 'tipPcts2', string>>;
@@ -71,8 +69,6 @@ function toDraft(s: Settings): Draft {
     kitchenLateMinutes: String(s.kitchenLateMinutes),
     autoLock: s.autoLockMinutes === null ? 'never' : String(s.autoLockMinutes),
     maxPinTries: String(s.maxPinTries),
-    overtimeHours: String(s.overtimeHours),
-    tipPooling: s.tipPooling,
   };
 }
 
@@ -126,9 +122,6 @@ function fromDraft(d: Draft, current: Settings): { settings: Settings } | { erro
   const tries = parseNumber(d.maxPinTries, 3, 10, true);
   if (tries === null) errors.maxPinTries = 'A whole number from 3 to 10.';
 
-  const overtime = parseNumber(d.overtimeHours, 1, 80);
-  if (overtime === null) errors.overtimeHours = 'Hours from 1 to 80.';
-
   if (Object.keys(errors).length > 0) return { errors };
 
   return {
@@ -160,8 +153,6 @@ function fromDraft(d: Draft, current: Settings): { settings: Settings } | { erro
       kitchenLateMinutes: late!,
       autoLockMinutes: d.autoLock === 'never' ? null : Number(d.autoLock),
       maxPinTries: tries!,
-      overtimeHours: overtime!,
-      tipPooling: d.tipPooling,
     },
   };
 }
@@ -566,7 +557,7 @@ export function AdminSettings() {
         <Row
           id="autoLock"
           label="Auto-lock"
-          hint="Sign out after this long with no taps. Tabs and shifts carry on."
+          hint="Sign out after this long with no taps. Open tabs carry on."
         >
           <FilterSelect value={draft.autoLock} onChange={(v) => set('autoLock', v)} label="Auto-lock">
             {AUTO_LOCK_OPTIONS.map((o) => (
@@ -593,41 +584,6 @@ export function AdminSettings() {
             aria-label="Wrong PINs before lockout"
           />
         </Row>
-      </Section>
-
-      <Section title="Payroll" note="Used on Timecards and Salaries.">
-        <Row
-          id="overtimeHours"
-          forInput
-          label="Overtime after"
-          hint="Weekly hours before overtime pay (1.5×) starts."
-          error={errors.overtimeHours}
-        >
-          <Affix after="h / week">
-            <input
-              id="setting-overtimeHours"
-              className="settings-input settings-input--num mono"
-              inputMode="decimal"
-              value={draft.overtimeHours}
-              onChange={(e) => set('overtimeHours', e.target.value)}
-              aria-invalid={!!errors.overtimeHours}
-              aria-label="Overtime after, hours per week"
-            />
-          </Affix>
-        </Row>
-        {draft.tipsEnabled && (
-          <Row
-            id="tipPooling"
-            label="Pool tips"
-            hint="Share each pay period’s tips by hours among baristas and servers. Off means tips are paid out directly and left out of payroll."
-          >
-            <Switch
-              checked={draft.tipPooling}
-              onChange={(v) => set('tipPooling', v)}
-              label="Pool tips"
-            />
-          </Row>
-        )}
       </Section>
 
       <Section
@@ -657,7 +613,7 @@ export function AdminSettings() {
         <Row
           id="resetData"
           label="Start over"
-          hint={`Deletes every order, shift, stock movement, and setting saved ${
+          hint={`Deletes every order, stock movement, and setting saved ${
             shopEmail ? 'for this shop, on every device,' : 'here'
           } and starts the shop setup again. This can’t be undone.`}
         >

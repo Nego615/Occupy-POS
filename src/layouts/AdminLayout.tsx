@@ -40,7 +40,6 @@ export const ADMIN_NAV: { section: string; items: NavEntry[] }[] = [
     section: 'Team',
     items: [
       { to: '/admin/staff', icon: '◐', label: 'Staff', permission: 'staff' },
-      { to: '/admin/timecards', icon: '⎘', label: 'Timecards', permission: 'timecards' },
       { to: '/admin/salaries', icon: '¤', label: 'Salaries', permission: 'payroll' },
     ],
   },

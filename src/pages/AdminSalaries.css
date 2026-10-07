@@ -23,13 +23,9 @@
 
 .pay-tiles {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 12px;
   margin-bottom: 18px;
-}
-
-.pay-tiles--no-tips {
-  grid-template-columns: repeat(3, 1fr);
 }
 
 .pay-tile {
@@ -76,11 +72,6 @@
 
 .pay-section__head .panel__title {
   margin-bottom: 0;
-}
-
-.pay-section__so-far {
-  font-weight: 500;
-  color: var(--ink-soft);
 }
 
 .pay-close {
@@ -201,7 +192,7 @@
 
 .rate-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 12px;
   padding: 10px 0;
@@ -265,11 +256,6 @@
 }
 
 @media (max-width: 1180px) {
-  .pay-tiles,
-  .pay-tiles--no-tips {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
   .pay-cols {
     grid-template-columns: minmax(0, 1fr);
   }
