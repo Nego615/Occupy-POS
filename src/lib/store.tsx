@@ -4,6 +4,8 @@ import {
   CATALOG,
   CATEGORIES,
   stockFits,
+  titleCase,
+  withTitleCaseNames,
   withUsedCategories,
   type CatalogItem,
   type Category,
@@ -460,7 +462,15 @@ export function PosProvider({
   const [closedRecords, setClosedOrders] = useState<OrderRecord[]>(() =>
     restored(snapshot, 'orders', ORDERS),
   );
-  const [catalog, setCatalog] = useState<CatalogItem[]>(() => restored(snapshot, 'catalog', CATALOG));
+  // Names are title-cased however they arrive — saved before, typed in, or synced.
+  const [catalog, setCatalog] = useState<CatalogItem[]>(() =>
+    withTitleCaseNames(restored(snapshot, 'catalog', CATALOG)),
+  );
+  const setSyncedCatalog = useCallback(
+    (action: SetStateAction<CatalogItem[]>) =>
+      setCatalog((prev) => withTitleCaseNames(typeof action === 'function' ? action(prev) : action)),
+    [],
+  );
   const [categories, setCategories] = useState<Category[]>(() =>
     withUsedCategories(restored(snapshot, 'categories', CATEGORIES), catalog),
   );
@@ -516,7 +526,7 @@ export function PosProvider({
   // Changes from the other screens signed in to this shop.
   useRemote(repo, 'tabs', setTabs);
   useRemote(repo, 'orders', setClosedOrders);
-  useRemote(repo, 'catalog', setCatalog);
+  useRemote(repo, 'catalog', setSyncedCatalog);
   useRemote(repo, 'categories', setCategories);
   useRemote(repo, 'locations', setLocations);
   useRemote(repo, 'promotions', setPromotions);
@@ -935,14 +945,14 @@ export function PosProvider({
   );
 
   const updateItem = useCallback((id: string, patch: Partial<CatalogItem>) => {
-    setCatalog((prev) => prev.map((i) => (i.id === id ? { ...i, ...patch } : i)));
-  }, []);
+    setSyncedCatalog((prev) => prev.map((i) => (i.id === id ? { ...i, ...patch } : i)));
+  }, [setSyncedCatalog]);
 
   const createItem = useCallback(
     (data: Omit<CatalogItem, 'id'>) => {
       // Set meals share item ids' space on a tab, so neither reuses the other's.
       const taken = new Set([...catalog, ...setMeals].map((i) => i.id));
-      const item: CatalogItem = { ...data, id: slugId(data.name, 'item', taken) };
+      const item: CatalogItem = { ...data, name: titleCase(data.name), id: slugId(data.name, 'item', taken) };
       setCatalog((prev) => [...prev, item]);
       logNewItem(item);
       return item;

@@ -1,3 +1,4 @@
+import { Fragment, type ReactNode } from 'react';
 import './ItemTile.css';
 import { Money } from './Mono';
 
@@ -25,6 +26,24 @@ export type ItemTileProps = {
   tone?: 'surface' | 'paper';
   className?: string;
 };
+
+/**
+ * `name` with a line-break chance after each slash, so "Makange/Kitunguu/Lemon"
+ * wraps between its parts rather than running out of the tile.
+ */
+function breakable(name: string): ReactNode {
+  const parts = name.split('/');
+  return parts.map((part, i) => (
+    <Fragment key={i}>
+      {part}
+      {i < parts.length - 1 && (
+        <>
+          /<wbr />
+        </>
+      )}
+    </Fragment>
+  ));
+}
 
 export function ItemTile({
   name,
@@ -54,7 +73,7 @@ export function ItemTile({
   const content = (
     <>
       <span className="item-tile__dot" style={{ background: color }} aria-hidden="true" />
-      <span className="item-tile__name">{name}</span>
+      <span className="item-tile__name">{breakable(name)}</span>
       <span className="item-tile__price">
         <Money value={price} />
         {wasPrice !== undefined && wasPrice > price && (

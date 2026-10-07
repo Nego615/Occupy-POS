@@ -6,6 +6,8 @@
   padding: 16px 14px;
   min-height: 104px;
   width: 100%;
+  /* A grid cell, so a long name mustn't widen it past its column. */
+  min-width: 0;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -48,6 +50,9 @@
   font-size: 14px;
   font-weight: 600;
   line-height: 1.25;
+  /* Wraps at spaces and slashes first; a word still too long breaks mid-word
+     rather than spilling out of the tile. */
+  overflow-wrap: anywhere;
 }
 
 .item-tile__price {

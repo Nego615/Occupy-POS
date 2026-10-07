@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { categoryLabel, withUsedCategories, type CatalogItem } from './catalog';
+import { categoryLabel, titleCase, withUsedCategories, type CatalogItem } from './catalog';
 
 const item = (category: string): CatalogItem => ({
   id: category + '-item',
@@ -25,6 +25,18 @@ describe('withUsedCategories', () => {
   it('hands back the same list when nothing is missing', () => {
     const categories = [{ id: 'coffee', label: 'Hot drinks' }];
     expect(withUsedCategories(categories, [item('coffee')])).toBe(categories);
+  });
+});
+
+describe('titleCase', () => {
+  it('capitalises each word, including after slashes and brackets', () => {
+    expect(titleCase('fried/choma chicken (kisasa)')).toBe('Fried/Choma Chicken (Kisasa)');
+    expect(titleCase('kuku makange/kitunguu/lemon kienyeji')).toBe('Kuku Makange/Kitunguu/Lemon Kienyeji');
+  });
+
+  it('leaves letters already in capitals alone', () => {
+    expect(titleCase('BBQ wings')).toBe('BBQ Wings');
+    expect(titleCase('Coconut Fish')).toBe('Coconut Fish');
   });
 });
 

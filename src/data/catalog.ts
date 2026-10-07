@@ -54,6 +54,22 @@ export function stockState(
   return 'in';
 }
 
+/**
+ * Item names with each word capitalised — "fried/choma chicken (kisasa)" →
+ * "Fried/Choma Chicken (Kisasa)". Only first letters change, so "BBQ" stays.
+ */
+export function titleCase(name: string): string {
+  return name.replace(/(^|[\s/(])(\p{Ll})/gu, (_, before: string, letter: string) => before + letter.toUpperCase());
+}
+
+/** `catalog` with every name title-cased, keeping items whose names already are. */
+export function withTitleCaseNames(catalog: CatalogItem[]): CatalogItem[] {
+  return catalog.map((i) => {
+    const name = titleCase(i.name);
+    return name === i.name ? i : { ...i, name };
+  });
+}
+
 /** How many of `item` can be rung up. */
 export function stockLimit(item: CatalogItem): number {
   return Math.max(0, item.stock);

@@ -11,6 +11,7 @@ import {
   categoryLabel,
   parseUnits,
   stockState,
+  titleCase,
   unitsLabel,
   type CategoryId,
   type Portion,
@@ -661,7 +662,7 @@ export function ItemEditor() {
           <div className="editor__preview-label">Live preview</div>
           {/* The same tile component the register grid renders. */}
           <ItemTile
-            name={draft.name || 'Untitled item'}
+            name={titleCase(draft.name.trim()) || 'Untitled item'}
             price={priceValid ? priceValue : 0}
             color={draft.color}
             note={
