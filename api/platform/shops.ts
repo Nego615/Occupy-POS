@@ -95,14 +95,18 @@ export const POST = handle(async (req) => {
   });
   if (error || !data.user) throw new Refused(400, error?.message ?? 'Couldn’t create the account.');
 
-  const { error: shopError } = await admin.from('shops').insert({
+  const row = {
     store_id: data.user.id,
     name,
     owner_email: email,
     phone: b.phone?.trim() || null,
     plan_id: b.planId || null,
+    // With no trial it starts unpaid (in its grace days) until the first payment.
     paid_until: new Date(Date.now() + trialDays * DAY).toISOString(),
-  });
+  };
+  let { error: shopError } = await admin.from('shops').insert({ ...row, trial: trialDays > 0 });
+  // A database not yet upgraded for free trials has no `trial` column.
+  if (shopError?.code === 'PGRST204') ({ error: shopError } = await admin.from('shops').insert(row));
   if (shopError) {
     // No half-made shops: an account without its row would open unrestricted.
     await admin.auth.admin.deleteUser(data.user.id);

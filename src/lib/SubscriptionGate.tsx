@@ -56,11 +56,11 @@ export function SubscriptionGate({
   const [now, setNow] = useState(() => new Date());
 
   const check = useCallback(async () => {
-    const { data, error } = await client
-      .from('shops')
-      .select('name, paid_until, grace_days, suspended')
-      .eq('store_id', storeId)
-      .maybeSingle<ShopSubscription>();
+    const read = (columns: string) =>
+      client.from('shops').select(columns).eq('store_id', storeId).maybeSingle<ShopSubscription>();
+    let { data, error } = await read('name, paid_until, grace_days, suspended, trial');
+    // A database not yet upgraded for free trials has no `trial` column.
+    if (error?.code === '42703') ({ data, error } = await read('name, paid_until, grace_days, suspended'));
     setNow(new Date());
     // Offline, or the platform tables aren't set up: keep what was known.
     if (error) return;

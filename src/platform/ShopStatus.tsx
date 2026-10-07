@@ -8,14 +8,18 @@ export const STATUS_LABEL: Record<SubscriptionStatus, string> = {
   suspended: 'Suspended',
 };
 
-/** A shop's subscription as a tag: "Paid up", "Ending in 3 days", "Locks in 2 days". */
+/** A shop's subscription as a tag: "Paid up", "Free trial, 12 days left", "Locks in 2 days". */
 export function ShopStatus({ shop }: { shop: ShopSubscription }) {
-  const { status, daysLeft } = subscriptionState(shop);
+  const { status, daysLeft, trial } = subscriptionState(shop);
+  const days = daysLeft === null ? '' : dayCount(daysLeft);
   const text =
-    status === 'expiring' && daysLeft !== null
-      ? `Ends in ${dayCount(daysLeft)}`
-      : status === 'grace' && daysLeft !== null
-        ? `Locks in ${dayCount(daysLeft)}`
-        : STATUS_LABEL[status];
-  return <span className={`pf-tag pf-tag--${status}`}>{text}</span>;
+    status === 'active' && trial
+      ? days ? `Free trial, ${days} left` : 'Free trial'
+      : status === 'expiring'
+        ? `${trial ? 'Trial ends' : 'Ends'} in ${days}`
+        : status === 'grace'
+          ? `${trial ? 'Trial over, locks' : 'Locks'} in ${days}`
+          : STATUS_LABEL[status];
+  const kind = status === 'active' && trial ? 'trial' : status;
+  return <span className={`pf-tag pf-tag--${kind}`}>{text}</span>;
 }

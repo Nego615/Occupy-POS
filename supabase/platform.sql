@@ -53,6 +53,8 @@ create table shops (
   paid_until  timestamptz,
   grace_days  int not null default 7 check (grace_days >= 0),
   suspended   boolean not null default false,
+  -- On a free trial: paid_until is when the trial ends. The first payment ends it.
+  trial       boolean not null default false,
   created_at  timestamptz not null default now()
 );
 alter table shops enable row level security;
@@ -83,7 +85,8 @@ create policy "admins manage payments" on subscription_payments
 
 -- Records a payment and extends the shop by whole plan periods, counted from
 -- whichever is later: today, or the date it's already paid up to. A lifetime
--- plan clears the end date instead, and counts as one period.
+-- plan clears the end date instead, and counts as one period. A shop on a
+-- free trial starts paying from today, not from the end of its trial.
 create or replace function record_payment(
   store uuid, plan uuid, amount numeric, method text, reference text, periods int
 ) returns timestamptz
@@ -104,7 +107,7 @@ begin
     next_until := null;
     periods := 1;
   else
-    next_until := greatest(coalesce(s.paid_until, now()), now())
+    next_until := case when s.trial then now() else greatest(coalesce(s.paid_until, now()), now()) end
       + make_interval(months => p.period_months * periods);
   end if;
 
@@ -112,7 +115,7 @@ begin
     (store_id, shop_name, plan_id, amount, currency, method, reference, periods, recorded_by)
   values (store, s.name, plan, amount, p.currency, method, nullif(reference, ''), periods, auth.uid());
 
-  update shops set paid_until = next_until, plan_id = plan where store_id = store;
+  update shops set paid_until = next_until, plan_id = plan, trial = false where store_id = store;
   return next_until;
 end $$;
 

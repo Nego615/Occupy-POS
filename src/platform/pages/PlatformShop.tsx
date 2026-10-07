@@ -12,12 +12,14 @@ import {
   planLabel,
   recordPayment,
   resetPassword,
+  startTrial,
   updateShop,
   type Plan,
   type Shop,
 } from '../api';
 import { usePlatform } from '../PlatformData';
 import { Runway } from '../Runway';
+import { useUnsaved } from '../Unsaved';
 
 const METHODS = ['M-Pesa', 'Bank transfer', 'Cash', 'Card', 'Other'];
 
@@ -81,7 +83,7 @@ export function PlatformShop() {
             <Fact label="Plan">{plan
                 ? `${plan.name}: ${money(plan.price, plan.currency)} ${isLifetime(plan) ? 'once' : periodLabel(plan.period_months).toLowerCase()}`
                 : 'None'}</Fact>
-            <Fact label="Paid until">
+            <Fact label={shop.trial ? 'Free trial until' : 'Paid until'}>
               <Mono>{shop.paid_until ? formatDay(shop.paid_until) : plan && isLifetime(plan) ? 'Lifetime' : 'No end date'}</Mono>
               {state.status === 'grace' && state.daysLeft !== null && (
                 <span className="pf-facts__note"> · locks in {dayCount(state.daysLeft)}</span>
@@ -89,6 +91,8 @@ export function PlatformShop() {
             </Fact>
             <Fact label="Grace after expiry">{dayCount(shop.grace_days)}</Fact>
           </dl>
+          {/* Trials are for shops that haven't paid yet, or are already on one. */}
+          {(shop.trial || history.length === 0) && <FreeTrial shop={shop} />}
           <RecordPayment shop={shop} />
         </section>
 
@@ -147,6 +151,72 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
+/** Starts a free trial, or adds days to the one running. */
+function FreeTrial({ shop }: { shop: Shop }) {
+  const { client, reload } = usePlatform();
+  const [days, setDays] = useState('14');
+  const [done, setDone] = useState(false);
+  const { busy, error, run } = useAction();
+  const running = shop.trial && !!shop.paid_until && new Date(shop.paid_until).getTime() > Date.now();
+  const n = Math.max(1, Math.min(365, Math.floor(Number(days) || 0)));
+  const { id: formId, confirmDiscard } = useUnsaved('The free trial form', days !== '14', () => setDays('14'));
+
+  async function submit() {
+    // Starting a trial reloads the shop, which would reset half-edited details.
+    if (!(await confirmDiscard(formId))) return;
+    const ok = await run(async () => {
+      await startTrial(client, shop, n);
+      await reload();
+    });
+    if (ok) {
+      setDays('14');
+      setDone(true);
+    }
+  }
+
+  return (
+    <form
+      className="pf-pay pf-trial"
+      onSubmit={(e) => {
+        e.preventDefault();
+        void submit();
+      }}
+    >
+      <h3 className="pf-pay__title">{running ? 'Extend the free trial' : 'Give a free trial'}</h3>
+      <p className="pf-line__sub">
+        {running
+          ? 'Adds days to the end of the trial. Recording a payment ends it.'
+          : 'The register works for these days without payment. Recording a payment ends the trial.'}
+      </p>
+      <div className="pf-actions">
+        <label className="counter-field pf-trial__days">
+          <span>Days</span>
+          <input
+            className="mono"
+            type="number"
+            min={1}
+            max={365}
+            value={days}
+            onChange={(e) => {
+              setDays(e.target.value);
+              setDone(false);
+            }}
+          />
+        </label>
+        <Button type="submit" variant="secondary" disabled={busy}>
+          {busy ? 'Saving…' : running ? `Add ${dayCount(n)}` : `Start ${dayCount(n)} trial`}
+        </Button>
+        {done && !busy && <span className="pf-saved" role="status">{running ? 'Trial extended' : 'Trial started'}</span>}
+      </div>
+      {error && (
+        <p className="pf-error" role="alert">
+          {error}
+        </p>
+      )}
+    </form>
+  );
+}
+
 /** Takes a payment and extends the shop by whole plan periods. */
 function RecordPayment({ shop }: { shop: Shop }) {
   const { client, plans, reload } = usePlatform();
@@ -163,11 +233,25 @@ function RecordPayment({ shop }: { shop: Shop }) {
   // A lifetime plan is bought once, whatever the periods field says.
   const n = lifetime ? 1 : Math.max(1, Math.floor(Number(periods) || 1));
   const months = plan ? n * plan.period_months : 0;
+  const suggested = plan ? String(plan.price * n) : '';
 
-  // The amount follows the plan and periods until it's typed over.
+  // The amount follows the plan and periods until it's typed over. Keyed on the
+  // price, not the plan object, so a reload doesn't overwrite a typed amount.
   useEffect(() => {
-    if (plan) setAmount(String(plan.price * n));
-  }, [plan, n]);
+    setAmount(suggested);
+  }, [suggested]);
+
+  const startPlan = shop.plan_id ?? choosable[0]?.id ?? '';
+  const dirty =
+    planId !== startPlan || periods !== '1' || method !== METHODS[0] || reference !== '' || amount !== suggested;
+  function clear() {
+    setPlanId(startPlan);
+    setPeriods('1');
+    setMethod(METHODS[0]);
+    setReference('');
+    setAmount(suggested);
+  }
+  const { id: formId, confirmDiscard } = useUnsaved('The payment form', dirty, clear);
 
   if (choosable.length === 0) {
     return (
@@ -178,7 +262,8 @@ function RecordPayment({ shop }: { shop: Shop }) {
   }
 
   async function submit() {
-    if (!plan) return;
+    // Recording reloads the shop, which would reset its half-edited details.
+    if (!plan || !(await confirmDiscard(formId))) return;
     const ok = await run(async () => {
       await recordPayment(client, {
         store: shop.store_id,
@@ -191,8 +276,7 @@ function RecordPayment({ shop }: { shop: Shop }) {
       await reload();
     });
     if (ok) {
-      setReference('');
-      setPeriods('1');
+      clear();
       setDone(true);
     }
   }
@@ -205,7 +289,8 @@ function RecordPayment({ shop }: { shop: Shop }) {
         void submit();
       }}
     >
-      <h3 className="pf-pay__title">Record a payment</h3>
+      <h3 className="pf-pay__title">{shop.trial ? 'Record the first payment' : 'Record a payment'}</h3>
+      {shop.trial && <p className="pf-line__sub">Ends the free trial. Paid time starts today.</p>}
       <div className="pf-field-pair">
         <label className="counter-field">
           <span>Plan</span>
@@ -269,7 +354,12 @@ function RecordPayment({ shop }: { shop: Shop }) {
               ? 'Record payment · lifetime, never ends'
               : `Record payment · adds ${months} month${months === 1 ? '' : 's'}`}
         </Button>
-        {done && !busy && <span className="pf-saved" role="status">Recorded</span>}
+        {dirty && !busy && (
+          <Button variant="secondary" onClick={clear}>
+            Clear
+          </Button>
+        )}
+        {done && !busy && !dirty && <span className="pf-saved" role="status">Recorded</span>}
       </div>
     </form>
   );
@@ -297,6 +387,8 @@ function ShopDetails({ shop, plans }: { shop: Shop; plans: Plan[] }) {
     setDraft((d) => ({ ...d, ...patch }));
     setSaved(false);
   };
+  const discard = () => setDraft(JSON.parse(initialJson) as typeof initial);
+  useUnsaved('Shop details', dirty, discard);
 
   async function save() {
     const name = draft.name.trim();
@@ -387,6 +479,11 @@ function ShopDetails({ shop, plans }: { shop: Shop; plans: Plan[] }) {
           <Button type="submit" disabled={!dirty || busy}>
             {busy ? 'Saving…' : 'Save details'}
           </Button>
+          {dirty && !busy && (
+            <Button variant="secondary" onClick={discard}>
+              Discard changes
+            </Button>
+          )}
           {saved && !dirty && <span className="pf-saved" role="status">Saved</span>}
         </div>
       </form>
@@ -404,6 +501,7 @@ function AccountActions({ shop }: { shop: Shop }) {
   const pw = useAction();
   const suspend = useAction();
   const remove = useAction();
+  const { id: passwordForm, confirmDiscard } = useUnsaved('The new password', password !== '' && !passwordSet, () => setPassword(''));
 
   async function changePassword() {
     const ok = await pw.run(async () => {
@@ -415,6 +513,8 @@ function AccountActions({ shop }: { shop: Shop }) {
   }
 
   async function toggleSuspended() {
+    // Reloads the shop, which would reset half-edited details (not the password).
+    if (!(await confirmDiscard(passwordForm))) return;
     await suspend.run(async () => {
       await updateShop(client, shop.store_id, { suspended: !shop.suspended });
       await reload();
@@ -422,6 +522,7 @@ function AccountActions({ shop }: { shop: Shop }) {
   }
 
   async function destroy() {
+    if (!(await confirmDiscard())) return;
     const ok = await remove.run(async () => {
       await deleteShop(client, shop.store_id);
       await reload();

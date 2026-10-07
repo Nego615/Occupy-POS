@@ -30,14 +30,14 @@ export function SubscriptionLocked({
     <main className="signin">
       <div className="signin__card">
         <h1 className="signin__title">
-          {state.status === 'suspended' ? 'This register is paused' : 'Subscription ended'}
+          {state.status === 'suspended' ? 'This register is paused' : state.trial ? 'Free trial ended' : 'Subscription ended'}
         </h1>
         <p className="signin__sub">
           {state.status === 'suspended'
             ? `${shop.name}’s account has been paused.`
-            : `${shop.name}’s subscription ended${shop.paid_until ? ` on ${formatDay(shop.paid_until)}` : ''}.`}{' '}
-          Your data is safe and the register opens again as soon as it’s renewed.
-          {SUPPORT && <> To renew, contact {SUPPORT}.</>}
+            : `${shop.name}’s ${state.trial ? 'free trial' : 'subscription'} ended${shop.paid_until ? ` on ${formatDay(shop.paid_until)}` : ''}.`}{' '}
+          Your data is safe and the register opens again as soon as {state.trial ? 'you subscribe' : 'it’s renewed'}.
+          {SUPPORT && <> To {state.trial ? 'subscribe' : 'renew'}, contact {SUPPORT}.</>}
         </p>
         <Button size="lg" block onClick={() => void retry()} disabled={busy}>
           {busy ? 'Checking…' : 'Check again'}

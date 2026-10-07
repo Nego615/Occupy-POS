@@ -8,10 +8,19 @@ import { SearchField } from '../../components/SearchField';
 import { formatDay, subscriptionState, type SubscriptionStatus } from '../../lib/subscription';
 import { ago, createShop, isLifetime, planLabel } from '../api';
 import { usePlatform } from '../PlatformData';
+import { useUnsaved } from '../Unsaved';
 import { STATUS_LABEL, ShopStatus } from '../ShopStatus';
 
-type Filter = 'all' | SubscriptionStatus;
-const FILTERS: Filter[] = ['all', 'active', 'expiring', 'grace', 'locked', 'suspended'];
+type Filter = 'all' | 'trial' | SubscriptionStatus;
+const FILTERS: Filter[] = ['all', 'active', 'trial', 'expiring', 'grace', 'locked', 'suspended'];
+
+/** "Paid up" leaves out shops on a free trial; "On free trial" is those still running. */
+function matches(filter: Filter, { status, trial }: { status: SubscriptionStatus; trial: boolean }): boolean {
+  if (filter === 'all') return true;
+  if (filter === 'trial') return trial && (status === 'active' || status === 'expiring');
+  if (filter === 'active') return status === 'active' && !trial;
+  return status === filter;
+}
 
 /** Every shop account, with what it pays and whether it's up to date. */
 export function PlatformShops() {
@@ -20,12 +29,12 @@ export function PlatformShops() {
   const [query, setQuery] = useState('');
   const [adding, setAdding] = useState(false);
 
-  const withStatus = shops.map((shop) => ({ shop, status: subscriptionState(shop).status }));
+  const withStatus = shops.map((shop) => ({ shop, ...subscriptionState(shop) }));
   const q = query.trim().toLowerCase();
   const shown = withStatus.filter(
-    ({ shop, status }) =>
-      (filter === 'all' || status === filter) &&
-      (!q || shop.name.toLowerCase().includes(q) || shop.owner_email.toLowerCase().includes(q)),
+    (row) =>
+      matches(filter, row) &&
+      (!q || row.shop.name.toLowerCase().includes(q) || row.shop.owner_email.toLowerCase().includes(q)),
   );
 
   return (
@@ -46,8 +55,8 @@ export function PlatformShops() {
         <PillRow label="Show">
           {FILTERS.map((f) => (
             <Pill key={f} active={filter === f} onClick={() => setFilter(f)}>
-              {f === 'all' ? 'All' : STATUS_LABEL[f]}{' '}
-              <Mono>{f === 'all' ? shops.length : withStatus.filter((s) => s.status === f).length}</Mono>
+              {f === 'all' ? 'All' : f === 'trial' ? 'On free trial' : STATUS_LABEL[f]}{' '}
+              <Mono>{withStatus.filter((row) => matches(f, row)).length}</Mono>
             </Pill>
           ))}
         </PillRow>
@@ -123,6 +132,20 @@ function NewShopDialog({ open, onClose }: { open: boolean; onClose: () => void }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
+  // Typed details count as unsaved; the generated password and defaults don't.
+  const dirty = open && !busy && (name.trim() !== '' || email.trim() !== '' || phone.trim() !== '');
+  const { confirmDiscard } = useUnsaved('The new shop', dirty, () => {
+    setName('');
+    setEmail('');
+    setPhone('');
+  });
+
+  /** Escape, the backdrop and × all come here: ask before throwing away what's typed. */
+  async function requestClose() {
+    if (dirty && !(await confirmDiscard())) return;
+    onClose();
+  }
+
   async function submit() {
     setBusy(true);
     setError(null);
@@ -146,7 +169,7 @@ function NewShopDialog({ open, onClose }: { open: boolean; onClose: () => void }
   }
 
   return (
-    <Modal open={open} title="New shop" sub="Creates the account a shop signs its registers in with." onClose={onClose}>
+    <Modal open={open} title="New shop" sub="Creates the account a shop signs its registers in with." onClose={() => void requestClose()}>
       <form
         className="counter-dialog__form"
         onSubmit={(e) => {
@@ -191,7 +214,7 @@ function NewShopDialog({ open, onClose }: { open: boolean; onClose: () => void }
             </select>
           </label>
           <label className="counter-field">
-            <span>Free trial (days)</span>
+            <span>Free trial in days (0 for none)</span>
             <input
               className="mono"
               type="number"

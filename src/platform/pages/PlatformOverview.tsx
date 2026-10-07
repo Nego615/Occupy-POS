@@ -9,19 +9,21 @@ export function PlatformOverview() {
   const { shops, plans, payments } = usePlatform();
   const states = shops.map((shop) => ({ shop, ...subscriptionState(shop) }));
   const count = (...statuses: string[]) => states.filter((s) => statuses.includes(s.status)).length;
+  const onTrial = states.filter((s) => s.trial && (s.status === 'active' || s.status === 'expiring')).length;
 
   // What paying shops bring in per month, per currency — plans can differ in both.
   const monthly = new Map<string, number>();
-  for (const { shop, status } of states) {
+  for (const { shop, status, trial } of states) {
     const plan = plans.find((p) => p.id === shop.plan_id);
-    // Lifetime plans were paid once; they bring nothing in month to month.
-    if (!plan || plan.period_months === 0 || status === 'locked' || status === 'suspended') continue;
+    // Lifetime plans were paid once, and trials haven't paid yet: neither brings in money month to month.
+    if (!plan || plan.period_months === 0 || trial || status === 'locked' || status === 'suspended') continue;
     monthly.set(plan.currency, (monthly.get(plan.currency) ?? 0) + plan.price / plan.period_months);
   }
 
   const tally = [
     { value: shops.length, label: shops.length === 1 ? 'shop' : 'shops' },
-    { value: count('active', 'expiring'), label: 'paid up' },
+    { value: count('active', 'expiring') - onTrial, label: 'paid up' },
+    { value: onTrial, label: 'on free trial' },
     { value: count('expiring', 'grace'), label: 'to chase', warn: true },
     { value: count('locked', 'suspended'), label: 'locked', bad: true },
   ];
@@ -57,7 +59,7 @@ export function PlatformOverview() {
             How long each shop is paid for
           </h2>
           <p className="pf-panel__note">
-            Solid is paid time. Hatched is the grace period before the register locks.
+            Solid is paid time, striped is a free trial, hatched is the grace period before the register locks.
           </p>
         </div>
         {shops.length === 0 ? (

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router';
 import { usePlatform } from './PlatformData';
+import { UnsavedChangesProvider, useConfirmDiscard } from './Unsaved';
 
 const NAV = [
   { to: '/platform', label: 'Overview' },
@@ -14,7 +15,16 @@ const NAV = [
  * deliberately unlike a shop's admin sidebar, so the two are never confused.
  */
 export function PlatformLayout() {
+  return (
+    <UnsavedChangesProvider>
+      <Shell />
+    </UnsavedChangesProvider>
+  );
+}
+
+function Shell() {
   const { client, email } = usePlatform();
+  const confirmDiscard = useConfirmDiscard();
   const { pathname } = useLocation();
   const main = useRef<HTMLElement>(null);
   // A new page starts at its top. Braces matter: Chrome's scrollTo returns a
@@ -53,7 +63,9 @@ export function PlatformLayout() {
           <button
             type="button"
             className="pf-bar__signout"
-            onClick={() => void client.auth.signOut({ scope: 'local' })}
+            onClick={async () => {
+              if (await confirmDiscard()) void client.auth.signOut({ scope: 'local' });
+            }}
           >
             Sign out
           </button>

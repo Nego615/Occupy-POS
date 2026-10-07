@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router';
+import { Navigate, RouterProvider, createBrowserRouter } from 'react-router';
 import type { Session, SupabaseClient } from '@supabase/supabase-js';
 import '../pages/SignIn.css';
 import './Platform.css';
@@ -77,19 +77,29 @@ function PlatformAuth({ client }: { client: SupabaseClient }) {
 
   return (
     <PlatformDataProvider client={client} email={session.user.email ?? ''}>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/platform" element={<PlatformLayout />}>
-            <Route index element={<PlatformOverview />} />
-            <Route path="shops" element={<PlatformShops />} />
-            <Route path="shops/:id" element={<PlatformShop />} />
-            <Route path="plans" element={<PlatformPlans />} />
-            <Route path="payments" element={<PlatformPayments />} />
-            <Route path="*" element={<Navigate to="/platform" replace />} />
-          </Route>
-          <Route path="*" element={<Navigate to="/platform" replace />} />
-        </Routes>
-      </BrowserRouter>
+      <PlatformRouter />
     </PlatformDataProvider>
   );
+}
+
+/** A data router, so unsaved changes can hold back a page change (useBlocker). */
+function PlatformRouter() {
+  const [router] = useState(() =>
+    createBrowserRouter([
+      {
+        path: '/platform',
+        element: <PlatformLayout />,
+        children: [
+          { index: true, element: <PlatformOverview /> },
+          { path: 'shops', element: <PlatformShops /> },
+          { path: 'shops/:id', element: <PlatformShop /> },
+          { path: 'plans', element: <PlatformPlans /> },
+          { path: 'payments', element: <PlatformPayments /> },
+          { path: '*', element: <Navigate to="/platform" replace /> },
+        ],
+      },
+      { path: '*', element: <Navigate to="/platform" replace /> },
+    ]),
+  );
+  return <RouterProvider router={router} />;
 }

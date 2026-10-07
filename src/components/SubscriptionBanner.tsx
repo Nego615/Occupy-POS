@@ -11,16 +11,19 @@ export function SubscriptionBanner() {
   if (!state || state.daysLeft === null) return null;
   if (state.status !== 'expiring' && state.status !== 'grace') return null;
 
-  const renew = SUPPORT ? ` Contact ${SUPPORT} to renew.` : ' Renew to keep using the register.';
+  const what = state.trial ? 'free trial' : 'subscription';
+  const renew = state.trial
+    ? SUPPORT ? ` Contact ${SUPPORT} to subscribe.` : ' Subscribe to keep using the register.'
+    : SUPPORT ? ` Contact ${SUPPORT} to renew.` : ' Renew to keep using the register.';
   return (
     <div className="sub-banner" role="status">
       <StatusChip status="occupied" size="sm">
-        {state.status === 'grace' ? 'Expired' : 'Renew soon'}
+        {state.status === 'grace' ? (state.trial ? 'Trial ended' : 'Expired') : state.trial ? 'Free trial' : 'Renew soon'}
       </StatusChip>
       <span className="sub-banner__text">
         {state.status === 'grace'
-          ? `The subscription has ended — the register locks in ${dayCount(state.daysLeft)}.`
-          : `The subscription ends in ${dayCount(state.daysLeft)}.`}
+          ? `The ${what} has ended — the register locks in ${dayCount(state.daysLeft)}.`
+          : `The ${what} ends in ${dayCount(state.daysLeft)}.`}
         {renew}
       </span>
     </div>

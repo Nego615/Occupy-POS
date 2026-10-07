@@ -37,6 +37,12 @@ export function Modal({
       ref={ref}
       className="counter-dialog"
       aria-labelledby="counter-dialog-title"
+      // Escape asks the owner to close rather than closing outright, so a
+      // dialog can decline (e.g. to confirm discarding what's typed).
+      onCancel={(e) => {
+        e.preventDefault();
+        onClose();
+      }}
       onClose={onClose}
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >

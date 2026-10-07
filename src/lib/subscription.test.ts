@@ -14,27 +14,33 @@ const shop = (patch: Partial<ShopSubscription>): ShopSubscription => ({
 
 describe('subscriptionState', () => {
   it('is active with more than a week to go', () => {
-    expect(subscriptionState(shop({ paid_until: at(30) }), now)).toEqual({ status: 'active', daysLeft: 30 });
+    expect(subscriptionState(shop({ paid_until: at(30) }), now)).toMatchObject({ status: 'active', daysLeft: 30 });
     expect(subscriptionState(shop({ paid_until: at(7.5) }), now).status).toBe('active');
   });
 
   it('warns in the last week', () => {
-    expect(subscriptionState(shop({ paid_until: at(7) }), now)).toEqual({ status: 'expiring', daysLeft: 7 });
-    expect(subscriptionState(shop({ paid_until: at(0.1) }), now)).toEqual({ status: 'expiring', daysLeft: 1 });
+    expect(subscriptionState(shop({ paid_until: at(7) }), now)).toMatchObject({ status: 'expiring', daysLeft: 7 });
+    expect(subscriptionState(shop({ paid_until: at(0.1) }), now)).toMatchObject({ status: 'expiring', daysLeft: 1 });
   });
 
   it('counts down the grace days once lapsed', () => {
-    expect(subscriptionState(shop({ paid_until: at(0) }), now)).toEqual({ status: 'grace', daysLeft: 7 });
-    expect(subscriptionState(shop({ paid_until: at(-6.5) }), now)).toEqual({ status: 'grace', daysLeft: 1 });
+    expect(subscriptionState(shop({ paid_until: at(0) }), now)).toMatchObject({ status: 'grace', daysLeft: 7 });
+    expect(subscriptionState(shop({ paid_until: at(-6.5) }), now)).toMatchObject({ status: 'grace', daysLeft: 1 });
   });
 
   it('locks when the grace days run out', () => {
-    expect(subscriptionState(shop({ paid_until: at(-7) }), now)).toEqual({ status: 'locked', daysLeft: null });
+    expect(subscriptionState(shop({ paid_until: at(-7) }), now)).toMatchObject({ status: 'locked', daysLeft: null });
     expect(subscriptionState(shop({ paid_until: at(-1), grace_days: 0 }), now).status).toBe('locked');
   });
 
   it('never ends without an end date', () => {
-    expect(subscriptionState(shop({ paid_until: null }), now)).toEqual({ status: 'active', daysLeft: null });
+    expect(subscriptionState(shop({ paid_until: null }), now)).toMatchObject({ status: 'active', daysLeft: null });
+  });
+
+  it('carries the free trial through every state', () => {
+    expect(subscriptionState(shop({ trial: true, paid_until: at(10) }), now)).toEqual({ status: 'active', daysLeft: 10, trial: true });
+    expect(subscriptionState(shop({ trial: true, paid_until: at(-2) }), now)).toMatchObject({ status: 'grace', trial: true });
+    expect(subscriptionState(shop({ paid_until: at(10) }), now).trial).toBe(false);
   });
 
   it('puts suspension above the dates', () => {
@@ -44,9 +50,9 @@ describe('subscriptionState', () => {
 
 describe('isLocked', () => {
   it('locks only locked and suspended shops', () => {
-    expect(isLocked({ status: 'locked', daysLeft: null })).toBe(true);
-    expect(isLocked({ status: 'suspended', daysLeft: null })).toBe(true);
-    expect(isLocked({ status: 'grace', daysLeft: 2 })).toBe(false);
-    expect(isLocked({ status: 'expiring', daysLeft: 2 })).toBe(false);
+    expect(isLocked({ status: 'locked' })).toBe(true);
+    expect(isLocked({ status: 'suspended' })).toBe(true);
+    expect(isLocked({ status: 'grace' })).toBe(false);
+    expect(isLocked({ status: 'expiring' })).toBe(false);
   });
 });

@@ -5,6 +5,8 @@ export type ShopSubscription = {
   paid_until: string | null;
   grace_days: number;
   suspended: boolean;
+  /** On a free trial: paid_until is when it ends. Absent on rows cached before trials. */
+  trial?: boolean;
 };
 
 /**
@@ -20,6 +22,8 @@ export type SubscriptionState = {
   status: SubscriptionStatus;
   /** Days until it ends (active, expiring) or locks (grace); null when that doesn't apply. */
   daysLeft: number | null;
+  /** The time running out is a free trial, not paid time. */
+  trial: boolean;
 };
 
 /** How long before the end date a shop starts being warned. */
@@ -28,21 +32,22 @@ export const WARN_DAYS = 7;
 const DAY = 24 * 60 * 60 * 1000;
 
 export function subscriptionState(shop: ShopSubscription, now: Date = new Date()): SubscriptionState {
-  if (shop.suspended) return { status: 'suspended', daysLeft: null };
-  if (!shop.paid_until) return { status: 'active', daysLeft: null };
+  const trial = !!shop.trial;
+  if (shop.suspended) return { status: 'suspended', daysLeft: null, trial };
+  if (!shop.paid_until) return { status: 'active', daysLeft: null, trial };
   const end = new Date(shop.paid_until).getTime();
   const t = now.getTime();
   if (end > t) {
     const daysLeft = Math.ceil((end - t) / DAY);
-    return { status: end - t > WARN_DAYS * DAY ? 'active' : 'expiring', daysLeft };
+    return { status: end - t > WARN_DAYS * DAY ? 'active' : 'expiring', daysLeft, trial };
   }
   const lock = end + shop.grace_days * DAY;
-  if (lock > t) return { status: 'grace', daysLeft: Math.ceil((lock - t) / DAY) };
-  return { status: 'locked', daysLeft: null };
+  if (lock > t) return { status: 'grace', daysLeft: Math.ceil((lock - t) / DAY), trial };
+  return { status: 'locked', daysLeft: null, trial };
 }
 
 /** Whether the register refuses to open. */
-export function isLocked(state: SubscriptionState): boolean {
+export function isLocked(state: Pick<SubscriptionState, 'status'>): boolean {
   return state.status === 'locked' || state.status === 'suspended';
 }
 

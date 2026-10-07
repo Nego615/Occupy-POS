@@ -67,14 +67,16 @@ export function Runway({ shops, plans, single = false }: { shops: Shop[]; plans:
           const graceTo = end === null ? to : pct(end + shop.grace_days * DAY, start);
           const beyond = end !== null && end > start + SPAN * DAY;
           const kind =
-            state.status === 'active' ? 'paid' : state.status === 'expiring' || state.status === 'grace' ? 'short' : state.status;
+            state.status === 'active'
+              ? state.trial ? 'trial' : 'paid'
+              : state.status === 'expiring' || state.status === 'grace' ? 'short' : state.status;
 
           const label =
             end === null
               ? plan && isLifetime(plan)
                 ? 'Lifetime'
                 : 'No end date'
-              : `Paid to ${formatDay(shop.paid_until!)}`;
+              : `${state.trial ? 'Trial to' : 'Paid to'} ${formatDay(shop.paid_until!)}`;
 
           const body = (
             <>

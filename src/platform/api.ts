@@ -105,9 +105,23 @@ export const resetPassword = (client: SupabaseClient, id: string, password: stri
 export async function updateShop(
   client: SupabaseClient,
   id: string,
-  patch: Partial<Pick<Shop, 'name' | 'phone' | 'notes' | 'plan_id' | 'grace_days' | 'suspended' | 'paid_until'>>,
+  patch: Partial<Pick<Shop, 'name' | 'phone' | 'notes' | 'plan_id' | 'grace_days' | 'suspended' | 'paid_until' | 'trial'>>,
 ): Promise<void> {
   must(await client.from('shops').update(patch).eq('store_id', id));
+}
+
+/**
+ * Starts a free trial of `days` from today, or adds them to one already
+ * running. Paid time isn't touched — a shop that has paid isn't offered this.
+ */
+export async function startTrial(client: SupabaseClient, shop: Shop, days: number): Promise<void> {
+  const now = Date.now();
+  const end = shop.paid_until ? new Date(shop.paid_until).getTime() : 0;
+  const from = shop.trial && end > now ? end : now;
+  await updateShop(client, shop.store_id, {
+    trial: true,
+    paid_until: new Date(from + days * 86_400_000).toISOString(),
+  });
 }
 
 export async function recordPayment(
@@ -117,14 +131,10 @@ export async function recordPayment(
   must(await client.rpc('record_payment', p));
 }
 
-export async function addPlan(client: SupabaseClient): Promise<Plan> {
-  return must<Plan>(
-    await client
-      .from('plans')
-      .insert({ name: 'New plan', price: 0, currency: 'TZS', period_months: 1 })
-      .select()
-      .single(),
-  );
+export type PlanFields = Pick<Plan, 'name' | 'price' | 'currency' | 'period_months' | 'active'>;
+
+export async function addPlan(client: SupabaseClient, plan: PlanFields): Promise<Plan> {
+  return must<Plan>(await client.from('plans').insert(plan).select().single());
 }
 
 export async function updatePlan(client: SupabaseClient, id: string, patch: Partial<Plan>): Promise<void> {
