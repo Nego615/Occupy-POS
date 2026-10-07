@@ -5,6 +5,7 @@ import type { Permission } from './data/staff';
 import { AdminLayout } from './layouts/AdminLayout';
 import { CounterLayout } from './layouts/CounterLayout';
 import { AdminBills } from './pages/AdminBills';
+import { AdminCategories } from './pages/AdminCategories';
 import { AdminItems } from './pages/AdminItems';
 import { AdminMeals } from './pages/AdminMeals';
 import { AdminPromotions } from './pages/AdminPromotions';
@@ -71,6 +72,7 @@ export function App() {
             <Route path="staff" element={guard('staff', <AdminStaff />)} />
             <Route path="salaries" element={guard('payroll', <AdminSalaries />)} />
             <Route path="items" element={guard('catalog', <AdminItems />)} />
+            <Route path="categories" element={guard('catalog', <AdminCategories />)} />
             <Route path="meals" element={guard('catalog', <AdminMeals />)} />
             <Route path="promotions" element={guard('catalog', <AdminPromotions />)} />
             <Route path="stock" element={guard('inventory', <AdminStock />)} />

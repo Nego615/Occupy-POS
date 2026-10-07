@@ -3,7 +3,6 @@ import './Inventory.css';
 import { Button } from '../components/Button';
 import { Money, Mono, formatMoney } from '../components/Mono';
 import { SearchField } from '../components/SearchField';
-import { CATEGORIES } from '../data/catalog';
 import { formatDay, type StockCount } from '../data/inventory';
 import { round } from '../lib/cart';
 import { usePos } from '../lib/store';
@@ -136,14 +135,14 @@ export function AdminStockCount() {
 /* ---------- Starting a count ---------- */
 
 function StartCount() {
-  const { catalog, suppliers, startCount } = usePos();
+  const { catalog, categories, suppliers, startCount } = usePos();
   const [scope, setScope] = useState('all');
 
   // "all", "cat:pastries", or "sup:dar-bakery".
   const options = useMemo(
     () => [
       { id: 'all', label: 'All items', ids: catalog.map((i) => i.id) },
-      ...CATEGORIES.map((c) => ({
+      ...categories.map((c) => ({
         id: `cat:${c.id}`,
         label: c.label,
         ids: catalog.filter((i) => i.category === c.id).map((i) => i.id),

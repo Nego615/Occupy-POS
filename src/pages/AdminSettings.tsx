@@ -5,7 +5,7 @@ import { Button } from '../components/Button';
 import { FilterSelect } from '../components/FilterSelect';
 import { Mono } from '../components/Mono';
 import { Switch } from '../components/Switch';
-import { CATEGORIES, type CategoryId } from '../data/catalog';
+import { type CategoryId } from '../data/catalog';
 import {
   AUTO_LOCK_OPTIONS,
   DEFAULT_SETTINGS,
@@ -146,10 +146,7 @@ function fromDraft(d: Draft, current: Settings): { settings: Settings } | { erro
         d.paymentMethods.includes(id),
       ),
       lowStockDefault: lowStock!,
-      // Menu order, whatever order they were ticked in.
-      kitchenCategories: CATEGORIES.map((c) => c.id).filter((id) =>
-        d.kitchenCategories.includes(id),
-      ),
+      kitchenCategories: [...d.kitchenCategories],
       kitchenLateMinutes: late!,
       autoLockMinutes: d.autoLock === 'never' ? null : Number(d.autoLock),
       maxPinTries: tries!,
@@ -163,7 +160,7 @@ function fromDraft(d: Draft, current: Settings): { settings: Settings } | { erro
  * open tabs. Everything takes effect across the app as soon as it's saved.
  */
 export function AdminSettings() {
-  const { settings, updateSettings, resetAllData } = usePos();
+  const { settings, updateSettings, resetAllData, categories } = usePos();
   const [confirmingReset, setConfirmingReset] = useState(false);
   const [confirmingUnlink, setConfirmingUnlink] = useState(false);
   const [shopEmail, setShopEmail] = useState<string | null>(null);
@@ -516,7 +513,10 @@ export function AdminSettings() {
       </Section>
 
       <Section title="Kitchen" note="Which items show up on the kitchen screen.">
-        {CATEGORIES.map((c) => (
+        {categories.length === 0 && (
+          <p className="settings-empty">No categories yet — create them under Categories.</p>
+        )}
+        {categories.map((c) => (
           <Row key={c.id} id={`kitchen-${c.id}`} label={c.label}>
             <Switch
               checked={draft.kitchenCategories.includes(c.id)}

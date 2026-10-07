@@ -7,7 +7,7 @@ import { Money, Mono } from '../components/Mono';
 import { Pill, PillRow } from '../components/Pill';
 import { SearchField } from '../components/SearchField';
 import { StatusChip } from '../components/StatusChip';
-import { CATEGORIES, stockState, type CatalogItem } from '../data/catalog';
+import { categoryLabel, stockState, type CatalogItem } from '../data/catalog';
 import { ADJUST_REASONS, MOVEMENT_LABEL, formatDay } from '../data/inventory';
 import { round } from '../lib/cart';
 import { reorderSuggestions } from '../lib/inventory';
@@ -24,7 +24,7 @@ type Filter = 'all' | 'low' | 'out';
 export function AdminStock() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
-  const { catalog, suppliers, purchaseOrders, savePurchaseOrder, settings } = usePos();
+  const { catalog, categories, suppliers, purchaseOrders, savePurchaseOrder, settings } = usePos();
   const [filter, setFilter] = useState<Filter>('all');
   const [query, setQuery] = useState('');
   const [supplier, setSupplier] = useState('all');
@@ -177,7 +177,7 @@ export function AdminStock() {
                           <span>
                             {item.name}
                             <span className="inv-sub">
-                              {CATEGORIES.find((c) => c.id === item.category)?.label}
+                              {categoryLabel(categories, item.category)}
                             </span>
                           </span>
                         </button>

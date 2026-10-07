@@ -21,6 +21,14 @@
   color: var(--ink-soft);
 }
 
+.settings-empty {
+  margin: 0;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
 /* ---------- Rows ---------- */
 
 .settings-row {

@@ -1,4 +1,4 @@
-import { CATEGORIES, type CatalogItem } from '../data/catalog';
+import { NO_CATEGORY, type CatalogItem, type Category } from '../data/catalog';
 import {
   daysBetween,
   todayIso,
@@ -104,9 +104,13 @@ export function margins(orders: Order[]): Margins {
 export type ValuationRow = { label: string; items: number; units: number; value: number; uncosted: number };
 
 /** What's on the shelf now, at cost, by category. */
-export function valuation(catalog: CatalogItem[]): ValuationRow[] {
-  return CATEGORIES.map((c) => {
-    const items = catalog.filter((i) => i.category === c.id);
+export function valuation(catalog: CatalogItem[], categories: Category[]): ValuationRow[] {
+  // Items whose category has gone still count, under their own heading.
+  const known = new Set(categories.map((c) => c.id));
+  const stray = catalog.some((i) => !known.has(i.category));
+  const groups = stray ? [...categories, { id: '', label: NO_CATEGORY }] : categories;
+  return groups.map((c) => {
+    const items = catalog.filter((i) => (c.id ? i.category === c.id : !known.has(i.category)));
     return {
       label: c.label,
       items: items.length,

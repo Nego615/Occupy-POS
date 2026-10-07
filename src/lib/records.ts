@@ -33,6 +33,7 @@ export const SLICES: Record<string, SliceSpec> = {
   }),
   orders: list('first'),
   catalog: list('last'),
+  categories: list('last'),
   locations: list('last'),
   promotions: list('last'),
   setMeals: list('last'),

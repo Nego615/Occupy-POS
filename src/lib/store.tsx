@@ -1,6 +1,13 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode, SetStateAction } from 'react';
-import { CATALOG, stockLimit, type CatalogItem } from '../data/catalog';
+import {
+  CATALOG,
+  CATEGORIES,
+  stockLimit,
+  withUsedCategories,
+  type CatalogItem,
+  type Category,
+} from '../data/catalog';
 import { DEFAULT_SETTINGS, type Settings } from '../data/settings';
 import {
   PROMOTIONS,
@@ -156,6 +163,16 @@ type PosStore = {
   updateItem: (id: string, patch: Partial<CatalogItem>) => void;
   /** Adds an item to the catalog and returns it with its new id. */
   createItem: (item: Omit<CatalogItem, 'id'>) => CatalogItem;
+  /** The categories items are sorted into, in the order the register shows them. */
+  categories: Category[];
+  /** Adds a category at the end of the list and returns it. */
+  createCategory: (label: string) => Category;
+  renameCategory: (id: string, label: string) => void;
+  /**
+   * Removes a category, and drops it from promotions and kitchen routing.
+   * Refused (false) while any item is still in it.
+   */
+  deleteCategory: (id: string) => boolean;
   /** Removes an item from the catalog. Tabs already holding it keep their lines. */
   deleteItem: (id: string) => void;
   /** The tables and rooms tabs can be assigned to. */
@@ -320,6 +337,7 @@ export function newShopSnapshot(
     activeTab: 1,
     orders: [],
     catalog: [],
+    categories: [],
     locations: [],
     promotions: [],
     setMeals: [],
@@ -444,6 +462,9 @@ export function PosProvider({
     restored(snapshot, 'orders', ORDERS),
   );
   const [catalog, setCatalog] = useState<CatalogItem[]>(() => restored(snapshot, 'catalog', CATALOG));
+  const [categories, setCategories] = useState<Category[]>(() =>
+    withUsedCategories(restored(snapshot, 'categories', CATEGORIES), catalog),
+  );
   const [locations, setLocations] = useState<Location[]>(() =>
     restored(snapshot, 'locations', LOCATIONS),
   );
@@ -484,6 +505,7 @@ export function PosProvider({
   usePersist(repo, 'activeTab', activeId);
   usePersist(repo, 'orders', closedRecords);
   usePersist(repo, 'catalog', catalog);
+  usePersist(repo, 'categories', categories);
   usePersist(repo, 'locations', locations);
   usePersist(repo, 'promotions', promotions);
   usePersist(repo, 'setMeals', setMeals);
@@ -496,6 +518,7 @@ export function PosProvider({
   useRemote(repo, 'tabs', setTabs);
   useRemote(repo, 'orders', setClosedOrders);
   useRemote(repo, 'catalog', setCatalog);
+  useRemote(repo, 'categories', setCategories);
   useRemote(repo, 'locations', setLocations);
   useRemote(repo, 'promotions', setPromotions);
   useRemote(repo, 'setMeals', setSetMeals);
@@ -938,6 +961,38 @@ export function PosProvider({
     setCatalog((prev) => prev.filter((i) => i.id !== id));
   }, []);
 
+  const createCategory = useCallback(
+    (label: string) => {
+      // 'meals', 'all' and 'restock' are shelves and filters of their own, so no category takes them.
+      const taken = new Set(['meals', 'all', 'restock', ...categories.map((c) => c.id)]);
+      const category: Category = { id: slugId(label, 'category', taken), label };
+      setCategories((prev) => [...prev, category]);
+      return category;
+    },
+    [categories],
+  );
+
+  const renameCategory = useCallback((id: string, label: string) => {
+    setCategories((prev) => prev.map((c) => (c.id === id ? { ...c, label } : c)));
+  }, []);
+
+  const deleteCategory = useCallback(
+    (id: string) => {
+      if (catalog.some((i) => i.category === id)) return false;
+      setCategories((prev) => prev.filter((c) => c.id !== id));
+      setPromotions((prev) =>
+        prev.map((p) => (p.categories.includes(id) ? { ...p, categories: p.categories.filter((c) => c !== id) } : p)),
+      );
+      setSettings((prev) =>
+        prev.kitchenCategories.includes(id)
+          ? { ...prev, kitchenCategories: prev.kitchenCategories.filter((c) => c !== id) }
+          : prev,
+      );
+      return true;
+    },
+    [catalog],
+  );
+
   const savePromotion = useCallback((promo: Promotion) => {
     setPromotions((prev) => prev.map((p) => (p.id === promo.id ? promo : p)));
   }, []);
@@ -1169,6 +1224,10 @@ export function PosProvider({
       updateItem,
       createItem,
       deleteItem,
+      categories,
+      createCategory,
+      renameCategory,
+      deleteCategory,
       addLocation,
       updateLocation,
       removeLocation,
@@ -1232,6 +1291,10 @@ export function PosProvider({
       updateItem,
       createItem,
       deleteItem,
+      categories,
+      createCategory,
+      renameCategory,
+      deleteCategory,
       addLocation,
       updateLocation,
       removeLocation,

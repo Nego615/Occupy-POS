@@ -21,6 +21,7 @@ export const ADMIN_NAV: { section: string; items: NavEntry[] }[] = [
       { to: '/admin', icon: '◧', label: 'Overview', permission: 'reports' },
       { to: '/admin/orders', icon: '▤', label: 'Orders', permission: 'reports' },
       { to: '/admin/items', icon: '◫', label: 'Items & catalog', permission: 'catalog' },
+      { to: '/admin/categories', icon: '▥', label: 'Categories', permission: 'catalog' },
       { to: '/admin/meals', icon: '◰', label: 'Set meals', permission: 'catalog' },
       { to: '/admin/promotions', icon: '%', label: 'Promotions', permission: 'catalog' },
       { to: '/admin/reports', icon: '◔', label: 'Reports', permission: 'reports' },

@@ -1,4 +1,4 @@
-import { CATEGORIES, type CatalogItem } from '../data/catalog';
+import { type CatalogItem, type Category } from '../data/catalog';
 import {
   TENDER_LABEL,
   orderNetSubtotal,
@@ -104,7 +104,7 @@ export type ItemRow = {
 };
 
 /** Items that have since left the catalog still report, under "Other". */
-export function byItem(orders: Order[], catalog: CatalogItem[]): ItemRow[] {
+export function byItem(orders: Order[], catalog: CatalogItem[], categories: Category[]): ItemRow[] {
   const byName = new Map(catalog.map((i) => [i.name, i]));
   const tally = new Map<string, ItemRow>();
 
@@ -115,7 +115,7 @@ export function byItem(orders: Order[], catalog: CatalogItem[]): ItemRow[] {
       const item = byName.get(line.name);
       const row = tally.get(line.name) ?? {
         name: line.name,
-        category: CATEGORIES.find((c) => c.id === item?.category)?.label ?? 'Other',
+        category: categories.find((c) => c.id === item?.category)?.label ?? 'Other',
         color: item?.color,
         qty: 0,
         sales: 0,

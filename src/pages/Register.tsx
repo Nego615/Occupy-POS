@@ -13,7 +13,7 @@ import { SearchField } from '../components/SearchField';
 import { StatusChip } from '../components/StatusChip';
 import { Stepper } from '../components/Stepper';
 import {
-  CATEGORIES,
+  categoryLabel,
   type CatalogItem,
   type CategoryId,
 } from '../data/catalog';
@@ -37,7 +37,8 @@ type Shelf = CategoryId | 'meals';
 
 export function Register() {
   const navigate = useNavigate();
-  const [category, setCategory] = useState<Shelf>('coffee');
+  // Null until someone picks a shelf: the first category, else set meals.
+  const [chosenShelf, setCategory] = useState<Shelf | null>(null);
   const [meal, setMeal] = useState<SetMeal | null>(null);
   const [assigning, setAssigning] = useState(false);
   const [confirmingClear, setConfirmingClear] = useState(false);
@@ -63,7 +64,13 @@ export function Register() {
     sendToKitchen,
     promotions,
     setMeals,
+    categories,
   } = usePos();
+  // A shelf deleted on another screen falls back to the first one.
+  const category: Shelf =
+    chosenShelf === 'meals' || categories.some((c) => c.id === chosenShelf)
+      ? chosenShelf!
+      : (categories[0]?.id ?? 'meals');
   // Re-read every 30s so tiles pick up a promotion starting or ending.
   const at = new Date(useNow(30_000));
   const running = promotions.filter((p) => promoRunning(p, at));
@@ -155,7 +162,7 @@ export function Register() {
 
         {!searching && (
         <PillRow label="Item categories" className="catalog__tabs">
-          {CATEGORIES.map((c) => (
+          {categories.map((c) => (
             <Pill key={c.id} active={c.id === category} onClick={() => setCategory(c.id)}>
               {c.label}
             </Pill>
@@ -173,7 +180,7 @@ export function Register() {
             {running.map((p) => (
               <span key={p.id} className="catalog__deal">
                 <strong>{p.name}</strong> · {promoAmountLabel(p)}{' '}
-                {scopeLabel(p, categoryLabel).toLowerCase()}
+                {scopeLabel(p, (id) => categoryLabel(categories, id)).toLowerCase()}
                 {p.start !== null && p.end !== null && (
                   <>
                     {' '}
@@ -422,10 +429,6 @@ function KitchenNote({ qty }: { qty: number }) {
   ) : (
     <span className="cart-line__kitchen"> · sent to kitchen</span>
   );
-}
-
-function categoryLabel(id: CategoryId): string {
-  return CATEGORIES.find((c) => c.id === id)!.label;
 }
 
 /** `item`'s price under `promo`, rounded as the cart will ring it up. */

@@ -8,7 +8,7 @@ import { Pill, PillRow } from '../components/Pill';
 import { StatusChip } from '../components/StatusChip';
 import { Switch } from '../components/Switch';
 import {
-  CATEGORIES,
+  categoryLabel,
   stockState,
   type CategoryId,
   type StockState,
@@ -40,7 +40,8 @@ type ItemDraft = {
 const BLANK: ItemDraft = {
   name: '',
   price: '',
-  category: 'coffee',
+  // Filled with the first category when the editor opens.
+  category: '',
   color: SWATCHES[0],
   description: '',
   available: true,
@@ -67,7 +68,7 @@ export function ItemEditor() {
   const { itemId } = useParams();
   const navigate = useNavigate();
 
-  const { catalog, updateItem, createItem, deleteItem, settings, suppliers, can } = usePos();
+  const { catalog, categories, updateItem, createItem, deleteItem, settings, suppliers, can } = usePos();
   const creating = itemId === 'new';
   const item = creating ? undefined : catalog.find((i) => i.id === itemId);
 
@@ -89,7 +90,9 @@ export function ItemEditor() {
             supplierId: item.supplierId ?? '',
             parLevel: item.parLevel !== undefined ? String(item.parLevel) : '',
           }
-        : { ...BLANK, lowStockAt: String(settings.lowStockDefault) },
+        : { ...BLANK, category: categories[0]?.id ?? '', lowStockAt: String(settings.lowStockDefault) },
+    // Categories are read once, for a new item's starting pick.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [item, settings.lowStockDefault],
   );
 
@@ -101,6 +104,7 @@ export function ItemEditor() {
   const priceValue = Number.parseFloat(draft.price);
   const priceValid = isAmountText(draft.price) && priceValue > 0;
   const nameValid = draft.name.trim().length > 0;
+  const categoryValid = categories.some((c) => c.id === draft.category);
   // An existing item's stock is changed on the Stock page, through the ledger — only new items set it here.
   const stockValid = !creating || WHOLE_NUMBER.test(draft.stock);
   const costValid = draft.cost === '' || isAmountText(draft.cost);
@@ -111,10 +115,35 @@ export function ItemEditor() {
   const draftStock = stockValid && lowValid ? stockState({ stock: stockValue, lowStockAt: lowValue }, settings.lowStockDefault) : null;
   const dirty = JSON.stringify(draft) !== JSON.stringify(saved);
   const canSave =
-    (creating || dirty) && priceValid && nameValid && stockValid && lowValid && costValid && parValid;
-  const categoryLabel = CATEGORIES.find((c) => c.id === draft.category)!.label;
+    (creating || dirty) && priceValid && nameValid && categoryValid && stockValid && lowValid && costValid && parValid;
+  const draftCategory = categoryLabel(categories, draft.category);
 
   // A stale link to a deleted item lands here rather than on someone else's item.
+  // Every item belongs to a category, so a new shop makes one first.
+  if (creating && categories.length === 0) {
+    return (
+      <div className="editor">
+        <header className="editor__bar">
+          <div className="editor__bar-left">
+            <button
+              type="button"
+              className="editor__back"
+              onClick={() => navigate('/admin/items')}
+              aria-label="Back to items"
+            >
+              <span aria-hidden="true">&larr;</span>
+            </button>
+            <div className="editor__title">New item</div>
+          </div>
+        </header>
+        <div className="editor__missing">
+          <p>Items are sorted into categories, and there aren’t any yet. Create one first.</p>
+          <Button onClick={() => navigate('/admin/categories')}>Create a category</Button>
+        </div>
+      </div>
+    );
+  }
+
   if (!creating && !item) {
     return (
       <div className="editor">
@@ -186,7 +215,7 @@ export function ItemEditor() {
           </button>
           <div>
             <div className="editor__title">{creating ? 'New item' : 'Edit item'}</div>
-            <div className="editor__sub">{categoryLabel} catalog</div>
+            <div className="editor__sub">{draftCategory} catalog</div>
           </div>
         </div>
         <div className="editor__actions">
@@ -398,7 +427,7 @@ export function ItemEditor() {
           <div className="field">
             <span className="field__label">Category</span>
             <PillRow label="Category">
-              {CATEGORIES.map((c) => (
+              {categories.map((c) => (
                 <Pill
                   key={c.id}
                   active={c.id === draft.category}

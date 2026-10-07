@@ -5,7 +5,7 @@ import { Button } from '../components/Button';
 import { Money, Mono } from '../components/Mono';
 import { Pill, PillRow } from '../components/Pill';
 import { StatusChip } from '../components/StatusChip';
-import { CATEGORIES, stockState, type CatalogItem, type CategoryId } from '../data/catalog';
+import { categoryLabel, stockState, type CatalogItem, type CategoryId } from '../data/catalog';
 import { usePos } from '../lib/store';
 
 /** A category, or `restock`: tracked items that are low or sold out. */
@@ -22,7 +22,7 @@ function needsRestock(item: CatalogItem, lowDefault: number): boolean {
  */
 export function AdminItems() {
   const navigate = useNavigate();
-  const { catalog, settings } = usePos();
+  const { catalog, categories, settings } = usePos();
   const restock = (item: CatalogItem) => needsRestock(item, settings.lowStockDefault);
   const [filter, setFilter] = useState<Filter>('all');
 
@@ -42,6 +42,9 @@ export function AdminItems() {
           <div className="page-sub">{settings.locationName} · everything the register can ring up</div>
         </div>
         <div className="head-actions">
+          <Button variant="secondary" onClick={() => navigate('/admin/categories')}>
+            Manage categories
+          </Button>
           <Button onClick={() => navigate('/items/new')}>New item</Button>
         </div>
       </div>
@@ -50,7 +53,7 @@ export function AdminItems() {
         <Pill active={filter === 'all'} onClick={() => setFilter('all')}>
           All
         </Pill>
-        {CATEGORIES.map((c) => (
+        {categories.map((c) => (
           <Pill key={c.id} active={filter === c.id} onClick={() => setFilter(c.id)}>
             {c.label}
           </Pill>
@@ -83,7 +86,7 @@ export function AdminItems() {
             <span className="item-row__main">
               <span className="item-row__name">{item.name}</span>
               <span className="item-row__meta">
-                {CATEGORIES.find((c) => c.id === item.category)!.label}
+                {categoryLabel(categories, item.category)}
                 {item.description ? ` · ${item.description}` : ''}
               </span>
             </span>

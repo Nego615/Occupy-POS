@@ -5,7 +5,7 @@ import { Button } from '../components/Button';
 import { Money, Mono } from '../components/Mono';
 import { StatusChip } from '../components/StatusChip';
 import { Switch } from '../components/Switch';
-import { CATEGORIES, type CatalogItem } from '../data/catalog';
+import { NO_CATEGORY, type CatalogItem } from '../data/catalog';
 import { mealWorth, type Course, type SetMeal } from '../data/deals';
 import { activeCurrency, isAmountText } from '../lib/currency';
 import { usePos } from '../lib/store';
@@ -399,10 +399,14 @@ function CourseItems({
   onToggle: (itemId: string) => void;
   label: string;
 }) {
+  const { categories } = usePos();
+  // Items whose category has gone still show, under their own heading.
+  const known = new Set(categories.map((c) => c.id));
+  const groups = [...categories, { id: '', label: NO_CATEGORY }];
   return (
     <div className="deal-course__items" role="group" aria-label={`${label} options`}>
-      {CATEGORIES.map((cat) => {
-        const items = catalog.filter((i) => i.category === cat.id);
+      {groups.map((cat) => {
+        const items = catalog.filter((i) => (cat.id ? i.category === cat.id : !known.has(i.category)));
         if (items.length === 0) return null;
         return (
           <div key={cat.id} className="deal-group">

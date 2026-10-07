@@ -5,7 +5,7 @@ import { Button } from '../components/Button';
 import { ColumnChart } from '../components/ColumnChart';
 import { Mono } from '../components/Mono';
 import { Pill, PillRow } from '../components/Pill';
-import type { CatalogItem } from '../data/catalog';
+import type { CatalogItem, Category } from '../data/catalog';
 import type { StockMovement, Supplier, SupplierBill } from '../data/inventory';
 import { downloadCsv, money } from '../lib/analytics';
 import {
@@ -57,7 +57,7 @@ const pct = (fraction: number) => `${(fraction * 100).toFixed(1)}%`;
  * and Export CSV downloads exactly the table on screen.
  */
 export function AdminReports() {
-  const { orders, catalog, settings, movements, bills, suppliers } = usePos();
+  const { orders, catalog, categories, settings, movements, bills, suppliers } = usePos();
   const [params, setParams] = useSearchParams();
 
   const report = (REPORTS.find((r) => r.id === params.get('report'))?.id ?? 'summary') as ReportId;
@@ -78,12 +78,13 @@ export function AdminReports() {
   }
 
   const windowed = useMemo(() => inLastDays(orders, days), [orders, days]);
-  const items = useMemo(() => byItem(windowed, catalog), [windowed, catalog]);
+  const items = useMemo(() => byItem(windowed, catalog, categories), [windowed, catalog, categories]);
 
   const view = useMemo(
     () =>
       buildReport(report, windowed, days, items, settings.tipsEnabled, {
         catalog,
+        categories,
         movements,
         bills,
         suppliers,
@@ -96,6 +97,7 @@ export function AdminReports() {
       items,
       settings.tipsEnabled,
       catalog,
+      categories,
       movements,
       bills,
       suppliers,
@@ -187,6 +189,7 @@ const tipColumns =
 /** Inventory data the cost reports read, beyond the windowed orders. */
 type CostContext = {
   catalog: CatalogItem[];
+  categories: Category[];
   movements: StockMovement[];
   bills: SupplierBill[];
   suppliers: Supplier[];
@@ -554,7 +557,7 @@ function marginsReport(orders: ReturnType<typeof inLastDays>): ReportView {
 /* ---------- Stock & losses ---------- */
 
 function inventoryReport(ctx: CostContext, days: number): ReportView {
-  const value = valuation(ctx.catalog);
+  const value = valuation(ctx.catalog, ctx.categories);
   const loss = losses(ctx.movements, days);
   const stockValue = value.reduce((s, r) => s + r.value, 0);
 

@@ -5,7 +5,7 @@ import { Button } from '../components/Button';
 import { Mono } from '../components/Mono';
 import { StatusChip } from '../components/StatusChip';
 import { Switch } from '../components/Switch';
-import { CATEGORIES, type CategoryId } from '../data/catalog';
+import { categoryLabel } from '../data/catalog';
 import {
   WEEKDAYS,
   promoAmountLabel,
@@ -17,10 +17,6 @@ import {
 import { activeCurrency, isAmountText } from '../lib/currency';
 import { usePos } from '../lib/store';
 import { useNow } from '../lib/useClock';
-
-function categoryLabel(id: CategoryId): string {
-  return CATEGORIES.find((c) => c.id === id)!.label;
-}
 
 /** Off, running right now, or waiting for its days and hours. */
 function PromoStatus({ promo, at }: { promo: Promotion; at: Date }) {
@@ -46,7 +42,7 @@ function PromoStatus({ promo, at }: { promo: Promotion; at: Date }) {
  * the cashier to key in.
  */
 export function AdminPromotions() {
-  const { promotions, createPromotion, settings } = usePos();
+  const { promotions, createPromotion, settings, categories } = usePos();
   const at = new Date(useNow(30_000));
   const [selectedId, setSelectedId] = useState<string | null>(promotions[0]?.id ?? null);
 
@@ -124,7 +120,7 @@ export function AdminPromotions() {
                         </button>
                       </td>
                       <td className="inv-strong">{promoAmountLabel(p)}</td>
-                      <td className="inv-soft">{scopeLabel(p, categoryLabel)}</td>
+                      <td className="inv-soft">{scopeLabel(p, (id) => categoryLabel(categories, id))}</td>
                       <td>
                         <PromoStatus promo={p} at={at} />
                       </td>
@@ -175,7 +171,7 @@ function PromotionPanel({
   at: Date;
   onDeleted: () => void;
 }) {
-  const { catalog, savePromotion, deletePromotion } = usePos();
+  const { catalog, categories, savePromotion, deletePromotion } = usePos();
   const currency = activeCurrency();
   const initial = {
     name: promo.name,
@@ -352,7 +348,7 @@ function PromotionPanel({
             <div className="deal-group" role="group" aria-label="Categories">
               Categories
               <div className="deal-chips">
-                {CATEGORIES.map((c) => (
+                {categories.map((c) => (
                   <button
                     key={c.id}
                     type="button"

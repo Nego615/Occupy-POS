@@ -44,15 +44,43 @@ export function stockLimit(item: CatalogItem): number {
   return Math.max(0, item.stock);
 }
 
-export type CategoryId = 'coffee' | 'food' | 'pastries' | 'retail' | 'seasonal';
+export type CategoryId = string;
 
-export const CATEGORIES: { id: CategoryId; label: string }[] = [
+/** A shelf on the register and a heading in reports. Created and managed under Admin → Categories. */
+export type Category = { id: CategoryId; label: string };
+
+/** The demo shop's categories. A new shop starts with none. */
+export const CATEGORIES: Category[] = [
   { id: 'coffee', label: 'Coffee' },
   { id: 'food', label: 'Food' },
   { id: 'pastries', label: 'Pastries' },
   { id: 'retail', label: 'Retail' },
   { id: 'seasonal', label: 'Seasonal' },
 ];
+
+/** Shown for an item whose category has gone — only possible through a sync race. */
+export const NO_CATEGORY = 'Uncategorized';
+
+export function categoryLabel(categories: Category[], id: CategoryId): string {
+  return categories.find((c) => c.id === id)?.label ?? NO_CATEGORY;
+}
+
+/**
+ * `categories`, plus any the catalog uses that it lacks — for shops saved
+ * before categories were editable, whose items name the old built-in ones.
+ * Hands back `categories` itself when nothing was missing.
+ */
+export function withUsedCategories(categories: Category[], catalog: CatalogItem[]): Category[] {
+  const known = new Set(categories.map((c) => c.id));
+  const missing: Category[] = [];
+  for (const { category: id } of catalog) {
+    if (known.has(id)) continue;
+    known.add(id);
+    const label = CATEGORIES.find((c) => c.id === id)?.label ?? id.charAt(0).toUpperCase() + id.slice(1);
+    missing.push({ id, label });
+  }
+  return missing.length > 0 ? [...categories, ...missing] : categories;
+}
 
 const CATALOG_ITEMS: CatalogItem[] = [
   // Coffee — the set shown in the register mockup.
