@@ -3,14 +3,15 @@ import './CounterDialogs.css';
 import { ApprovalDialog } from './ApprovalDialog';
 import { Button } from './Button';
 import { Money, formatMoney } from './Mono';
-import { servings, stockFits, unitsLabel, type CatalogItem } from '../data/catalog';
+import { servings, shareLabel, stockFits, type CatalogItem } from '../data/catalog';
 import { bestPromo } from '../data/deals';
+import type { DocketKind } from './PrintableSlip';
 import { discountLabel, discountOff, itemQuantities, portionLine, type ManualDiscount } from '../lib/cart';
 import { activeCurrency, isAmountText } from '../lib/currency';
 import { usePos } from '../lib/store';
 
 /** A native <dialog> shell, open while `open` is true. Escape and the backdrop close it. */
-function Modal({
+export function Modal({
   open,
   title,
   sub,
@@ -179,7 +180,7 @@ export function PortionDialog({ item, onClose }: { item: CatalogItem | null; onC
               >
                 <span className="portion-option__label">
                   {s.label}
-                  {s.units !== 1 && <span className="portion-option__share mono"> · {unitsLabel(s.units)}</span>}
+                  {s.units !== 1 && <span className="portion-option__share mono"> · {shareLabel(s.units, item.unitSize)}</span>}
                 </span>
                 <span className="portion-option__price">
                   {fits ? (
@@ -198,6 +199,42 @@ export function PortionDialog({ item, onClose }: { item: CatalogItem | null; onC
               </button>
             );
           })}
+      </div>
+    </Modal>
+  );
+}
+
+/** Picks which docket to print for the register's tab: the priced one, or the kitchen's. */
+export function DocketDialog({
+  open,
+  onPick,
+  onClose,
+}: {
+  open: boolean;
+  onPick: (kind: DocketKind) => void;
+  onClose: () => void;
+}) {
+  const options: { kind: DocketKind; label: string; sub: string }[] = [
+    { kind: 'bill', label: 'Order docket', sub: 'With prices and the total' },
+    { kind: 'kitchen', label: 'Kitchen docket', sub: 'Items and notes only' },
+  ];
+  return (
+    <Modal open={open} title="Print docket" sub="Which one?" onClose={onClose}>
+      <div className="portion-options">
+        {options.map((o) => (
+          <button
+            key={o.kind}
+            type="button"
+            className="portion-option"
+            onClick={() => {
+              onClose();
+              onPick(o.kind);
+            }}
+          >
+            <span className="portion-option__label">{o.label}</span>
+            <span className="portion-option__share">{o.sub}</span>
+          </button>
+        ))}
       </div>
     </Modal>
   );

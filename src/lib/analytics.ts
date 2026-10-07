@@ -50,7 +50,8 @@ export type StatCard = {
   label: string;
   value: string;
   /** Absent when the prior period has nothing to compare against. */
-  delta?: { text: string; direction: 'up' | 'down' };
+  /** `good` is whether the move is welcome — more refunds is up, but not good. */
+  delta?: { text: string; direction: 'up' | 'down'; good: boolean };
 };
 
 export function statCards(orders: Order[], range: RangeId): StatCard[] {
@@ -59,10 +60,16 @@ export function statCards(orders: Order[], range: RangeId): StatCard[] {
   const previous = totalsFor(inWindow(orders, days, 1));
   const priorLabel = range === 'today' ? 'vs yesterday' : `vs last ${label.toLowerCase()}`;
 
-  const card = (label: string, value: string, now: number, before: number): StatCard => ({
+  const card = (
+    label: string,
+    value: string,
+    now: number,
+    before: number,
+    lowerIsBetter = false,
+  ): StatCard => ({
     label,
     value,
-    delta: delta(now, before, priorLabel),
+    delta: delta(now, before, priorLabel, lowerIsBetter),
   });
 
   return [
@@ -74,16 +81,23 @@ export function statCards(orders: Order[], range: RangeId): StatCard[] {
       previous.transactions,
     ),
     card('Avg. ticket', money(current.avgTicket), current.avgTicket, previous.avgTicket),
-    card('Refunds', money(current.refunds), current.refunds, previous.refunds),
+    card('Refunds', money(current.refunds), current.refunds, previous.refunds, true),
   ];
 }
 
-function delta(now: number, before: number, priorLabel: string): StatCard['delta'] {
+function delta(
+  now: number,
+  before: number,
+  priorLabel: string,
+  lowerIsBetter: boolean,
+): StatCard['delta'] {
   if (before === 0) return undefined;
   const pct = ((now - before) / before) * 100;
+  const up = pct >= 0;
   return {
     text: `${Math.abs(pct).toFixed(1)}% ${priorLabel}`,
-    direction: pct >= 0 ? 'up' : 'down',
+    direction: up ? 'up' : 'down',
+    good: up !== lowerIsBetter,
   };
 }
 

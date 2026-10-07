@@ -1,14 +1,15 @@
+import type { IconName } from '../components/Icon';
 import { DEFAULT_CURRENCY, type CurrencyCode } from '../lib/currency';
 import { LOW_STOCK_DEFAULT, TAX_RATE, type CategoryId } from './catalog';
 
 /** Ways to pay, plus `split` — whether one bill can be paid in several parts. */
 export type PaymentMethodId = 'card' | 'cash' | 'mobile' | 'split';
 
-export const PAYMENT_METHODS: { id: PaymentMethodId; label: string; icon: string }[] = [
-  { id: 'card', label: 'Card', icon: '▭' },
-  { id: 'cash', label: 'Cash', icon: '◎' },
-  { id: 'mobile', label: 'Mobile money', icon: '▯' },
-  { id: 'split', label: 'Split bills', icon: '⇆' },
+export const PAYMENT_METHODS: { id: PaymentMethodId; label: string; icon: IconName }[] = [
+  { id: 'card', label: 'Card', icon: 'card' },
+  { id: 'cash', label: 'Cash', icon: 'cash' },
+  { id: 'mobile', label: 'Mobile money', icon: 'mobile' },
+  { id: 'split', label: 'Split bills', icon: 'split' },
 ];
 
 /** Business-wide settings, edited from Admin → Settings. */

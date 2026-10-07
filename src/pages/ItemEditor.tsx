@@ -10,6 +10,7 @@ import { Switch } from '../components/Switch';
 import {
   categoryLabel,
   parseUnits,
+  parseVolume,
   stockState,
   titleCase,
   unitsLabel,
@@ -40,7 +41,14 @@ type ItemDraft = {
   supplierId: string;
   parLevel: string;
   portions: PortionDraft[];
+  /** How portions are sized — a share of a unit, or millilitres poured from it. */
+  measure: Measure;
+  /** Millilitres in one unit, when portions are measured in ml. */
+  unitSize: string;
 };
+
+/** A portion's size as a share of one unit ("1/2"), or — for drinks — millilitres poured ("25"). */
+type Measure = 'share' | 'ml';
 
 /** A portion row as typed — strings, like the rest of the draft. */
 type PortionDraft = { id: string; label: string; price: string; units: string };
@@ -64,16 +72,60 @@ const BLANK: ItemDraft = {
   supplierId: '',
   parLevel: '',
   portions: [],
+  measure: 'share',
+  unitSize: '',
 };
 
-/** Why a portion row can't be saved, or null if it can. `others` are the rest of the rows. */
-function portionError(row: PortionDraft, others: PortionDraft[]): string | null {
+/** Millilitres as typed — "25", "25 ml", "5 cl", "1 l"; null unless it's above 0. */
+function parseMl(text: string): number | null {
+  const t = text.trim();
+  if (!/^\d*\.?\d+$/.test(t)) return parseVolume(t);
+  const n = Number(t);
+  return n > 0 ? n : null;
+}
+
+/** A unit size in millilitres, up to 100 litres; null if it isn't one. */
+function parseUnitSize(text: string): number | null {
+  const ml = parseMl(text);
+  return ml !== null && ml <= 100_000 ? ml : null;
+}
+
+/** The stock one portion row uses, as typed in `measure` against a `unitSize`-ml unit; null if unreadable. */
+function rowUnits(text: string, measure: Measure, unitSize: number | undefined): number | null {
+  if (measure === 'share') return parseUnits(text);
+  const ml = parseMl(text);
+  return ml !== null && unitSize ? ml / unitSize : null;
+}
+
+/** A row's share typed out in `measure` — "1/2", or "375" ml from a 750 ml unit. */
+function rowText(units: number, measure: Measure, unitSize: number | undefined): string {
+  return measure === 'ml' && unitSize ? String(Math.round(units * unitSize * 100) / 100) : unitsLabel(units);
+}
+
+/**
+ * Why a portion row can't be saved, or null if it can. `others` are the rest
+ * of the rows; `unitSize` is the item's millilitres per unit, if it has one.
+ */
+function portionError(
+  row: PortionDraft,
+  others: PortionDraft[],
+  measure: Measure,
+  unitSize: number | undefined,
+): string | null {
   const label = row.label.trim().toLowerCase();
   if (!label) return 'Name the portion, like Half.';
   if (label === 'whole') return 'The whole item is already offered — name the portion something else.';
   if (others.some((o) => o.label.trim().toLowerCase() === label)) return 'Two portions can’t share a name.';
   if (!(isAmountText(row.price) && Number.parseFloat(row.price) > 0)) {
     return `Enter the portion’s price above ${formatMoney(0)}.`;
+  }
+  if (measure === 'ml') {
+    // Without a size there's nothing to measure against — that error shows by the size.
+    if (!unitSize) return null;
+    const units = rowUnits(row.units, measure, unitSize);
+    if (units === null) return 'Enter how much it pours in ml, like 25.';
+    if (units > 10) return 'A portion can’t pour more than ten units.';
+    return null;
   }
   const units = parseUnits(row.units);
   if (units === null || units > 10) return 'Enter its share of one unit, like 1/2 or 0.25.';
@@ -118,8 +170,10 @@ export function ItemEditor() {
               id: p.id,
               label: p.label,
               price: p.price.toFixed(activeCurrency().decimals),
-              units: unitsLabel(p.units),
+              units: rowText(p.units, item.unitSize ? 'ml' : 'share', item.unitSize),
             })),
+            measure: item.unitSize ? 'ml' : 'share',
+            unitSize: item.unitSize !== undefined ? String(item.unitSize) : '',
           }
         : { ...BLANK, category: categories[0]?.id ?? '', lowStockAt: String(settings.lowStockDefault) },
     // Categories are read once, for a new item's starting pick.
@@ -144,10 +198,13 @@ export function ItemEditor() {
   const stockValue = creating ? Number.parseInt(draft.stock, 10) || 0 : item?.stock ?? 0;
   const lowValue = Number.parseInt(draft.lowStockAt, 10) || 0;
   const draftStock = stockValid && lowValid ? stockState({ stock: stockValue, lowStockAt: lowValue }, settings.lowStockDefault) : null;
+  // Only measured portions need a size; measuring by share leaves it unset.
+  const unitSize = draft.measure === 'ml' ? (parseUnitSize(draft.unitSize) ?? undefined) : undefined;
+  const unitSizeValid = draft.measure === 'share' || unitSize !== undefined;
   const portionErrors = draft.portions.map((row, i) =>
-    portionError(row, draft.portions.filter((_, j) => j !== i)),
+    portionError(row, draft.portions.filter((_, j) => j !== i), draft.measure, unitSize),
   );
-  const portionsValid = portionErrors.every((e) => e === null);
+  const portionsValid = unitSizeValid && portionErrors.every((e) => e === null);
   const dirty = JSON.stringify(draft) !== JSON.stringify(saved);
   const canSave =
     (creating || dirty) &&
@@ -176,9 +233,23 @@ export function ItemEditor() {
         id: `p${Date.now().toString(36)}${++portionSeq}`,
         label: first ? 'Half' : '',
         price: first ? half : '',
-        units: first ? '1/2' : '',
+        units: first ? rowText(0.5, draft.measure, unitSize) : '',
       },
     ]);
+  }
+
+  // Rows already typed are carried over to the new measure where they can be,
+  // so a half becomes 375 ml from a 750 ml bottle and back.
+  function setMeasure(measure: Measure) {
+    const size = parseUnitSize(draft.unitSize) ?? undefined;
+    setDraft((prev) => ({
+      ...prev,
+      measure,
+      portions: prev.portions.map((row) => {
+        const units = rowUnits(row.units, prev.measure, size);
+        return units === null || !size ? row : { ...row, units: rowText(units, measure, size) };
+      }),
+    }));
   }
   const draftCategory = categoryLabel(categories, draft.category);
 
@@ -250,10 +321,11 @@ export function ItemEditor() {
               id: p.id,
               label: p.label.trim(),
               price: Number.parseFloat(p.price),
-              units: parseUnits(p.units)!,
+              units: rowUnits(p.units, draft.measure, unitSize)!,
             }),
           )
         : undefined,
+      unitSize,
       // Left at the Settings default, it stays unset so it keeps following the default.
       lowStockAt:
         item?.lowStockAt === undefined && lowValue === settings.lowStockDefault
@@ -503,17 +575,51 @@ export function ItemEditor() {
               Portions <span className="field__optional">(optional)</span>
             </span>
             <p className="portions__help">
-              Sell part of one unit at its own price — a half chicken, a quarter cake. The price above is
+              Sell part of one unit at its own price — a half chicken, a quarter cake, a tot of whisky. The price above is
               for the whole one. Each portion takes its share off stock, so two halves use one unit.
               {draft.openPrice && settings.openPriceEnabled && (
                 <> Not offered while the price is set at the counter.</>
               )}
             </p>
+            <div className="portions__measure">
+              <label htmlFor="item-measure">Measure in</label>
+              <select
+                id="item-measure"
+                className="portions__select"
+                value={draft.measure}
+                onChange={(e) => setMeasure(e.target.value as Measure)}
+              >
+                <option value="share">Share of a unit</option>
+                <option value="ml">Millilitres (drinks)</option>
+              </select>
+              {draft.measure === 'ml' && (
+                <>
+                  <label htmlFor="item-unit-size">from a</label>
+                  <div className="price-input portions__size">
+                    <input
+                      id="item-unit-size"
+                      className="mono"
+                      type="text"
+                      inputMode="decimal"
+                      value={draft.unitSize}
+                      placeholder="750"
+                      onChange={(e) => set('unitSize', e.target.value)}
+                      aria-invalid={!unitSizeValid}
+                    />
+                    <span className="price-input__symbol mono" aria-hidden="true">
+                      ml
+                    </span>
+                  </div>
+                  <span>unit</span>
+                </>
+              )}
+            </div>
+            {!unitSizeValid && <p className="field__error">Enter how much one unit holds in ml, like 750 for a bottle.</p>}
             {draft.portions.length > 0 && (
               <div className="portions__head" aria-hidden="true">
                 <span>Name</span>
                 <span>Price</span>
-                <span>Share of a unit</span>
+                <span>{draft.measure === 'ml' ? 'Pours' : 'Share of a unit'}</span>
               </div>
             )}
             {draft.portions.map((row, i) => (
@@ -541,14 +647,31 @@ export function ItemEditor() {
                       aria-label={`Portion ${i + 1} price`}
                     />
                   </div>
-                  <input
-                    className="mono"
-                    type="text"
-                    value={row.units}
-                    placeholder="1/2"
-                    onChange={(e) => setPortion(i, { units: e.target.value })}
-                    aria-label={`Portion ${i + 1} share of one unit`}
-                  />
+                  {draft.measure === 'ml' ? (
+                    <div className="price-input">
+                      <input
+                        className="mono"
+                        type="text"
+                        inputMode="decimal"
+                        value={row.units}
+                        placeholder="25"
+                        onChange={(e) => setPortion(i, { units: e.target.value })}
+                        aria-label={`Portion ${i + 1} millilitres`}
+                      />
+                      <span className="price-input__symbol mono" aria-hidden="true">
+                        ml
+                      </span>
+                    </div>
+                  ) : (
+                    <input
+                      className="mono"
+                      type="text"
+                      value={row.units}
+                      placeholder="1/2"
+                      onChange={(e) => setPortion(i, { units: e.target.value })}
+                      aria-label={`Portion ${i + 1} share of one unit`}
+                    />
+                  )}
                   <button
                     type="button"
                     className="portions__remove"

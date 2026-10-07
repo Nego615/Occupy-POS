@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 import { useNavigate } from 'react-router';
 import './Register.css';
+import { ApprovalDialog } from '../components/ApprovalDialog';
 import { AssignTabDialog } from '../components/AssignTabDialog';
 import { Button } from '../components/Button';
-import { LineDialog, PortionDialog, PriceDialog, TabDiscountDialog } from '../components/CounterDialogs';
+import { DocketDialog, LineDialog, PortionDialog, PriceDialog, TabDiscountDialog } from '../components/CounterDialogs';
+import { PrintableDocket, type DocketKind } from '../components/PrintableSlip';
 import { ItemTile } from '../components/ItemTile';
 import { MealDialog } from '../components/MealDialog';
 import { Money, Mono } from '../components/Mono';
@@ -30,8 +33,9 @@ import {
   type Promotion,
   type SetMeal,
 } from '../data/deals';
-import { paidAmount } from '../data/orders';
+import { paidAmount, type Order } from '../data/orders';
 import { discountLabel, itemLine, itemQuantities, lineCap, lineItems, round, type CartLine } from '../lib/cart';
+import { rowInOut, snap } from '../lib/motion';
 import { usePos } from '../lib/store';
 import { useNow } from '../lib/useClock';
 
@@ -45,6 +49,9 @@ export function Register() {
   const [meal, setMeal] = useState<SetMeal | null>(null);
   const [assigning, setAssigning] = useState(false);
   const [confirmingClear, setConfirmingClear] = useState(false);
+  // Something being taken off the tab that's waiting on a manager's PIN: a line
+  // brought down to `qty`, or — with no `key` — the whole tab cleared.
+  const [removal, setRemoval] = useState<{ action: string; key: string | null; qty: number } | null>(null);
   const [query, setQuery] = useState('');
   // The open-price item being priced, or 'custom' for a custom amount.
   const [pricing, setPricing] = useState<CatalogItem | 'custom' | null>(null);
@@ -52,6 +59,12 @@ export function Register() {
   const [portioning, setPortioning] = useState<CatalogItem | null>(null);
   const [editingLine, setEditingLine] = useState<string | null>(null);
   const [discounting, setDiscounting] = useState(false);
+  const [choosingDocket, setChoosingDocket] = useState(false);
+  // The docket being printed — on the page only while the print dialog is up. It keeps
+  // its own copy of the tab, so a bill sent to the front desk still prints once it's gone.
+  const [docket, setDocket] = useState<{ order: Order; kind: DocketKind } | null>(null);
+  // The tab whose bill was just sent to the front desk, for the note on the empty register.
+  const [billSent, setBillSent] = useState<string | null>(null);
   const {
     tab,
     cart,
@@ -66,10 +79,22 @@ export function Register() {
     isKitchenItem,
     unsent,
     sendToKitchen,
+    requestBill,
+    openTab,
+    can,
     promotions,
     setMeals,
     categories,
+    orders,
   } = usePos();
+  const tabOrder = orders.find((o) => o.id === tab.orderId && o.status === 'occupied');
+
+  // Prints once the docket is on the page, then takes it off again.
+  useEffect(() => {
+    if (!docket) return;
+    window.print();
+    setDocket(null);
+  }, [docket]);
   // A shelf deleted on another screen falls back to the first one.
   const category: Shelf =
     chosenShelf === 'meals' || categories.some((c) => c.id === chosenShelf)
@@ -128,14 +153,42 @@ export function Register() {
       setConfirmingClear(true);
       return;
     }
-    clearTab();
+    takeOff({ action: `Clear ${tab.name}`, key: null, qty: 0 });
     setConfirmingClear(false);
   }
+
+  // Anyone on the register can add to a tab; taking things off needs the right
+  // role, or a manager's PIN for whoever's signed in.
+  const editsTab = can('editTabs');
+
+  function takeOff(r: NonNullable<typeof removal>) {
+    if (editsTab) applyRemoval(r);
+    else setRemoval(r);
+  }
+
+  function applyRemoval(r: NonNullable<typeof removal>) {
+    if (r.key === null) clearTab();
+    else setQty(r.key, r.qty);
+  }
+
+  /** The stepper and the × — going up always works, coming down is a removal. */
+  function changeQty(line: CartLine, qty: number) {
+    if (qty >= line.qty) return setQty(line.key, qty);
+    const action =
+      qty === 0
+        ? `Remove ${line.qty} × ${line.name} from ${tab.name}`
+        : `Take ${line.qty - qty} × ${line.name} off ${tab.name}`;
+    takeOff({ action, key: line.key, qty });
+  }
+
+  // Only the front desk (and owners and managers) take payment; everyone else sends the bill there.
+  const takesPayment = can('payments');
 
   // "Or press Enter to take payment" — wired, not decorative.
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
-      if (e.key !== 'Enter' || !hasItems) return;
+      // Not while a dialog is up — a manager's PIN, say — on top of the register.
+      if (e.key !== 'Enter' || !hasItems || document.querySelector('dialog[open]')) return;
       const el = document.activeElement;
       const typing =
         el instanceof HTMLInputElement ||
@@ -147,11 +200,26 @@ export function Register() {
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
+    // Re-bound every render, so the bill it sends and prints is the tab as it is now.
+  });
+
+  // The note about a sent bill goes once something new is rung up.
+  useEffect(() => {
+    if (hasItems) setBillSent(null);
   }, [hasItems]);
 
-  /** Hands the open tab over to the tender screen. */
+  /** Hands the open tab over to the tender screen, or sends it to the front desk to be paid. */
   function charge() {
-    navigate('/counter/tender');
+    if (takesPayment) {
+      navigate('/counter/tender', { state: { from: '/counter/register' } });
+      return;
+    }
+    requestBill();
+    setBillSent(tab.name);
+    // The order docket goes with the bill — up for printing straight away.
+    if (tabOrder) setDocket({ order: tabOrder, kind: 'bill' });
+    // The bill waits at the front desk; the register moves on to the next customer.
+    openTab(null);
   }
 
   return (
@@ -260,13 +328,31 @@ export function Register() {
         <PortionDialog item={portioning} onClose={() => setPortioning(null)} />
         <LineDialog lineKey={editingLine} onClose={() => setEditingLine(null)} />
         <TabDiscountDialog open={discounting} onClose={() => setDiscounting(false)} />
+        <DocketDialog
+          open={choosingDocket}
+          onPick={(kind) => tabOrder && setDocket({ order: tabOrder, kind })}
+          onClose={() => setChoosingDocket(false)}
+        />
+        {docket && <PrintableDocket order={docket.order} kind={docket.kind} />}
+        <ApprovalDialog
+          open={removal !== null}
+          permission="editTabs"
+          action={removal?.action ?? ''}
+          onApproved={() => {
+            if (removal) applyRemoval(removal);
+            setRemoval(null);
+          }}
+          onClose={() => setRemoval(null)}
+        />
       </main>
 
       <aside className="cart" aria-label="Current tab">
         <ReceiptEdge />
 
         <div className="cart__status">
-          {hasItems ? (
+          {tab.billRequestedAt ? (
+            <StatusChip status="occupied">Bill at front desk</StatusChip>
+          ) : hasItems ? (
             <StatusChip status="occupied">Tab occupied</StatusChip>
           ) : (
             <StatusChip status="open">Tab open</StatusChip>
@@ -311,11 +397,20 @@ export function Register() {
         <AssignTabDialog open={assigning} onClose={() => setAssigning(false)} />
 
         <div className="cart__items">
-          {hasItems ? (
-            cart.map((line) => {
+          {/* Lines slide in when added and out when removed, and the rest close
+              the gap. Keyed by tab, so switching tabs swaps the list without
+              replaying every line. */}
+          <AnimatePresence key={tab.orderId} initial={false} mode="popLayout">
+            {cart.map((line) => {
               const waiting = lineUnsent(line);
               return (
-                <div className="cart-line" key={line.key}>
+                <motion.div
+                  className="cart-line"
+                  key={line.key}
+                  layout="position"
+                  transition={snap}
+                  {...rowInOut}
+                >
                   <button
                     type="button"
                     className="cart-line__info"
@@ -345,7 +440,7 @@ export function Register() {
                   </button>
                   <Stepper
                     value={line.qty}
-                    onChange={(next) => setQty(line.key, next)}
+                    onChange={(next) => changeQty(line, next)}
                     label={line.name}
                     min={0}
                     max={lineMax(line)}
@@ -354,16 +449,21 @@ export function Register() {
                   <button
                     type="button"
                     className="cart-line__remove"
-                    onClick={() => setQty(line.key, 0)}
+                    onClick={() => changeQty(line, 0)}
                     aria-label={`Remove ${line.name} from tab`}
                   >
                     <span aria-hidden="true">×</span>
                   </button>
-                </div>
+                </motion.div>
               );
-            })
-          ) : (
-            <p className="cart__empty">No items yet — tap a category to start a tab.</p>
+            })}
+          </AnimatePresence>
+          {!hasItems && (
+            <p className="cart__empty" role="status">
+              {billSent
+                ? `${billSent}’s bill is at the front desk. Tap a category to start the next tab.`
+                : 'No items yet — tap a category to start a tab.'}
+            </p>
           )}
         </div>
 
@@ -385,9 +485,14 @@ export function Register() {
           )}
 
           {hasItems && (
-            <button type="button" className="cart__discount" onClick={() => setDiscounting(true)}>
-              {tab.discount ? 'Change tab discount' : 'Discount the tab'}
-            </button>
+            <div className="cart__links">
+              <button type="button" className="cart__discount" onClick={() => setChoosingDocket(true)}>
+                Print docket
+              </button>
+              <button type="button" className="cart__discount" onClick={() => setDiscounting(true)}>
+                {tab.discount ? 'Change tab discount' : 'Discount the tab'}
+              </button>
+            </div>
           )}
 
           {unsentCount > 0 && (
@@ -405,11 +510,23 @@ export function Register() {
             disabled={!hasItems}
             onClick={charge}
           >
-            {partPaid ? 'Charge the rest' : 'Charge'} <Money value={partPaid ? dueNow : totals.total} />
+            {takesPayment ? (
+              <>
+                {partPaid ? 'Charge the rest' : 'Charge'} <Money value={partPaid ? dueNow : totals.total} />
+              </>
+            ) : (
+              <>
+                Send bill to front desk <Money value={partPaid ? dueNow : totals.total} />
+              </>
+            )}
           </Button>
 
           <p className="cart__charge-sub">
-            {hasItems ? 'Or press Enter to take payment' : 'Add an item to start charging'}
+            {!hasItems
+              ? 'Add an item to start charging'
+              : takesPayment
+                ? 'Or press Enter to take payment'
+                : 'Payment is taken at the front desk · or press Enter'}
           </p>
         </div>
       </aside>

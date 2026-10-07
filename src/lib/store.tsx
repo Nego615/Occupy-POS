@@ -12,6 +12,7 @@ import {
   type Portion,
 } from '../data/catalog';
 import { DEFAULT_SETTINGS, type Settings } from '../data/settings';
+import { expectedCash, shiftStart, shiftTotals, type CashUp } from '../data/cashup';
 import {
   PROMOTIONS,
   SET_MEALS,
@@ -39,6 +40,7 @@ import {
   ORDERS,
   hydrateOrder,
   orderItems,
+  orderTotal,
   paidAmount,
   refundValue,
   refundedQty,
@@ -104,6 +106,8 @@ type StoredTab = {
   payments: Payment[];
   /** Fixed once the first payment is in, so later payments split the same total. */
   tip?: number;
+  /** ISO timestamp the bill was sent to the front desk to be paid. */
+  billRequestedAt?: string;
 };
 
 export type OpenTab = StoredTab & {
@@ -251,6 +255,22 @@ type PosStore = {
   takePayment: (payment: Payment, tip: number) => number | null;
   /** Takes back a payment from a part-paid tab — a mistake, or a card that bounced. */
   removePayment: (index: number) => void;
+  /** Sends the register's tab to the front desk to be paid. */
+  requestBill: () => void;
+  /**
+   * Closes an open tab onto a room's bill, to be paid when the room settles
+   * up. Refused for an empty or part-paid tab, or a location that isn't a room.
+   */
+  chargeToRoom: (orderId: number, roomId: string) => boolean;
+  /**
+   * Pays off everything charged to a room in one payment (`amount` is worked
+   * out per bill). Returns how much was settled; 0 if nothing was owed.
+   */
+  settleRoom: (roomId: string, payment: Omit<Payment, 'amount' | 'at' | 'by'>) => number;
+  /** Closed front-desk shifts, newest first. */
+  cashUps: CashUp[];
+  /** Closes the current shift with the drawer count, and starts the next. */
+  closeShift: (count: { float: number; countedCash: number; note?: string }) => CashUp;
   /** Whether `itemId` is made in the kitchen, per Settings' kitchen categories. */
   isKitchenItem: (itemId: string) => boolean;
   /** Kitchen items on the register's tab the kitchen hasn't been sent yet. */
@@ -346,6 +366,7 @@ export function newShopSnapshot(
     payrollRuns: [],
     settings,
     kitchenTickets: [],
+    cashUps: [],
     movements: [],
     suppliers: [],
     purchaseOrders: [],
@@ -498,6 +519,7 @@ export function PosProvider({
   }));
   // Set during render, ahead of every child, so formatters never lag a switch.
   setActiveCurrency(settings.currency);
+  const [cashUps, setCashUps] = useState<CashUp[]>(() => restored(snapshot, 'cashUps', []));
   const [kitchenTickets, setKitchenTickets] = useState<KitchenTicket[]>(() =>
     restored(snapshot, 'kitchenTickets', () => seedTickets().sort((a, b) => a.sentAt - b.sentAt)),
   );
@@ -522,6 +544,7 @@ export function PosProvider({
   usePersist(repo, 'payrollRuns', payrollRuns);
   usePersist(repo, 'settings', settings);
   usePersist(repo, 'kitchenTickets', kitchenTickets);
+  usePersist(repo, 'cashUps', cashUps);
 
   // Changes from the other screens signed in to this shop.
   useRemote(repo, 'tabs', setTabs);
@@ -535,6 +558,7 @@ export function PosProvider({
   useRemote(repo, 'payrollRuns', setPayrollRuns);
   useRemote(repo, 'settings', setSettings);
   useRemote(repo, 'kitchenTickets', setKitchenTickets);
+  useRemote(repo, 'cashUps', setCashUps);
 
   // The tab on this register was closed or paid on another screen: start a
   // fresh walk-in rather than jumping to someone else's tab.
@@ -805,59 +829,71 @@ export function PosProvider({
     [activeId, storedTabs],
   );
 
-  /** Closes the register's tab as a paid order with `payments`, and starts a fresh walk-in. */
+  /**
+   * Closes open tab `orderId` — paid with `payments`, or onto a room's bill.
+   * If it was this register's tab, a fresh walk-in takes its place.
+   */
   const closeTab = useCallback(
-    (payments: Payment[], tip: number) => {
-      const lines = toOrderLines(cart, catalog);
+    (orderId: number, close: { payments: Payment[]; tip: number } | { roomId: string }) => {
+      const closing = tabs.find((t) => t.orderId === orderId);
+      if (!closing) return;
+      const closingTotals = computeTotals(closing.cart, settings.taxRate, closing.discount);
+      const lines = toOrderLines(closing.cart, catalog);
 
       // Counter orders are paid before anything's made — paying sends whatever
       // the kitchen hasn't had yet.
-      const unsentNow = unsentLines(cart, tab.sent, isKitchenItem);
-      if (unsentNow.length > 0) fireTicket(tab, unsentNow, 'order');
+      const unsentNow = unsentLines(closing.cart, closing.sent, isKitchenItem);
+      if (unsentNow.length > 0) fireTicket(closing, unsentNow, 'order');
 
-      // Stock is drawn down at payment, not when an item lands on a tab.
-      // A set meal draws down each of its picks.
+      // Stock is drawn down when the bill closes, not when an item lands on a
+      // tab. A set meal draws down each of its picks.
       logStock(
-        [...itemQuantities(cart)].map(([itemId, qty]) => ({
+        [...itemQuantities(closing.cart)].map(([itemId, qty]) => ({
           itemId,
           change: -qty,
           reason: 'sale' as const,
-          ref: `Order #${tab.orderId}`,
+          ref: `Order #${orderId}`,
         })),
       );
 
+      const onRoom = 'roomId' in close;
       const record: OrderRecord = {
-        id: tab.orderId,
-        name: tab.name,
-        locationId: tab.locationId ?? undefined,
-        status: 'paid',
+        id: orderId,
+        name: closing.name,
+        locationId: closing.locationId ?? undefined,
+        status: onRoom ? 'charged' : 'paid',
         at: new Date().toISOString(),
-            staffId: me?.id,
+        staffId: me?.id,
         lines,
-        ...(totals.orderDiscount > 0 && tab.discount
+        ...(closingTotals.orderDiscount > 0 && closing.discount
           ? {
-              discount: totals.orderDiscount,
-              discountLabel: discountLabel(tab.discount),
-              discountBy: tab.discount.by,
+              discount: closingTotals.orderDiscount,
+              discountLabel: discountLabel(closing.discount),
+              discountBy: closing.discount.by,
             }
           : {}),
-        tax: totals.tax,
-        tip,
-        payments,
+        tax: closingTotals.tax,
+        tip: onRoom ? 0 : close.tip,
+        payments: onRoom ? [] : close.payments,
+        ...(onRoom ? { roomId: close.roomId } : {}),
       };
       setClosedOrders((prev) => [record, ...prev]);
 
+      if (orderId !== activeId) {
+        setTabs((prev) => prev.filter((t) => t.orderId !== orderId));
+        return;
+      }
       const fresh = freshTab(nextOrderId(), null);
       setTabs((prev) => [
         ...pruneIdle(
-          prev.filter((t) => t.orderId !== tab.orderId),
+          prev.filter((t) => t.orderId !== orderId),
           fresh.orderId,
         ),
         fresh,
       ]);
       setActiveId(fresh.orderId);
     },
-    [cart, tab, totals, isKitchenItem, fireTicket, logStock, catalog, me],
+    [tabs, activeId, settings.taxRate, isKitchenItem, fireTicket, logStock, catalog, me],
   );
 
   const takePayment = useCallback(
@@ -865,16 +901,88 @@ export function PosProvider({
       if (cart.length === 0 || !(payment.amount > 0)) return null;
       const tip = tab.tip ?? tipIfFirst;
       const due = round(totals.total + tip);
-      const payments = [...tab.payments, payment];
+      // Stamped for the cash-up: when it came in, and who took it.
+      const stamped: Payment = { ...payment, at: new Date().toISOString(), ...(me ? { by: me.id } : {}) };
+      const payments = [...tab.payments, stamped];
       if (paidAmount(payments) >= due) {
         const orderId = tab.orderId;
-        closeTab(payments, tip);
+        closeTab(orderId, { payments, tip });
         return orderId;
       }
       updateActiveTab((t) => ({ ...t, payments, tip }));
       return null;
     },
-    [cart.length, tab, totals.total, closeTab, updateActiveTab],
+    [cart.length, tab, totals.total, closeTab, updateActiveTab, me],
+  );
+
+  const requestBill = useCallback(() => {
+    if (cart.length === 0) return;
+    const at = new Date().toISOString();
+    updateActiveTab((t) => ({ ...t, billRequestedAt: t.billRequestedAt ?? at }));
+  }, [cart.length, updateActiveTab]);
+
+  const chargeToRoom = useCallback(
+    (orderId: number, roomId: string) => {
+      const charging = storedTabs.find((t) => t.orderId === orderId);
+      const room = locations.find((l) => l.id === roomId && l.kind === 'room');
+      // Payments belong to the bill they were taken against, so a part-paid tab is paid off instead.
+      if (!charging || !room || charging.cart.length === 0 || charging.payments.length > 0) return false;
+      closeTab(orderId, { roomId });
+      return true;
+    },
+    [storedTabs, locations, closeTab],
+  );
+
+  const settleRoom = useCallback(
+    (roomId: string, payment: Omit<Payment, 'amount' | 'at' | 'by'>) => {
+      const owing = closedRecords.filter((o) => o.status === 'charged' && o.roomId === roomId);
+      if (owing.length === 0) return 0;
+      const at = new Date().toISOString();
+      const ids = new Set(owing.map((o) => o.id));
+      setClosedOrders((prev) =>
+        prev.map((o) =>
+          ids.has(o.id) && o.status === 'charged'
+            ? {
+                ...o,
+                status: 'paid',
+                settledAt: at,
+                payments: [{ ...payment, amount: orderTotal(o), at, ...(me ? { by: me.id } : {}) }],
+              }
+            : o,
+        ),
+      );
+      return round(owing.reduce((sum, o) => sum + orderTotal(o), 0));
+    },
+    [closedRecords, me],
+  );
+
+  const closeShift = useCallback(
+    (count: { float: number; countedCash: number; note?: string }) => {
+      const openedAt = shiftStart(cashUps);
+      const closedAt = new Date().toISOString();
+      const totals = shiftTotals(
+        closedRecords,
+        storedTabs.flatMap((t) => t.payments),
+        openedAt,
+        closedAt,
+      );
+      const cashUp: CashUp = {
+        id: `cashup-${Date.now().toString(36)}`,
+        openedAt,
+        closedAt,
+        by: me?.id ?? '',
+        float: count.float,
+        taken: totals.taken,
+        refunded: totals.refunded,
+        payments: totals.payments,
+        expectedCash: expectedCash(count.float, totals),
+        countedCash: count.countedCash,
+        ...(count.note?.trim() ? { note: count.note.trim() } : {}),
+      };
+      setCashUps((prev) => [cashUp, ...prev]);
+      return cashUp;
+    },
+    [cashUps, closedRecords, storedTabs, me],
   );
 
   const removePayment = useCallback(
@@ -1215,6 +1323,11 @@ export function PosProvider({
       mergeTab,
       takePayment,
       removePayment,
+      requestBill,
+      chargeToRoom,
+      settleRoom,
+      cashUps,
+      closeShift,
       isKitchenItem,
       unsent,
       sendToKitchen,
@@ -1281,6 +1394,11 @@ export function PosProvider({
       mergeTab,
       takePayment,
       removePayment,
+      requestBill,
+      chargeToRoom,
+      settleRoom,
+      cashUps,
+      closeShift,
       isKitchenItem,
       unsent,
       sendToKitchen,

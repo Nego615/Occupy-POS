@@ -166,15 +166,25 @@
   color: var(--ink-soft);
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  padding: 10px 12px;
+  padding: 10px;
   border-bottom: 1px solid var(--line);
   white-space: nowrap;
 }
 
 .report-table td {
-  padding: 10px 12px;
+  padding: 10px;
   border-bottom: 1px solid var(--line);
   white-space: nowrap;
+}
+
+/* Wide tables scroll sideways; the row's name stays put so every figure
+   can still be read against it. */
+.report-table th:first-child,
+.report-table td:first-child {
+  position: sticky;
+  left: -8px;
+  z-index: 1;
+  background: var(--surface);
 }
 
 .report-table tbody tr:last-child td {

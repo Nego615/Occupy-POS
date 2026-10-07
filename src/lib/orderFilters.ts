@@ -12,6 +12,7 @@ export const STATUSES: { id: StatusFilter; label: string }[] = [
   { id: 'all', label: 'All' },
   { id: 'occupied', label: 'Open' },
   { id: 'paid', label: 'Paid' },
+  { id: 'charged', label: 'On room bill' },
   { id: 'refunded', label: 'Refunded' },
 ];
 
@@ -56,6 +57,7 @@ export function countByStatus(orders: Order[]): Record<StatusFilter, number> {
     occupied: 0,
     paid: 0,
     refunded: 0,
+    charged: 0,
   };
   for (const order of orders) counts[order.status]++;
   return counts;

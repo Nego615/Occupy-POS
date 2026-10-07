@@ -1,13 +1,15 @@
 import { useState } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 import { useNavigate } from 'react-router';
 import './Kitchen.css';
 import { AccountMenu } from '../components/AccountMenu';
 import { Button } from '../components/Button';
 import { Mono } from '../components/Mono';
-import { Pill } from '../components/Pill';
+import { Pill, PillGroup } from '../components/Pill';
 import { StatusChip } from '../components/StatusChip';
 import { TopBar } from '../components/TopBar';
 import { formatElapsed, type KitchenTicket } from '../data/kitchen';
+import { quick, snap } from '../lib/motion';
 import { usePos } from '../lib/store';
 import { formatTime, useNow } from '../lib/useClock';
 
@@ -49,12 +51,14 @@ export function Kitchen() {
         showClock
         nav={
           <nav className="kitchen__nav" aria-label="Kitchen">
-            <Pill active={view === 'waiting'} onClick={() => setView('waiting')}>
-              Waiting <Mono>{waiting.length}</Mono>
-            </Pill>
-            <Pill active={view === 'done'} onClick={() => setView('done')}>
-              Done
-            </Pill>
+            <PillGroup>
+              <Pill active={view === 'waiting'} onClick={() => setView('waiting')}>
+                Waiting <Mono>{waiting.length}</Mono>
+              </Pill>
+              <Pill active={view === 'done'} onClick={() => setView('done')}>
+                Done
+              </Pill>
+            </PillGroup>
             {can('register') && (
               <Pill onClick={() => navigate('/counter/register')}>Register</Pill>
             )}
@@ -80,23 +84,34 @@ export function Kitchen() {
             )}
           </div>
 
-          {waiting.length === 0 ? (
+          {/* A new ticket settles in; a bumped one drops out and the rest close
+              up behind it, so the line can see what just left. */}
+          <div className="kitchen__grid">
+            <AnimatePresence initial={false} mode="popLayout">
+              {waiting.map((ticket) => (
+                <motion.div
+                  key={ticket.id}
+                  layout="position"
+                  transition={snap}
+                  initial={{ opacity: 0, scale: 0.97 }}
+                  animate={{ opacity: 1, scale: 1, transition: quick }}
+                  exit={{ opacity: 0, scale: 0.94, transition: { duration: 0.14, ease: [0.4, 0, 1, 1] } }}
+                >
+                  <Ticket
+                    ticket={ticket}
+                    now={now}
+                    late={isLate(ticket, now, lateAfterMs)}
+                    onToggleLine={(i) => toggleTicketLine(ticket.id, i)}
+                    onBump={() => bumpTicket(ticket.id)}
+                  />
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </div>
+          {waiting.length === 0 && (
             <p className="kitchen__empty">
               No tickets waiting — new orders show up here as soon as the register sends them.
             </p>
-          ) : (
-            <div className="kitchen__grid">
-              {waiting.map((ticket) => (
-                <Ticket
-                  key={ticket.id}
-                  ticket={ticket}
-                  now={now}
-                  late={isLate(ticket, now, lateAfterMs)}
-                  onToggleLine={(i) => toggleTicketLine(ticket.id, i)}
-                  onBump={() => bumpTicket(ticket.id)}
-                />
-              ))}
-            </div>
           )}
         </main>
       ) : (

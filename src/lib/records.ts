@@ -40,6 +40,7 @@ export const SLICES: Record<string, SliceSpec> = {
   staff: list('last'),
   payrollRuns: list('first'),
   kitchenTickets: list('last'),
+  cashUps: list('first'),
   movements: list('first'),
   suppliers: list('last'),
   purchaseOrders: list('first'),

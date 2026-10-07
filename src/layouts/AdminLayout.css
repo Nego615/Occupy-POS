@@ -74,14 +74,30 @@
   color: var(--ink);
 }
 
-.nav-item--active {
-  background: var(--ink);
+.nav-item {
+  position: relative;
+}
+
+/* The active item's ink is .nav-item__fill, which slides between items
+   (AdminLayout); the link itself stays clear so the slide shows. */
+.nav-item--active,
+.nav-item--active:hover {
+  background: none;
   color: var(--paper);
 }
 
-.nav-item--active:hover {
+.nav-item__fill {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
   background: var(--ink);
-  color: var(--paper);
+  pointer-events: none;
+}
+
+/* Above the fill. */
+.nav-item .nav-icon,
+.nav-item__label {
+  position: relative;
 }
 
 .nav-item:focus-visible {
@@ -90,9 +106,6 @@
 }
 
 .nav-icon {
-  width: 16px;
-  text-align: center;
-  font-size: 13px;
   flex-shrink: 0;
 }
 
@@ -186,3 +199,104 @@
   margin-bottom: 14px;
 }
 
+/* ---------- Narrow screens ---------- */
+
+/* On wide screens the menu is simply the rest of the sidebar. */
+.admin__menu {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.admin__menu-btn {
+  display: none;
+}
+
+/* Tablets and phones: the sidebar becomes a top strip, its pages behind a Menu button. */
+@media (max-width: 900px) {
+  .admin {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    min-height: 0;
+  }
+
+  .admin__sidebar {
+    position: relative;
+    padding: 10px 16px;
+    border-right: none;
+    border-bottom: 1px solid var(--line);
+    overflow: visible;
+  }
+
+  .admin__top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .admin__brand {
+    padding: 0;
+    min-width: 0;
+  }
+
+  .admin__menu-btn {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--hit-area);
+    padding: 0 16px;
+    border: 1px solid var(--line);
+    border-radius: 100px;
+    background: var(--paper);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--ink);
+    cursor: pointer;
+  }
+
+  .admin__menu-btn:focus-visible {
+    outline: var(--focus-width) solid var(--focus-color);
+    outline-offset: var(--focus-offset);
+  }
+
+  .admin__menu {
+    display: none;
+  }
+
+  .admin__sidebar--open .admin__menu {
+    display: flex;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 20;
+    max-height: calc(100vh - 72px);
+    overflow-y: auto;
+    padding: 4px 16px 16px;
+    background: var(--paper);
+    border-bottom: 1px solid var(--line);
+    box-shadow: var(--shadow);
+  }
+
+  .admin__main {
+    padding: 20px 16px 32px;
+  }
+}
+
+@media (max-width: 600px) {
+  .head-actions {
+    flex-wrap: wrap;
+  }
+
+  /* Fixed-width fields never push a page wider than the phone. */
+  .admin__main input,
+  .admin__main select,
+  .admin__main textarea {
+    max-width: 100%;
+  }
+
+  .panel {
+    padding: 14px;
+  }
+}

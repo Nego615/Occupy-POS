@@ -28,6 +28,11 @@ export type CatalogItem = {
    * quarter cake. Unset sells only whole.
    */
   portions?: Portion[];
+  /**
+   * Millilitres in one stock unit — 750 for a bottle of spirits. Lets a
+   * drink's portions be measured as "25 ml" rather than a fraction.
+   */
+  unitSize?: number;
 };
 
 /** A serving of an item sold at its own price, drawing `units` of its stock. */
@@ -106,6 +111,22 @@ export function unitsLabel(units: number): string {
     if (num > 0 && Math.abs(num / den - units) < STOCK_SLACK) return num === den ? '1' : `${num}/${den}`;
   }
   return String(roundStock(units));
+}
+
+/** Millilitres in each volume a portion can be typed in. */
+const ML_PER: Record<string, number> = { ml: 1, cl: 10, l: 1000 };
+
+/** "25 ml", "0.5 l", "35 cl" → millilitres; null if `text` isn't a volume above 0. */
+export function parseVolume(text: string): number | null {
+  const m = /^(\d*\.?\d+)\s*(ml|cl|l)$/i.exec(text.trim());
+  if (!m) return null;
+  const ml = Number(m[1]) * ML_PER[m[2].toLowerCase()];
+  return ml > 0 ? ml : null;
+}
+
+/** A portion's share as admins read it — "25 ml" for an item with a `unitSize`, otherwise "1/2". */
+export function shareLabel(units: number, unitSize?: number): string {
+  return unitSize ? `${Math.round(units * unitSize * 100) / 100} ml` : unitsLabel(units);
 }
 
 /** "1/2", "0.5", "3/4" → the number; null unless it's above 0. */

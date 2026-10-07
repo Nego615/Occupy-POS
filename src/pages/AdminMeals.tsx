@@ -9,6 +9,7 @@ import { NO_CATEGORY, type CatalogItem } from '../data/catalog';
 import { mealWorth, type Course, type SetMeal } from '../data/deals';
 import { activeCurrency, isAmountText } from '../lib/currency';
 import { usePos } from '../lib/store';
+import { useRevealPanel } from '../lib/useRevealPanel';
 
 /** Tile dot colors on offer — the catalog's own palette. */
 const MEAL_COLORS = ['#121212', '#ff4b2e', '#e0a300', '#1fae5c', '#0e7bd6', '#8a5cf6', '#8a5a2b'];
@@ -33,6 +34,7 @@ function Worth({ range }: { range: [number, number] | null }) {
 export function AdminMeals() {
   const { setMeals, createSetMeal, catalog, settings } = usePos();
   const [selectedId, setSelectedId] = useState<string | null>(setMeals[0]?.id ?? null);
+  const panelRef = useRevealPanel<HTMLElement>(selectedId);
 
   function add() {
     const meal = createSetMeal({
@@ -138,7 +140,7 @@ export function AdminMeals() {
           )}
         </section>
 
-        <aside className="inv-panel" aria-label="Set meal details">
+        <aside ref={panelRef} className="inv-panel" aria-label="Set meal details">
           {selected ? (
             <MealPanel key={selected.id} meal={selected} onDeleted={() => setSelectedId(null)} />
           ) : (

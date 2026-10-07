@@ -279,3 +279,10 @@
     max-height: none;
   }
 }
+
+@media (max-width: 600px) {
+  .orders-stats,
+  .orders-stats--no-tips {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

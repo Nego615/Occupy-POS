@@ -354,49 +354,52 @@ function RoleTable() {
         </h2>
         <span className="staff__roles-note">Roles are fixed for now</span>
       </div>
-      <table className="role-table">
-        <thead>
-          <tr>
-            <th scope="col">
-              <span className="sr-only">Permission</span>
-            </th>
-            {ROLES.map((r) => (
-              <th scope="col" key={r.id}>
-                {r.label}
-                <span className="role-table__count">
-                  <Mono>{staff.filter((m) => m.active && m.role === r.id).length}</Mono> active
-                </span>
+      {/* Scrolls sideways on a phone rather than widening the page. */}
+      <div className="role-table__wrap">
+        <table className="role-table">
+          <thead>
+            <tr>
+              <th scope="col">
+                <span className="sr-only">Permission</span>
               </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {PERMISSIONS.map((p) => (
-            <tr key={p.id}>
-              <th scope="row">{p.label}</th>
               {ROLES.map((r) => (
-                <td key={r.id}>
-                  {r.can.includes(p.id) ? (
-                    <>
-                      <span aria-hidden="true" className="role-table__yes">
-                        ✓
-                      </span>
-                      <span className="sr-only">Yes</span>
-                    </>
-                  ) : (
-                    <>
-                      <span aria-hidden="true" className="role-table__no">
-                        —
-                      </span>
-                      <span className="sr-only">No</span>
-                    </>
-                  )}
-                </td>
+                <th scope="col" key={r.id}>
+                  {r.label}
+                  <span className="role-table__count">
+                    <Mono>{staff.filter((m) => m.active && m.role === r.id).length}</Mono> active
+                  </span>
+                </th>
               ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {PERMISSIONS.map((p) => (
+              <tr key={p.id}>
+                <th scope="row">{p.label}</th>
+                {ROLES.map((r) => (
+                  <td key={r.id}>
+                    {r.can.includes(p.id) ? (
+                      <>
+                        <span aria-hidden="true" className="role-table__yes">
+                          ✓
+                        </span>
+                        <span className="sr-only">Yes</span>
+                      </>
+                    ) : (
+                      <>
+                        <span aria-hidden="true" className="role-table__no">
+                          —
+                        </span>
+                        <span className="sr-only">No</span>
+                      </>
+                    )}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </section>
   );
 }

@@ -67,6 +67,27 @@
   align-items: start;
 }
 
+/* Until something is picked, the panel only holds a hint. It sits above the
+   list as one line instead of holding a column open, so the list gets the
+   full width; picking a row opens the panel beside it. */
+.inv-layout:has(> .inv-panel > .inv-panel__placeholder:only-child) {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+}
+
+.inv-panel:has(> .inv-panel__placeholder:only-child) {
+  order: -1;
+  position: static;
+  padding: 0 4px;
+  background: none;
+}
+
+.inv-panel > .inv-panel__placeholder:only-child {
+  padding: 0;
+  text-align: left;
+  font-size: 13px;
+}
+
 .inv-table-wrap {
   padding: 6px 8px;
   overflow-x: auto;
@@ -95,6 +116,17 @@
   border-bottom: 1px solid var(--line);
   vertical-align: middle;
   white-space: nowrap;
+}
+
+/* With the panel open the table can outgrow its column and scroll sideways;
+   the row's name stays put so every figure can be read against it. Hover and
+   selected rows recolour this cell along with the rest (rules below). */
+.inv-table th:first-child,
+.inv-table td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--surface);
 }
 
 .inv-table tbody tr:last-child td {
@@ -454,9 +486,13 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
+  /* Stacked, the panel goes above the list: picking a row scrolls up to it
+     (useRevealPanel) instead of leaving it below a long table. */
   .inv-panel {
+    order: -1;
     position: static;
     max-height: none;
+    scroll-margin-top: 16px;
   }
 
   .inv-tiles {
@@ -543,4 +579,10 @@
 .count-bar__progress {
   margin-right: auto;
   font-size: 13px;
+}
+
+@media (max-width: 600px) {
+  .inv-tiles {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

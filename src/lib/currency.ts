@@ -49,12 +49,20 @@ export function activeCurrency(): Currency {
  */
 export function formatCurrency(value: number, currency: Currency = active): string {
   const sign = value < 0 ? '-' : '';
-  const number = Math.abs(value).toLocaleString('en-US', {
+  const number = formatAmount(Math.abs(value), currency);
+  // A non-breaking space, so "TSh" never wraps away from its amount.
+  return `${sign}${currency.symbol}${currency.spaced ? ' ' : ''}${number}`;
+}
+
+/**
+ * "30,633" — grouped, without the symbol: for amount fields that already show
+ * the symbol beside them. Amount fields accept the commas back.
+ */
+export function formatAmount(value: number, currency: Currency = active): string {
+  return value.toLocaleString('en-US', {
     minimumFractionDigits: currency.decimals,
     maximumFractionDigits: currency.decimals,
   });
-  // A non-breaking space, so "TSh" never wraps away from its amount.
-  return `${sign}${currency.symbol}${currency.spaced ? ' ' : ''}${number}`;
 }
 
 /** Rounds to the currency's smallest unit — cents, or whole shillings. */

@@ -39,6 +39,26 @@
   color: var(--paper);
 }
 
+/* In a group, the ink comes from .pill__fill, which slides between pills
+   (Pill.tsx). The button itself only keeps the matching border. */
+.pill--grouped.pill--active {
+  background: var(--paper);
+  border-color: var(--line);
+}
+
+.pill__fill {
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  background: var(--ink);
+  pointer-events: none;
+}
+
+/* Above the fill. */
+.pill__label {
+  position: relative;
+}
+
 .pill:focus-visible {
   outline: var(--focus-width) solid var(--focus-color);
   outline-offset: var(--focus-offset);

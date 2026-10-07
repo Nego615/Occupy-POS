@@ -36,7 +36,11 @@ const RANGES: { id: RangeId; label: string; maxDaysAgo: number }[] = [
 /** `all`, `walk-in`, a whole kind (`kind:table`), or one location's id. */
 type PlaceFilter = string;
 
-export function OrderHistory() {
+/**
+ * `onOpenTab` replaces putting an open tab on the register — the front desk
+ * opens it as a bill to collect instead.
+ */
+export function OrderHistory({ onOpenTab }: { onOpenTab?: (orderId: number) => void } = {}) {
   const navigate = useNavigate();
   const { orders, locations, switchTab } = usePos();
   const [range, setRange] = useState<RangeId>('today');
@@ -252,6 +256,7 @@ export function OrderHistory() {
             order={selected}
             headingLevel="h1"
             onOpenTab={() => {
+              if (onOpenTab) return onOpenTab(selected.id);
               switchTab(selected.id);
               navigate('/counter/register');
             }}

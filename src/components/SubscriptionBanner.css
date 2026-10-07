@@ -1,0 +1,28 @@
+.sub-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  font-size: 13px;
+}
+
+.sub-banner__text {
+  min-width: 0;
+}
+
+/* Inside the admin main column it sits with the page, not edge to edge. */
+.admin__main .sub-banner {
+  margin: -6px 0 18px;
+  border: none;
+  border-radius: var(--radius-md);
+}
+
+@media (max-width: 600px) {
+  .sub-banner {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+  }
+}

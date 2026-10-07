@@ -18,7 +18,8 @@ import { usePos } from '../lib/store';
  * order data.
  */
 export function PrintableReceipt({ order }: { order: Order }) {
-  const { settings, allStaff: staff } = usePos();
+  const { settings, allStaff: staff, locations } = usePos();
+  const room = order.roomId ? locations.find((l) => l.id === order.roomId)?.name ?? 'room' : null;
   const discount = orderDiscount(order);
   const change = changeGiven(order.payments);
   const cashier = staff.find((m) => m.id === order.staffId)?.name;
@@ -37,7 +38,9 @@ export function PrintableReceipt({ order }: { order: Order }) {
           <span className="mono">{order.time}</span>
         </div>
         {cashier && <div>Served by {cashier}</div>}
-        {order.payments.length === 0 && <div>Not yet tendered</div>}
+        {order.status === 'charged' && <div>Charged to {room}</div>}
+        {order.status === 'paid' && room && <div>Settled with {room}</div>}
+        {order.payments.length === 0 && order.status !== 'charged' && <div>Not yet tendered</div>}
         {order.status === 'refunded' && <div>REFUNDED</div>}
       </div>
 

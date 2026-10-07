@@ -17,6 +17,7 @@ import {
 import { activeCurrency, isAmountText } from '../lib/currency';
 import { usePos } from '../lib/store';
 import { useNow } from '../lib/useClock';
+import { useRevealPanel } from '../lib/useRevealPanel';
 
 /** Off, running right now, or waiting for its days and hours. */
 function PromoStatus({ promo, at }: { promo: Promotion; at: Date }) {
@@ -45,6 +46,7 @@ export function AdminPromotions() {
   const { promotions, createPromotion, settings, categories } = usePos();
   const at = new Date(useNow(30_000));
   const [selectedId, setSelectedId] = useState<string | null>(promotions[0]?.id ?? null);
+  const panelRef = useRevealPanel<HTMLElement>(selectedId);
 
   function add() {
     const promo = createPromotion({
@@ -132,7 +134,7 @@ export function AdminPromotions() {
           )}
         </section>
 
-        <aside className="inv-panel" aria-label="Promotion details">
+        <aside ref={panelRef} className="inv-panel" aria-label="Promotion details">
           {selected ? (
             <PromotionPanel
               key={selected.id}

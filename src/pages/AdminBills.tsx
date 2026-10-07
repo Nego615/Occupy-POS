@@ -17,6 +17,7 @@ import {
 import { isAmountText } from '../lib/currency';
 import { billStatus, type BillStatus } from '../lib/inventory';
 import { usePos } from '../lib/store';
+import { useRevealPanel } from '../lib/useRevealPanel';
 
 type Filter = 'unpaid' | 'overdue' | 'paid' | 'all';
 
@@ -59,6 +60,7 @@ export function AdminBills() {
   const [filter, setFilter] = useState<Filter>('unpaid');
   const supplier = params.get('supplier') ?? 'all';
   const selectedId = params.get('bill');
+  const panelRef = useRevealPanel<HTMLElement>(selectedId);
 
   function setParam(key: 'supplier' | 'bill', value: string | null) {
     setParams(
@@ -220,7 +222,7 @@ export function AdminBills() {
           )}
         </section>
 
-        <aside className="inv-panel" aria-label="Bill">
+        <aside ref={panelRef} className="inv-panel" aria-label="Bill">
           {selected ? (
             <BillPanel
               key={selected.bill.id}

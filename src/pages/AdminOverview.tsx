@@ -79,7 +79,7 @@ export function AdminOverview() {
             <div className="stat-card__label">{stat.label}</div>
             <Mono className="stat-card__value">{stat.value}</Mono>
             {stat.delta ? (
-              <div className={`stat-card__delta stat-card__delta--${stat.delta.direction}`}>
+              <div className={`stat-card__delta stat-card__delta--${stat.delta.good ? 'good' : 'bad'}`}>
                 <span aria-hidden="true">{stat.delta.direction === 'up' ? '↑' : '↓'}</span>
                 <span className="sr-only">
                   {stat.delta.direction === 'up' ? 'Up' : 'Down'}
@@ -168,6 +168,7 @@ const ACTIVITY_LABEL = {
   paid: 'Paid',
   occupied: 'Tab open',
   refunded: 'Refunded',
+  charged: 'On room bill',
 } as const;
 
 function chartSummary(bars: { day: string; value: number }[], peak: number): string {

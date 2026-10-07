@@ -1,7 +1,9 @@
 import type { ReactNode } from 'react';
+import { MotionConfig } from 'motion/react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router';
 import { RequirePermission, RequireSignIn } from './components/Guards';
-import type { Permission } from './data/staff';
+import { homePath, type Permission } from './data/staff';
+import { usePos } from './lib/store';
 import { AdminLayout } from './layouts/AdminLayout';
 import { CounterLayout } from './layouts/CounterLayout';
 import { AdminBills } from './pages/AdminBills';
@@ -20,6 +22,7 @@ import { AdminStockCount } from './pages/AdminStockCount';
 import { AdminSuppliers } from './pages/AdminSuppliers';
 import { AdminLocations } from './pages/AdminLocations';
 import { AdminOverview } from './pages/AdminOverview';
+import { FrontDesk } from './pages/FrontDesk';
 import { ItemEditor } from './pages/ItemEditor';
 import { Kitchen } from './pages/Kitchen';
 import { OrderHistory } from './pages/OrderHistory';
@@ -27,6 +30,12 @@ import { Register } from './pages/Register';
 import { SignIn } from './pages/SignIn';
 import { Tables } from './pages/Tables';
 import { Tender } from './pages/Tender';
+
+/** Anywhere unknown lands on the signed-in person's own screen — the front desk can't use the register. */
+function Home() {
+  const { me } = usePos();
+  return <Navigate to={me ? homePath(me) : '/sign-in'} replace />;
+}
 
 /** Shorthand: `element` only for roles holding `permission`. */
 function guard(permission: Permission, element: ReactNode) {
@@ -50,49 +59,55 @@ function guard(permission: Permission, element: ReactNode) {
  */
 export function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/sign-in" element={<SignIn />} />
+    // Every animation is skipped when the device asks for reduced motion.
+    <MotionConfig reducedMotion="user">
+      <BrowserRouter>
+        <Routes>
+          <Route path="/sign-in" element={<SignIn />} />
 
-        <Route element={<RequireSignIn />}>
-          <Route path="/counter">
-            <Route element={guard('register', <CounterLayout />)}>
-              <Route index element={<Navigate to="/counter/register" replace />} />
-              <Route path="register" element={<Register />} />
-              <Route path="tables" element={<Tables />} />
-              <Route path="history" element={<OrderHistory />} />
+          <Route element={<RequireSignIn />}>
+            <Route path="/counter">
+              <Route element={guard('register', <CounterLayout />)}>
+                <Route index element={<Navigate to="/counter/register" replace />} />
+                <Route path="register" element={<Register />} />
+                <Route path="tables" element={<Tables />} />
+                <Route path="history" element={<OrderHistory />} />
+              </Route>
+              <Route path="tender" element={guard('payments', <Tender />)} />
             </Route>
-            <Route path="tender" element={guard('register', <Tender />)} />
+
+            <Route path="/admin" element={<AdminLayout />}>
+              <Route index element={guard('reports', <AdminOverview />)} />
+              <Route path="orders" element={guard('reports', <AdminOrders />)} />
+              <Route path="reports" element={guard('reports', <AdminReports />)} />
+              <Route path="staff" element={guard('staff', <AdminStaff />)} />
+              <Route path="salaries" element={guard('payroll', <AdminSalaries />)} />
+              <Route path="items" element={guard('catalog', <AdminItems />)} />
+              <Route path="categories" element={guard('catalog', <AdminCategories />)} />
+              <Route path="meals" element={guard('catalog', <AdminMeals />)} />
+              <Route path="promotions" element={guard('catalog', <AdminPromotions />)} />
+              <Route path="stock" element={guard('inventory', <AdminStock />)} />
+              <Route path="count" element={guard('inventory', <AdminStockCount />)} />
+              <Route path="purchases" element={guard('inventory', <AdminPurchases />)} />
+              <Route path="suppliers" element={guard('inventory', <AdminSuppliers />)} />
+              <Route path="bills" element={guard('inventory', <AdminBills />)} />
+              <Route path="locations" element={guard('locations', <AdminLocations />)} />
+              <Route path="settings" element={guard('settings', <AdminSettings />)} />
+            </Route>
+
+            {/* Where every bill is paid: open bills, room bills, receipts, and the cash-up. */}
+            <Route path="/desk" element={guard('payments', <FrontDesk />)} />
+
+            {/* The kitchen display: its own bar, since cooks never see the counter. */}
+            <Route path="/kitchen" element={guard('kitchen', <Kitchen />)} />
+
+            {/* `/items/new` opens the same editor in create mode. */}
+            <Route path="/items/:itemId" element={guard('catalog', <ItemEditor />)} />
           </Route>
 
-          <Route path="/admin" element={<AdminLayout />}>
-            <Route index element={guard('reports', <AdminOverview />)} />
-            <Route path="orders" element={guard('reports', <AdminOrders />)} />
-            <Route path="reports" element={guard('reports', <AdminReports />)} />
-            <Route path="staff" element={guard('staff', <AdminStaff />)} />
-            <Route path="salaries" element={guard('payroll', <AdminSalaries />)} />
-            <Route path="items" element={guard('catalog', <AdminItems />)} />
-            <Route path="categories" element={guard('catalog', <AdminCategories />)} />
-            <Route path="meals" element={guard('catalog', <AdminMeals />)} />
-            <Route path="promotions" element={guard('catalog', <AdminPromotions />)} />
-            <Route path="stock" element={guard('inventory', <AdminStock />)} />
-            <Route path="count" element={guard('inventory', <AdminStockCount />)} />
-            <Route path="purchases" element={guard('inventory', <AdminPurchases />)} />
-            <Route path="suppliers" element={guard('inventory', <AdminSuppliers />)} />
-            <Route path="bills" element={guard('inventory', <AdminBills />)} />
-            <Route path="locations" element={guard('locations', <AdminLocations />)} />
-            <Route path="settings" element={guard('settings', <AdminSettings />)} />
-          </Route>
-
-          {/* The kitchen display: its own bar, since cooks never see the counter. */}
-          <Route path="/kitchen" element={guard('kitchen', <Kitchen />)} />
-
-          {/* `/items/new` opens the same editor in create mode. */}
-          <Route path="/items/:itemId" element={guard('catalog', <ItemEditor />)} />
-        </Route>
-
-        <Route path="*" element={<Navigate to="/counter/register" replace />} />
-      </Routes>
-    </BrowserRouter>
+          <Route path="*" element={<Home />} />
+        </Routes>
+      </BrowserRouter>
+    </MotionConfig>
   );
 }

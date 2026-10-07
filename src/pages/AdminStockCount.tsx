@@ -6,6 +6,7 @@ import { SearchField } from '../components/SearchField';
 import { formatDay, type StockCount } from '../data/inventory';
 import { round } from '../lib/cart';
 import { usePos } from '../lib/store';
+import { useRevealPanel } from '../lib/useRevealPanel';
 
 /** Net value of a posted count's differences, at the cost when it was posted. */
 export function countVariance(count: StockCount): { units: number; value: number; lines: number } {
@@ -31,6 +32,7 @@ export function countVariance(count: StockCount): { units: number; value: number
 export function AdminStockCount() {
   const { countDraft, stockCounts, settings } = usePos();
   const [viewing, setViewing] = useState<string | null>(null);
+  const panelRef = useRevealPanel<HTMLElement>(viewing);
   const viewed = stockCounts.find((c) => c.id === viewing) ?? null;
 
   return (
@@ -117,7 +119,7 @@ export function AdminStockCount() {
             </section>
           </div>
 
-          <aside className="inv-panel" aria-label="Count details">
+          <aside ref={panelRef} className="inv-panel" aria-label="Count details">
             {viewed ? (
               <CountRecord count={viewed} />
             ) : (

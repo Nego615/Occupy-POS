@@ -8,6 +8,7 @@ import { Switch } from '../components/Switch';
 import type { Supplier } from '../data/inventory';
 import { billStatus } from '../lib/inventory';
 import { usePos } from '../lib/store';
+import { useRevealPanel } from '../lib/useRevealPanel';
 
 /**
  * Who the business buys from: contacts, payment terms, and where each
@@ -17,6 +18,7 @@ import { usePos } from '../lib/store';
 export function AdminSuppliers() {
   const { suppliers, addSupplier, settings } = usePos();
   const [selectedId, setSelectedId] = useState<string | null>(suppliers[0]?.id ?? null);
+  const panelRef = useRevealPanel<HTMLElement>(selectedId);
 
   function add() {
     const s = addSupplier({ name: 'New supplier', paymentTermsDays: 14, active: true });
@@ -67,7 +69,7 @@ export function AdminSuppliers() {
           </table>
         </section>
 
-        <aside className="inv-panel" aria-label="Supplier details">
+        <aside ref={panelRef} className="inv-panel" aria-label="Supplier details">
           {selected ? (
             <SupplierPanel key={selected.id} supplier={selected} />
           ) : (

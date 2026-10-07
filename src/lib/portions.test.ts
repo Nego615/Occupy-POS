@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseUnits, servings, stockFits, unitsLabel, type CatalogItem } from '../data/catalog';
+import { parseUnits, parseVolume, servings, shareLabel, stockFits, unitsLabel, type CatalogItem } from '../data/catalog';
 import { unsentLines } from '../data/kitchen';
 import { orderItems, type OrderRecord } from '../data/orders';
 import { applyMovements } from './inventory';
@@ -84,5 +84,21 @@ describe('portions', () => {
     expect(unitsLabel(1 / 3)).toBe('1/3');
     expect(unitsLabel(0.75)).toBe('3/4');
     expect(unitsLabel(0.123)).toBe('0.123');
+  });
+
+  it('reads volumes and shows a drink’s portions in ml', () => {
+    expect(parseVolume('25 ml')).toBe(25);
+    expect(parseVolume('0.375l')).toBe(375);
+    expect(parseVolume('5cl')).toBe(50);
+    expect(parseVolume('1/2')).toBeNull();
+    expect(shareLabel(1 / 30, 750)).toBe('25 ml');
+    expect(shareLabel(0.5)).toBe('1/2');
+  });
+
+  it('sells thirty tots from a bottle', () => {
+    const whisky = { ...chicken, id: 'whisky', stock: 1, unitSize: 750 };
+    const tot = { id: 'tot', label: 'Tot', price: 300, units: 25 / 750 };
+    const cart = [{ ...portionLine(whisky, tot, null), qty: 29 }];
+    expect(lineCap(cart, 'whisky#tot', [whisky])).toBe(30);
   });
 });

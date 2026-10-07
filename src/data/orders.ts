@@ -2,7 +2,8 @@ import { CATALOG, TAX_RATE } from './catalog';
 import { HISTORY_DAYS, dateOfDaysAgo, daysAgoOf } from './history';
 import { roundMoney } from '../lib/currency';
 
-export type OrderStatus = 'paid' | 'occupied' | 'refunded';
+/** `charged` is closed onto a room's bill, to be paid when the room settles up. */
+export type OrderStatus = 'paid' | 'occupied' | 'refunded' | 'charged';
 
 /** How money was taken. Card is a standalone terminal; mobile is M-Pesa, Tigo Pesa, Airtel Money and the like. */
 export type TenderMethod = 'card' | 'cash' | 'mobile';
@@ -21,6 +22,10 @@ export type Payment = {
   tendered?: number;
   /** Card last four or approval code, or the mobile-money transaction id. */
   ref?: string;
+  /** ISO timestamp it was taken. Absent on payments from before shifts were cashed up. */
+  at?: string;
+  /** Staff id of whoever took it. */
+  by?: string;
 };
 
 export const REFUND_REASONS = [
@@ -102,6 +107,10 @@ export type OrderRecord = {
   refunds?: Refund[];
   /** Staff id of whoever issued (or approved) the full refund. */
   refundedBy?: string;
+  /** The room it was charged to, when it went on a room's bill instead of being paid on the spot. */
+  roomId?: string;
+  /** ISO timestamp a room charge was paid off with the rest of the room's bill. */
+  settledAt?: string;
 };
 
 export type Order = OrderRecord & {

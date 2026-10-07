@@ -1,0 +1,1007 @@
+@import url('https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&display=swap');
+
+/* ---------------------------------------------------------------
+   Occupy platform — the vendor's dashboard.
+   Its own identity, kept apart from the shops' POS: cool fog and navy
+   instead of warm paper and ink, one grotesk for words and figures alike.
+   Blue means paid time and nothing else; amber means running out; brick
+   means locked or destructive.
+
+   The shop design tokens are re-pointed inside .pf only, so the shared
+   Button, Pill, Switch, SearchField and dialogs take this palette here and
+   stay untouched everywhere else.
+   --------------------------------------------------------------- */
+
+.pf {
+  --pf-fog: #edf0f4;
+  --pf-track: #e3e8ef;
+  --pf-paper: #ffffff;
+  --pf-navy: #17213a;
+  --pf-slate: #5a6478;
+  --pf-rule: #d5dbe5;
+  --pf-blue: #2d55d6;
+  --pf-blue-soft: #e3e9fc;
+  --pf-blue-text: #2344b0;
+  --pf-amber: #b47712;
+  --pf-amber-soft: #fbf0dc;
+  --pf-amber-text: #7f5207;
+  --pf-brick: #b4382a;
+  --pf-brick-soft: #fbe9e6;
+  --pf-grey: #9aa3b2;
+  --pf-grey-soft: #e6e9ef;
+
+  /* The shared components read these. */
+  --ink: var(--pf-navy);
+  --ink-soft: var(--pf-slate);
+  --paper: var(--pf-paper);
+  --surface: var(--pf-fog);
+  --surface-hover: #e2e7ee;
+  --line: var(--pf-rule);
+  --occupied: var(--pf-brick);
+  --occupied-soft: var(--pf-brick-soft);
+  --open: #1f7a4d;
+  --open-soft: #e6f3ec;
+  --focus-color: var(--pf-blue);
+  --font-ui: 'Schibsted Grotesk', system-ui, sans-serif;
+  /* Figures stay in the same face, set tabular, rather than a monospace. */
+  --font-mono: 'Schibsted Grotesk', system-ui, sans-serif;
+
+  height: 100%;
+  background: var(--pf-fog);
+  color: var(--pf-navy);
+  font-family: var(--font-ui);
+  font-size: 14.5px;
+  line-height: 1.45;
+}
+
+/* The shared .mono sets tabular figures, which in this face also widens
+   commas and full stops ("TSh 50 , 000"). Proportional figures read cleanly. */
+.pf .mono {
+  font-variant-numeric: normal;
+}
+
+.pf a {
+  color: var(--pf-blue-text);
+  text-underline-offset: 3px;
+}
+
+.pf-num {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* ---------- Shell ---------- */
+
+.pf-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 100%;
+}
+
+.pf-bar {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  padding: 0 32px;
+  background: var(--pf-paper);
+  border-bottom: 1px solid var(--pf-rule);
+}
+
+.pf-bar__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+.pf-bar__product {
+  font-weight: 400;
+  color: var(--pf-slate);
+}
+
+/* A navy square with one paid-time bar in it — the runway, in miniature. */
+.pf-bar__mark {
+  position: relative;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: var(--pf-navy);
+}
+
+.pf-bar__mark::after {
+  content: '';
+  position: absolute;
+  left: 5px;
+  right: 7px;
+  top: 9px;
+  height: 4px;
+  border-radius: 2px;
+  background: #7f9bff;
+}
+
+.pf-bar__nav {
+  display: flex;
+  gap: 4px;
+  align-self: stretch;
+}
+
+.pf a.pf-tab {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 14px;
+  min-height: 60px;
+  border-bottom: 2px solid transparent;
+  color: var(--pf-slate);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.pf a.pf-tab:hover {
+  color: var(--pf-navy);
+}
+
+.pf a.pf-tab--active {
+  color: var(--pf-navy);
+  border-bottom-color: var(--pf-navy);
+}
+
+.pf-tab:focus-visible {
+  outline-offset: -4px;
+}
+
+.pf-bar__account {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-left: auto;
+  min-width: 0;
+}
+
+.pf-bar__email {
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--pf-slate);
+  font-size: 13.5px;
+}
+
+.pf-bar__signout {
+  min-height: var(--hit-area);
+  padding: 0 14px;
+  border: 1px solid var(--pf-rule);
+  border-radius: 8px;
+  background: var(--pf-paper);
+  color: var(--pf-navy);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.pf-bar__signout:hover {
+  background: var(--pf-fog);
+}
+
+.pf-main {
+  overflow-y: auto;
+  padding: 36px 40px 64px;
+}
+
+.pf-main > * {
+  max-width: 1120px;
+  margin-inline: auto;
+}
+
+/* ---------- Page heads ---------- */
+
+.pf-head,
+.pf .page-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+/* The overview's head carries the tally under its title, so it stacks. */
+.pf-head {
+  display: block;
+}
+
+.pf-title,
+.pf .page-title {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 1.15;
+}
+
+.pf .page-sub {
+  margin-top: 4px;
+  font-size: 14px;
+  color: var(--pf-slate);
+}
+
+.pf .head-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* One line of figures in place of stat cards: "12 shops  9 paid up  2 to chase". */
+.pf-tally {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 22px;
+  margin-top: 8px;
+  font-size: 15px;
+  color: var(--pf-slate);
+}
+
+.pf-tally strong {
+  color: var(--pf-navy);
+  font-weight: 700;
+}
+
+.pf-tally__item--warn strong {
+  color: var(--pf-amber-text);
+}
+
+.pf-tally__item--bad strong {
+  color: var(--pf-brick);
+}
+
+.pf-tally__item--money {
+  margin-left: auto;
+}
+
+/* ---------- Panels ---------- */
+
+.pf-panel,
+.pf .panel {
+  background: var(--pf-paper);
+  border: 1px solid var(--pf-rule);
+  border-radius: 14px;
+  padding: 22px 24px;
+}
+
+.pf-panel {
+  margin-bottom: 20px;
+}
+
+.pf-panel__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin-bottom: 16px;
+}
+
+.pf-panel__title,
+.pf .panel__title {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.pf .panel__title {
+  margin-bottom: 14px;
+}
+
+.pf-panel__note {
+  margin: 0;
+  font-size: 13px;
+  color: var(--pf-slate);
+}
+
+.pf-cols {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.pf-section {
+  margin-bottom: 20px;
+}
+
+/* ---------- Runway ---------- */
+
+.runway {
+  --label: 190px;
+  --end: 210px;
+}
+
+.runway__scale,
+.runway__row {
+  display: grid;
+  grid-template-columns: var(--label) minmax(0, 1fr) var(--end);
+  align-items: center;
+  gap: 20px;
+}
+
+.runway__ticks {
+  position: relative;
+  height: 22px;
+}
+
+.runway__tick {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  font-size: 12px;
+  color: var(--pf-slate);
+  white-space: nowrap;
+}
+
+/* The window's two ends sit inside it rather than hanging over the edges. */
+.runway__tick:first-child {
+  transform: none;
+}
+
+.runway__tick:nth-child(4) {
+  transform: translateX(-100%);
+}
+
+.runway__tick--today {
+  color: var(--pf-navy);
+  font-weight: 700;
+}
+
+.runway__rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.runway__row {
+  min-height: 52px;
+  padding: 8px 10px;
+  margin: 0 -10px;
+  border-top: 1px solid var(--pf-rule);
+  border-radius: 0;
+  color: inherit;
+}
+
+.pf a.runway__row--link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.runway__row--link:hover {
+  background: var(--pf-fog);
+}
+
+.runway__row--link:hover .runway__name {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.runway__name {
+  min-width: 0;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.runway__track {
+  position: relative;
+  height: 14px;
+  border-radius: 4px;
+  background: var(--pf-track);
+}
+
+.runway__today {
+  position: absolute;
+  top: -9px;
+  bottom: -9px;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--pf-navy);
+  z-index: 2;
+}
+
+.runway__bar,
+.runway__grace {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  transform-origin: left center;
+  animation: runway-grow 700ms cubic-bezier(0.2, 0.7, 0, 1) both;
+  animation-delay: calc(var(--i, 0) * 45ms);
+}
+
+.runway__bar {
+  border-radius: 4px;
+}
+
+.runway__bar--paid {
+  background: var(--pf-blue);
+}
+
+.runway__bar--short {
+  background: var(--pf-amber);
+}
+
+.runway__bar--suspended,
+.runway__bar--locked {
+  background: var(--pf-grey);
+}
+
+/* Runs past the window (or never ends): fades out instead of stopping. */
+.runway__bar--open {
+  border-radius: 4px 0 0 4px;
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 48px), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 48px), transparent);
+}
+
+.runway__grace {
+  border-radius: 0 4px 4px 0;
+  background: repeating-linear-gradient(-45deg, var(--pf-amber) 0 2.5px, transparent 2.5px 6px);
+  animation-delay: calc(var(--i, 0) * 45ms + 250ms);
+}
+
+.runway__grace--spent {
+  background: repeating-linear-gradient(-45deg, var(--pf-brick) 0 2.5px, transparent 2.5px 6px);
+}
+
+.runway__end {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+}
+
+.runway__date {
+  font-size: 12.5px;
+  color: var(--pf-slate);
+}
+
+/* One shop, on its own page: no name column. */
+.runway--single .runway__scale,
+.runway--single .runway__row {
+  grid-template-columns: minmax(0, 1fr) var(--end);
+}
+
+.runway--single .runway__scale > span:first-child,
+.runway--single .runway__name {
+  display: none;
+}
+
+.runway--single .runway__row {
+  border-top: none;
+  margin: 0;
+  padding: 4px 0 0;
+}
+
+@keyframes runway-grow {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .runway__bar,
+  .runway__grace {
+    animation: none;
+  }
+}
+
+/* ---------- Status tags ---------- */
+
+.pf-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.pf-tag--active {
+  background: var(--pf-blue-soft);
+  color: var(--pf-blue-text);
+}
+
+.pf-tag--expiring,
+.pf-tag--grace {
+  background: var(--pf-amber-soft);
+  color: var(--pf-amber-text);
+}
+
+.pf-tag--locked {
+  background: var(--pf-brick-soft);
+  color: var(--pf-brick);
+}
+
+.pf-tag--suspended {
+  background: var(--pf-grey-soft);
+  color: #4a5468;
+}
+
+/* ---------- Lists ---------- */
+
+.pf-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pf-list__row,
+.pf-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: var(--hit-area);
+  padding: 10px 0;
+  border-top: 1px solid var(--pf-rule);
+}
+
+.pf-list__row:first-child,
+.pf-line:first-of-type {
+  border-top: none;
+}
+
+.pf-list__main,
+.pf-line__main,
+.pf-row__who {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.pf-list__name,
+.pf-line__name {
+  font-weight: 600;
+}
+
+.pf-list__sub,
+.pf-line__sub {
+  font-size: 13px;
+  color: var(--pf-slate);
+}
+
+.pf-empty {
+  margin: 0;
+  padding: 18px 0;
+  color: var(--pf-slate);
+}
+
+.pf-error {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--pf-brick);
+}
+
+.pf-saved {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--open);
+}
+
+.pf-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+/* Tables made of rows: shops, plans, payments. */
+.pf-row {
+  display: grid;
+  align-items: center;
+  gap: 16px;
+  min-height: 52px;
+  padding: 10px 0;
+  border-top: 1px solid var(--pf-rule);
+  color: inherit;
+}
+
+.pf-row--head {
+  min-height: 0;
+  padding: 0 0 10px;
+  border-top: none;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--pf-slate);
+}
+
+.pf-row--head + .pf-row {
+  border-top: 1px solid var(--pf-rule);
+}
+
+.pf a.pf-row--link {
+  color: inherit;
+  text-decoration: none;
+  margin: 0 -10px;
+  padding-inline: 10px;
+}
+
+.pf-row--link:hover {
+  background: var(--pf-fog);
+}
+
+.pf-row--link:hover .pf-line__name {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.pf-row--muted {
+  color: var(--pf-slate);
+}
+
+.pf-row--shop {
+  grid-template-columns: minmax(200px, 1.6fr) 1fr 120px 110px 170px;
+}
+
+.pf-row--plan {
+  grid-template-columns: minmax(180px, 1.4fr) 150px 100px 150px 60px 70px 90px;
+}
+
+.pf-row--ledger {
+  grid-template-columns: 110px minmax(160px, 1.4fr) 1fr 1fr 140px;
+}
+
+.pf-row--payment {
+  grid-template-columns: 110px 1fr 90px 140px;
+}
+
+.pf-row__amount {
+  text-align: right;
+  font-weight: 600;
+}
+
+.pf-row__end {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.pf-row__hint {
+  display: block;
+  margin-top: 3px;
+}
+
+/* ---------- Inputs ---------- */
+
+.pf-input,
+.pf .counter-field input,
+.pf .counter-field__input {
+  min-height: var(--hit-area);
+  width: 100%;
+  padding: 0 12px;
+  border: 1px solid var(--pf-rule);
+  border-radius: 8px;
+  background: var(--pf-paper);
+  font: inherit;
+  font-size: 14.5px;
+  font-weight: 500;
+  color: var(--pf-navy);
+}
+
+.pf .counter-field input:disabled {
+  background: var(--pf-fog);
+  color: var(--pf-slate);
+}
+
+.pf-input--wide {
+  font-weight: 600;
+}
+
+.pf-input:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
+}
+
+.pf .counter-field {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.pf .counter-dialog {
+  border-radius: 16px;
+}
+
+.pf .counter-dialog__title {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+}
+
+.pf-date {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--pf-slate);
+}
+
+.pf-date .pf-input {
+  width: auto;
+}
+
+/* ---------- Shop page ---------- */
+
+/* Lines up with the centred page column, but only as wide as its words. */
+.pf a.pf-back {
+  display: flex;
+  width: max-content;
+  margin-inline: max(0px, calc((100% - 1120px) / 2)) auto;
+  align-items: center;
+  min-height: var(--hit-area);
+  margin-top: -14px;
+  margin-bottom: 2px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--pf-slate);
+  text-decoration: none;
+}
+
+.pf a.pf-back:hover {
+  color: var(--pf-navy);
+}
+
+.pf-panel--runway {
+  padding-bottom: 14px;
+}
+
+.pf-facts {
+  margin: 0;
+}
+
+.pf-facts__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 9px 0;
+  border-top: 1px solid var(--pf-rule);
+}
+
+.pf-facts__row:first-child {
+  border-top: none;
+}
+
+.pf-facts__row dt {
+  color: var(--pf-slate);
+}
+
+.pf-facts__row dd {
+  margin: 0;
+  font-weight: 600;
+  text-align: right;
+}
+
+.pf-facts__note {
+  color: var(--pf-amber-text);
+}
+
+.pf-pay {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid var(--pf-rule);
+}
+
+.pf-pay__title {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.pf-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.pf-field-pair,
+.pf-field-trio {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.pf-field-trio {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.pf-notes {
+  padding: 10px 12px;
+  resize: vertical;
+}
+
+.pf-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.pf-danger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  padding: 16px 0;
+  border-top: 1px solid var(--pf-rule);
+}
+
+.pf-danger:first-of-type {
+  border-top: none;
+  padding-top: 0;
+}
+
+.pf-danger__text {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+.pf-danger__title {
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+
+.pf-danger__controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pf-danger__controls .pf-input {
+  width: 230px;
+}
+
+.pf-danger__controls .pf-error {
+  flex-basis: 100%;
+}
+
+.pf .pf-delete:not(:disabled) {
+  border-color: var(--pf-brick);
+  color: var(--pf-brick);
+}
+
+/* ---------- Narrow screens ---------- */
+
+@media (max-width: 1180px) {
+  .pf-row--head {
+    display: none;
+  }
+
+  .pf-row--head + .pf-row {
+    border-top: none;
+  }
+
+  .pf-row--shop,
+  .pf-row--ledger {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 4px 16px;
+  }
+
+  .pf-row--plan {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px 12px;
+  }
+}
+
+@media (max-width: 900px) {
+  .pf-bar {
+    flex-wrap: wrap;
+    gap: 0 16px;
+    padding: 10px 16px 0;
+  }
+
+  .pf-bar__nav {
+    order: 3;
+    flex-basis: 100%;
+    overflow-x: auto;
+    margin: 0 -16px;
+    padding: 0 6px;
+  }
+
+  .pf a.pf-tab {
+    min-height: 48px;
+  }
+
+  .pf-main {
+    padding: 24px 16px 48px;
+  }
+
+  .pf-cols {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pf-tally__item--money {
+    margin-left: 0;
+  }
+
+  /* Runway rows: name and status on one line, the bar beneath. */
+  .runway__scale,
+  .runway--single .runway__scale {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .runway__scale > span:not(.runway__ticks) {
+    display: none;
+  }
+
+  .runway__row,
+  .runway--single .runway__row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'name end'
+      'track track';
+    gap: 8px 12px;
+    padding-block: 12px;
+  }
+
+  .runway--single .runway__row {
+    grid-template-areas:
+      'end end'
+      'track track';
+  }
+
+  .runway__name {
+    grid-area: name;
+  }
+
+  .runway__track {
+    grid-area: track;
+  }
+
+  /* The tag says enough in a list; the date is on the shop's page. */
+  .runway:not(.runway--single) .runway__date {
+    display: none;
+  }
+
+  .runway__end {
+    grid-area: end;
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 4px 10px;
+  }
+}
+
+@media (max-width: 600px) {
+  .pf-bar__email {
+    display: none;
+  }
+
+  .pf-title,
+  .pf .page-title {
+    font-size: 24px;
+  }
+
+  .pf-panel,
+  .pf .panel {
+    padding: 16px;
+  }
+
+  .pf-row--plan,
+  .pf-row--payment,
+  .pf-field-pair,
+  .pf-field-trio {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pf-danger__controls,
+  .pf-danger__controls .pf-input {
+    width: 100%;
+  }
+}

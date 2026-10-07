@@ -1,10 +1,13 @@
+import { motion } from 'motion/react';
 import { Outlet, useLocation, useNavigate } from 'react-router';
 import './CounterLayout.css';
 import { AccountMenu } from '../components/AccountMenu';
-import { Pill } from '../components/Pill';
+import { Pill, PillGroup } from '../components/Pill';
+import { SubscriptionBanner } from '../components/SubscriptionBanner';
 import { TopBar } from '../components/TopBar';
 import { stationLabel } from '../data/settings';
 import { ADMIN_PERMISSIONS } from '../data/staff';
+import { swapIn } from '../lib/motion';
 import { usePos } from '../lib/store';
 
 /**
@@ -38,24 +41,31 @@ export function CounterLayout() {
         showClock={current.clock}
         nav={
           <nav className="counter__nav" aria-label="Counter">
-            {SCREENS.map((screen) => (
-              <Pill
-                key={screen.path}
-                active={screen.path === current.path}
-                onClick={() => navigate(screen.path)}
-              >
-                {screen.label}
-              </Pill>
-            ))}
-            {can('kitchen') && <Pill onClick={() => navigate('/kitchen')}>Kitchen</Pill>}
-            {/* Only offered to roles that can open some part of the admin. */}
-            {ADMIN_PERMISSIONS.some(can) && (
-              <Pill onClick={() => navigate('/admin')}>Admin</Pill>
-            )}
+            <PillGroup>
+              {SCREENS.map((screen) => (
+                <Pill
+                  key={screen.path}
+                  active={screen.path === current.path}
+                  onClick={() => navigate(screen.path)}
+                >
+                  {screen.label}
+                </Pill>
+              ))}
+              {can('payments') && <Pill onClick={() => navigate('/desk')}>Front desk</Pill>}
+              {can('kitchen') && <Pill onClick={() => navigate('/kitchen')}>Kitchen</Pill>}
+              {/* Only offered to roles that can open some part of the admin. */}
+              {ADMIN_PERMISSIONS.some(can) && (
+                <Pill onClick={() => navigate('/admin')}>Admin</Pill>
+              )}
+            </PillGroup>
           </nav>
         }
       />
-      <Outlet />
+      <SubscriptionBanner />
+      {/* Keyed by screen, so switching screens fades the new one in. */}
+      <motion.div key={current.path} className="counter__page" variants={swapIn} initial="hidden" animate="shown">
+        <Outlet />
+      </motion.div>
     </div>
   );
 }

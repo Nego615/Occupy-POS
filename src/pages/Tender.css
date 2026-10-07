@@ -65,9 +65,18 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
   padding: 24px;
   overflow-y: auto;
+}
+
+/* Centred while it fits; when it doesn't, it starts at the top and scrolls
+   (justify-content: center would push the receipt edge out of reach). */
+.tender__center > :first-child {
+  margin-top: auto;
+}
+
+.tender__center > :last-child {
+  margin-bottom: auto;
 }
 
 .tender__edge {
@@ -106,10 +115,15 @@
 
 .tip-row {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 8px;
-  justify-content: center;
   margin-top: 26px;
+}
+
+/* Presets share one line; Custom and No tip share the next. */
+.tip-row__line {
+  display: flex;
+  gap: 8px;
 }
 
 .tip-pill {
@@ -125,13 +139,6 @@
   color: inherit;
   min-height: var(--hit-area);
   transition: background 0.15s ease, border-color 0.15s ease;
-}
-
-/* "No tip" takes its own full-width line under the presets, so the four
-   amounts keep their width on the 340px card. */
-.tip-pill--wide {
-  flex-basis: 100%;
-  padding: 10px 6px;
 }
 
 .tip-pill:not(.tip-pill--active):hover {
@@ -264,9 +271,8 @@
 }
 
 .method__icon {
-  font-size: 18px;
   display: block;
-  margin-bottom: 6px;
+  margin: 0 auto 6px;
 }
 
 /* ---------- Footer ---------- */
@@ -422,6 +428,12 @@
   white-space: nowrap;
 }
 
+/* Note amounts need their full width to be read, so two to a line. */
+.tender__quick .tender__chip {
+  flex-basis: calc(50% - 3px);
+  min-height: var(--hit-area);
+}
+
 .tender__chip:not(.tender__chip--active):hover {
   background: var(--surface-hover);
 }
@@ -484,4 +496,68 @@
 .tender__change--short {
   background: var(--occupied-soft);
   color: var(--occupied);
+}
+
+/* ---------- Wide screens: bill beside payment ---------- */
+
+@media (min-width: 900px) {
+  .tender__edge,
+  .tender__card--split,
+  .tender__charge {
+    width: 720px;
+  }
+
+  .tender__card--split {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    padding: 30px 0 28px;
+  }
+
+  .tender__bill,
+  .tender__pay {
+    padding: 0 30px;
+  }
+
+  .tender__pay {
+    border-left: 1px solid var(--line);
+    text-align: left;
+  }
+
+  .tender__pay > .method-row {
+    margin-top: 0;
+  }
+}
+
+/* ---------- Narrow screens ---------- */
+
+@media (max-width: 600px) {
+  .tender {
+    min-height: 100%;
+    height: auto;
+  }
+
+  .tender__bar {
+    padding: 12px 16px;
+  }
+
+  .tender__center {
+    padding: 16px;
+    justify-content: flex-start;
+  }
+
+  .tender__card {
+    padding: 22px 18px 20px;
+  }
+
+  .tender__total-amount {
+    font-size: 36px;
+  }
+
+  .method-row {
+    flex-wrap: wrap;
+  }
+
+  .tender__footer {
+    padding: 14px 16px 18px;
+  }
 }

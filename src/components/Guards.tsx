@@ -2,7 +2,7 @@ import { useEffect, type ReactNode } from 'react';
 import { Link, Navigate, Outlet, useLocation, useNavigate } from 'react-router';
 import './Guards.css';
 import { Button } from './Button';
-import { permissionLabel, roleLabel, type Permission } from '../data/staff';
+import { homePath, permissionLabel, roleLabel, type Permission } from '../data/staff';
 import { usePos } from '../lib/store';
 
 /**
@@ -96,8 +96,8 @@ export function NoAccess({ permission }: { permission?: Permission }) {
         </p>
         <div className="no-access__actions">
           <Button onClick={switchUser}>Switch user</Button>
-          <Link to="/counter/register" className="no-access__back">
-            Back to register
+          <Link to={me ? homePath(me) : '/sign-in'} className="no-access__back">
+            Back to your screen
           </Link>
         </div>
       </div>

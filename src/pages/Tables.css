@@ -69,3 +69,13 @@
   width: 72px;
   text-align: right;
 }
+
+@media (max-width: 600px) {
+  .tables {
+    padding: 16px;
+  }
+
+  .tables__toolbar {
+    flex-wrap: wrap;
+  }
+}

@@ -14,6 +14,7 @@ import {
 import { isAmountText } from '../lib/currency';
 import { purchaseTotal } from '../lib/inventory';
 import { usePos } from '../lib/store';
+import { useRevealPanel } from '../lib/useRevealPanel';
 
 type Filter = 'open' | 'received' | 'cancelled' | 'all';
 
@@ -47,6 +48,7 @@ export function AdminPurchases() {
 
   // `?po=PO-1004`, or `?po=new` for a fresh draft.
   const selectedId = params.get('po');
+  const panelRef = useRevealPanel<HTMLElement>(selectedId);
   const select = (id: string) => setParams({ po: id }, { replace: true });
 
   const visible = useMemo(() => {
@@ -142,7 +144,7 @@ export function AdminPurchases() {
           )}
         </section>
 
-        <aside className="inv-panel" aria-label="Purchase order">
+        <aside ref={panelRef} className="inv-panel" aria-label="Purchase order">
           {selectedId === 'new' ? (
             <PurchaseEditor key="new" onSaved={select} />
           ) : selected?.status === 'draft' ? (

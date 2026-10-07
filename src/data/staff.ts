@@ -1,7 +1,8 @@
-export type RoleId = 'owner' | 'manager' | 'barista' | 'server' | 'cook';
+export type RoleId = 'owner' | 'manager' | 'frontdesk' | 'barista' | 'server' | 'cook';
 
 export type Permission =
   | 'register'
+  | 'payments'
   | 'kitchen'
   | 'refunds'
   | 'catalog'
@@ -12,10 +13,12 @@ export type Permission =
   | 'settings'
   | 'inventory'
   | 'payables'
-  | 'discounts';
+  | 'discounts'
+  | 'editTabs';
 
 export const PERMISSIONS: { id: Permission; label: string }[] = [
-  { id: 'register', label: 'Ring up & take payment' },
+  { id: 'register', label: 'Ring up orders' },
+  { id: 'payments', label: 'Take payment at the front desk' },
   { id: 'kitchen', label: 'Work the kitchen screen' },
   { id: 'refunds', label: 'Refund orders' },
   { id: 'catalog', label: 'Edit items & prices' },
@@ -27,6 +30,7 @@ export const PERMISSIONS: { id: Permission; label: string }[] = [
   { id: 'inventory', label: 'Stock, deliveries & purchasing' },
   { id: 'payables', label: 'Pay suppliers' },
   { id: 'discounts', label: 'Give discounts' },
+  { id: 'editTabs', label: 'Remove items & clear tabs' },
 ];
 
 export const ROLES: { id: RoleId; label: string; can: Permission[] }[] = [
@@ -35,6 +39,7 @@ export const ROLES: { id: RoleId; label: string; can: Permission[] }[] = [
     label: 'Owner',
     can: [
       'register',
+      'payments',
       'kitchen',
       'refunds',
       'catalog',
@@ -46,6 +51,7 @@ export const ROLES: { id: RoleId; label: string; can: Permission[] }[] = [
       'inventory',
       'payables',
       'discounts',
+      'editTabs',
     ],
   },
   {
@@ -54,6 +60,7 @@ export const ROLES: { id: RoleId; label: string; can: Permission[] }[] = [
     // Managers receive deliveries and run purchasing; paying suppliers stays with owners.
     can: [
       'register',
+      'payments',
       'kitchen',
       'refunds',
       'catalog',
@@ -61,9 +68,13 @@ export const ROLES: { id: RoleId; label: string; can: Permission[] }[] = [
       'reports',
       'inventory',
       'discounts',
+      'editTabs',
     ],
   },
-  { id: 'barista', label: 'Barista', can: ['register', 'kitchen'] },
+  // Every bill is paid at the front desk — servers and baristas ring up and send bills there.
+  { id: 'frontdesk', label: 'Front desk', can: ['payments'] },
+  { id: 'barista', label: 'Barista', can: ['register', 'kitchen', 'editTabs'] },
+  // Servers only add to tabs; taking anything off needs a manager's PIN.
   { id: 'server', label: 'Server', can: ['register', 'kitchen'] },
   { id: 'cook', label: 'Cook', can: ['kitchen'] },
 ];
@@ -95,6 +106,7 @@ export const ADMIN_PERMISSIONS: Permission[] = [
 /** Where someone lands after signing in with nowhere else to go — a cook goes straight to the kitchen. */
 export function homePath(member: Pick<StaffMember, 'role' | 'active'>): string {
   if (hasPermission(member, 'register')) return '/counter/register';
+  if (hasPermission(member, 'payments')) return '/desk';
   if (hasPermission(member, 'kitchen')) return '/kitchen';
   return '/admin';
 }

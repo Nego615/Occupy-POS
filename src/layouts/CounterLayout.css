@@ -1,8 +1,24 @@
 .counter {
   display: grid;
+  /* minmax(0, …) so a long nav scrolls inside the bar instead of widening the page. */
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto 1fr;
   height: 100%;
   min-height: 640px;
+}
+
+/* The subscription warning, when shown, takes its own row under the bar. */
+.counter:has(> .sub-banner) {
+  grid-template-rows: auto auto 1fr;
+}
+
+/* Holds the current screen in the grid's last row, so the screen can fade in
+   (CounterLayout) and still fill the height the way a direct child would. */
+.counter__page {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  min-height: 0;
 }
 
 /* Route switcher in the top bar. Uses the same pill vocabulary as the
@@ -15,4 +31,12 @@
 .counter__nav .pill {
   padding: 8px 14px;
   font-size: 13px;
+}
+
+/* Phones: the page scrolls as a whole instead of each column scrolling inside a fixed screen. */
+@media (max-width: 600px) {
+  .counter {
+    height: auto;
+    min-height: 100%;
+  }
 }

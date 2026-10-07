@@ -10,6 +10,7 @@ import {
   type Snapshot,
 } from './lib/persist';
 import { PosProvider, newShopSnapshot } from './lib/store';
+import { SubscriptionGate } from './lib/SubscriptionGate';
 import { supabase } from './lib/supabase';
 import { CloudUnreachable } from './pages/CloudUnreachable';
 import { DeviceSignIn } from './pages/DeviceSignIn';
@@ -17,11 +18,18 @@ import { OwnerSetup } from './pages/OwnerSetup';
 
 const root = createRoot(document.getElementById('root')!);
 
-function renderApp(repo: PosRepository, snapshot: Snapshot) {
+function renderApp(repo: PosRepository, snapshot: Snapshot, storeId?: string) {
+  const app = supabase && storeId ? (
+    <SubscriptionGate client={supabase} storeId={storeId}>
+      <App />
+    </SubscriptionGate>
+  ) : (
+    <App />
+  );
   root.render(
     <StrictMode>
       <PosProvider repo={repo} snapshot={snapshot}>
-        <App />
+        {app}
       </PosProvider>
     </StrictMode>,
   );
@@ -47,14 +55,14 @@ async function start(storeId?: string): Promise<void> {
     return;
   }
   const { repo, snapshot } = opened;
-  if ('staff' in snapshot) return renderApp(repo, snapshot);
+  if ('staff' in snapshot) return renderApp(repo, snapshot, storeId);
   // Nothing saved yet: a new shop, set up by its owner instead of the demo data.
   root.render(
     <StrictMode>
       <OwnerSetup
         synced={!!(client && storeId)}
         onDone={({ businessName, ownerName, currency, pin }) =>
-          renderApp(repo, newShopSnapshot({ name: ownerName, pin }, { businessName, currency }))
+          renderApp(repo, newShopSnapshot({ name: ownerName, pin }, { businessName, currency }), storeId)
         }
       />
     </StrictMode>,
@@ -74,4 +82,15 @@ async function boot() {
   );
 }
 
-void boot();
+// /platform is the vendor's dashboard over every shop. It never opens a
+// shop's data, and loads as its own chunk so registers don't download it.
+async function bootPlatform() {
+  const { PlatformApp } = await import('./platform/PlatformApp');
+  root.render(
+    <StrictMode>
+      <PlatformApp />
+    </StrictMode>,
+  );
+}
+
+void (window.location.pathname.startsWith('/platform') ? bootPlatform() : boot());

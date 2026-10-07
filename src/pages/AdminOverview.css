@@ -75,11 +75,12 @@
 }
 
 /* Signal color as text only, always paired with an arrow glyph. */
-.stat-card__delta--up {
+/* Colour says whether the move is welcome; the arrow says which way it went. */
+.stat-card__delta--good {
   color: var(--open);
 }
 
-.stat-card__delta--down {
+.stat-card__delta--bad {
   color: var(--occupied);
 }
 
@@ -262,4 +263,10 @@
   margin: 0;
   font-size: 13px;
   color: var(--ink-soft);
+}
+
+@media (max-width: 600px) {
+  .stats {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

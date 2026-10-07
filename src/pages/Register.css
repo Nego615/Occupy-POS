@@ -182,6 +182,8 @@
 }
 
 .cart__items {
+  /* A removed line is lifted out while it fades (Register's popLayout). */
+  position: relative;
   flex: 1;
   overflow-y: auto;
   padding: 0 20px;
@@ -245,7 +247,8 @@
 .cart-line__price {
   font-size: 14px;
   font-weight: 600;
-  width: 56px;
+  /* Grows for long amounts — a price never runs under the remove button. */
+  min-width: 56px;
   text-align: right;
   flex-shrink: 0;
 }
@@ -374,4 +377,77 @@ button.cart-line__info:hover .cart-line__name {
 
 .cart__discount:hover {
   color: var(--ink);
+}
+
+/* Print docket and the tab discount, side by side under the totals. */
+.cart__links {
+  display: flex;
+  justify-content: flex-end;
+  gap: 18px;
+}
+
+.cart__links .cart__discount {
+  margin: 4px 0 10px;
+}
+
+/* ---------- Narrow screens ---------- */
+
+@media (max-width: 1100px) {
+  .register__body {
+    grid-template-columns: minmax(0, 1fr) 320px;
+  }
+}
+
+/* Tablets: the tab sits under the menu, capped so the menu keeps most of the screen. */
+@media (max-width: 900px) {
+  .register__body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+
+  .catalog {
+    padding: 16px;
+  }
+
+  .cart {
+    border-left: none;
+    border-top: 1px solid var(--line);
+    max-height: 52vh;
+  }
+}
+
+/* Phones: menu, then the tab, scrolling as one page. */
+@media (max-width: 600px) {
+  .register__body {
+    grid-template-rows: auto auto;
+  }
+
+  .catalog {
+    overflow: visible;
+  }
+
+  .catalog__toolbar {
+    flex-wrap: wrap;
+  }
+
+  .catalog__grid {
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 10px;
+  }
+
+  .cart {
+    max-height: none;
+  }
+
+  .cart__items {
+    overflow: visible;
+    padding: 0 16px;
+  }
+
+  .cart__status,
+  .cart__title,
+  .cart__summary {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
 }

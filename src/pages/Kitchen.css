@@ -1,5 +1,6 @@
 .kitchen {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto 1fr;
   height: 100%;
   min-height: 640px;
@@ -46,6 +47,8 @@
 }
 
 .kitchen__grid {
+  /* A bumped ticket is lifted out while it fades (Kitchen's popLayout). */
+  position: relative;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 14px;
@@ -249,4 +252,16 @@
   font-weight: 700;
   color: var(--occupied);
   margin-top: 2px;
+}
+
+/* Phones: the page scrolls as a whole; tickets fill the width. */
+@media (max-width: 600px) {
+  .kitchen {
+    height: auto;
+    min-height: 100%;
+  }
+
+  .kitchen__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

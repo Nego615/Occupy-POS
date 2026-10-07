@@ -12,6 +12,7 @@ import { ADJUST_REASONS, MOVEMENT_LABEL, formatDay } from '../data/inventory';
 import { round } from '../lib/cart';
 import { reorderSuggestions } from '../lib/inventory';
 import { usePos } from '../lib/store';
+import { useRevealPanel } from '../lib/useRevealPanel';
 
 type Filter = 'all' | 'low' | 'out';
 
@@ -32,6 +33,7 @@ export function AdminStock() {
 
   // `?item=` deep-links from the item editor.
   const selectedId = params.get('item');
+  const panelRef = useRevealPanel<HTMLElement>(selectedId);
   const select = (id: string) => setParams({ item: id }, { replace: true });
 
   const counts = useMemo(() => {
@@ -216,7 +218,7 @@ export function AdminStock() {
           )}
         </section>
 
-        <aside className="inv-panel" aria-label="Item stock">
+        <aside ref={panelRef} className="inv-panel" aria-label="Item stock">
           {selected ? (
             <ItemPanel key={selected.id} item={selected} supplierName={supplierName(selected.supplierId)} />
           ) : (

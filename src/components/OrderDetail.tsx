@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import './OrderDetail.css';
 import { ApprovalDialog } from './ApprovalDialog';
 import { Button } from './Button';
@@ -25,8 +25,9 @@ import { usePos } from '../lib/store';
 /** An order's `paid` maps onto the shared chip's `open` (success) styling. */
 export const ORDER_CHIP: Record<OrderStatus, { status: StatusKind; label: string }> = {
   paid: { status: 'open', label: 'Paid' },
-  occupied: { status: 'occupied', label: 'Occupied' },
+  occupied: { status: 'occupied', label: 'Open' },
   refunded: { status: 'refunded', label: 'Refunded' },
+  charged: { status: 'occupied', label: 'On room bill' },
 };
 
 export type OrderDetailProps = {
@@ -37,6 +38,8 @@ export type OrderDetailProps = {
   onOpenTab: () => void;
   /** `h1` where the receipt is the page's main heading (the counter). */
   headingLevel?: 'h1' | 'h2';
+  /** Replaces the open-tab actions — the front desk takes payment instead of opening the register. */
+  openActions?: ReactNode;
 };
 
 /**
@@ -56,8 +59,10 @@ export function OrderDetail({
   when,
   onOpenTab,
   headingLevel: Heading = 'h2',
+  openActions,
 }: OrderDetailProps) {
-  const { me, can, allStaff: staff, catalog, settings, refundOrder } = usePos();
+  const { me, can, allStaff: staff, catalog, settings, refundOrder, locations } = usePos();
+  const room = order.roomId ? locations.find((l) => l.id === order.roomId)?.name ?? 'a room' : null;
   // Units to refund per line index, while the refund panel is open.
   const [refunding, setRefunding] = useState<Map<number, number> | null>(null);
   const [reason, setReason] = useState<string>(REFUND_REASONS[0]);
@@ -113,7 +118,12 @@ export function OrderDetail({
         </Heading>
         <div className="detail__sub">
           {closedLabel} <Mono>{when ?? order.time}</Mono>
-          {order.method ? ` · ${order.method}` : ' · Not yet tendered'}
+          {order.method
+            ? ` · ${order.method}`
+            : order.status === 'charged'
+              ? ` · On ${room}’s bill`
+              : ' · Not yet tendered'}
+          {order.status === 'paid' && room && ` · settled with ${room}`}
           {cashier && ` · ${cashier}`}
         </div>
         <div className="detail__status">
@@ -212,7 +222,9 @@ export function OrderDetail({
       )}
 
       <div className="detail__actions">
-        {order.status === 'occupied' ? (
+        {order.status === 'occupied' && openActions ? (
+          openActions
+        ) : order.status === 'occupied' ? (
           <>
             <Button onClick={onOpenTab}>Open on register</Button>
             {order.lines.length > 0 && (

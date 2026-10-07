@@ -178,6 +178,12 @@
   color: var(--ink-soft);
 }
 
+.role-table__wrap {
+  /* Positioned, so screen-reader-only labels inside are clipped with the table instead of widening the page. */
+  position: relative;
+  overflow-x: auto;
+}
+
 .role-table {
   width: 100%;
   border-collapse: collapse;
@@ -230,5 +236,12 @@
 
   .staff-row--head {
     display: none;
+  }
+}
+
+@media (max-width: 600px) {
+  .staff-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
   }
 }

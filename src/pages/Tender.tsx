@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 import './Tender.css';
 import { Button } from '../components/Button';
+import { Icon, type IconName } from '../components/Icon';
 import { Money, Mono } from '../components/Mono';
 import { PrintableReceipt } from '../components/PrintableReceipt';
 import { ReceiptEdge } from '../components/Receipt';
@@ -9,7 +10,7 @@ import { StatusChip } from '../components/StatusChip';
 import { TENDER_LABEL, changeGiven, paidAmount, type Payment, type TenderMethod } from '../data/orders';
 import { PAYMENT_METHODS } from '../data/settings';
 import { round } from '../lib/cart';
-import { activeCurrency, isAmountText } from '../lib/currency';
+import { activeCurrency, formatAmount, isAmountText } from '../lib/currency';
 import { usePos } from '../lib/store';
 import { quickCash } from '../lib/tender';
 import { formatTime } from '../lib/useClock';
@@ -27,9 +28,9 @@ type Charged = {
   at: string;
 };
 
-const TENDER_ICON: Record<TenderMethod, string> = Object.fromEntries(
+const TENDER_ICON: Record<TenderMethod, IconName> = Object.fromEntries(
   PAYMENT_METHODS.map((m) => [m.id, m.icon]),
-) as Record<TenderMethod, string>;
+) as Record<TenderMethod, IconName>;
 
 /** Parses typed money, or null when it isn't a valid amount. Blank is null too. */
 function parseAmount(text: string): number | null {
@@ -40,6 +41,10 @@ function parseAmount(text: string): number | null {
 
 export function Tender() {
   const navigate = useNavigate();
+  // Where payment was started from — the front desk or the register — and goes back to.
+  const back = (useLocation().state as { from?: string } | null)?.from ?? '/desk';
+  const fromDesk = back.startsWith('/desk');
+  const backLabel = fromDesk ? 'front desk' : 'register';
   const { tab, cart, totals, takePayment, removePayment, settings } = usePos();
   const { tipsEnabled, tipPresets, defaultTip } = settings;
   const currency = activeCurrency();
@@ -142,8 +147,9 @@ export function Tender() {
     return (
       <ChargedConfirmation
         charged={charged}
-        onNextTab={() => navigate('/counter/register')}
-        onViewHistory={() => navigate('/counter/history')}
+        nextLabel={fromDesk ? 'Back to front desk' : 'Start next tab'}
+        onNextTab={() => navigate(back)}
+        onViewHistory={() => navigate(fromDesk ? '/desk?view=receipts' : '/counter/history')}
       />
     );
   }
@@ -156,8 +162,8 @@ export function Tender() {
             <button
               type="button"
               className="tender__close"
-              onClick={() => navigate('/counter/register')}
-              aria-label="Close and return to register"
+              onClick={() => navigate(back)}
+              aria-label={`Close and return to ${backLabel}`}
             >
               <span aria-hidden="true">×</span>
             </button>
@@ -169,10 +175,10 @@ export function Tender() {
           <ReceiptEdge inverted className="tender__edge" />
           <div className="tender__card tender__done">
             <p className="tender__done-sub">
-              This tab is empty — add items on the register to charge it.
+              This tab is empty — there’s nothing on it to charge.
             </p>
-            <Button size="lg" block onClick={() => navigate('/counter/register')}>
-              Back to register
+            <Button size="lg" block onClick={() => navigate(back)}>
+              Back to {backLabel}
             </Button>
           </div>
         </div>
@@ -189,8 +195,8 @@ export function Tender() {
           <button
             type="button"
             className="tender__close"
-            onClick={() => navigate('/counter/register')}
-            aria-label="Close and return to register"
+            onClick={() => navigate(back)}
+            aria-label={`Close and return to ${backLabel}`}
           >
             <span aria-hidden="true">×</span>
           </button>
@@ -203,228 +209,231 @@ export function Tender() {
 
       <div className="tender__center">
         <ReceiptEdge inverted className="tender__edge" />
-        <div className="tender__card">
-          <span className="tender__total-label">{paid > 0 ? 'Left to pay' : 'Amount due'}</span>
-          <Money value={paid > 0 ? remaining : amountDue} className="tender__total-amount" />
+        <div className="tender__card tender__card--split">
+          {/* What's owed on the left; how it's being paid on the right (stacked when narrow). */}
+          <div className="tender__bill">
+            <span className="tender__total-label">{paid > 0 ? 'Left to pay' : 'Amount due'}</span>
+            <Money value={paid > 0 ? remaining : amountDue} className="tender__total-amount" />
 
-          {tipsEnabled && !tipLocked && (
-            <div className="tip-row" role="group" aria-label="Tip">
-              {tipPresets.map((pct) => {
-                const active = tip.kind === 'preset' && tip.pct === pct;
-                return (
-                  <button
-                    key={pct}
-                    type="button"
-                    className={active ? 'tip-pill tip-pill--active' : 'tip-pill'}
-                    onClick={() => setTip({ kind: 'preset', pct })}
-                    aria-pressed={active}
-                  >
-                    <Mono className="tip-pill__pct">{`${Math.round(pct * 100)}%`}</Mono>
-                    <Money value={round(amountDue * pct)} className="tip-pill__amt" />
-                  </button>
-                );
-              })}
-              <button
-                type="button"
-                className={tip.kind === 'custom' ? 'tip-pill tip-pill--active' : 'tip-pill'}
-                onClick={() => setTip({ kind: 'custom' })}
-                aria-pressed={tip.kind === 'custom'}
-              >
-                <span className="tip-pill__pct">Custom</span>
-                <span className="tip-pill__amt">enter amount</span>
-              </button>
-              <button
-                type="button"
-                className={
-                  tip.kind === 'none'
-                    ? 'tip-pill tip-pill--wide tip-pill--active'
-                    : 'tip-pill tip-pill--wide'
-                }
-                onClick={() => setTip({ kind: 'none' })}
-                aria-pressed={tip.kind === 'none'}
-              >
-                <span className="tip-pill__pct">No tip</span>
-              </button>
-            </div>
-          )}
-
-          {tipsEnabled && !tipLocked && tip.kind === 'custom' && (
-            <div className="tender__custom">
-              <label htmlFor="custom-tip">Custom tip</label>
-              <span className="tender__custom-symbol mono" aria-hidden="true">
-                {currency.symbol}
-              </span>
-              <input
-                id="custom-tip"
-                className="mono"
-                type="text"
-                inputMode={currency.decimals === 0 ? 'numeric' : 'decimal'}
-                value={customTip}
-                onChange={(e) => setCustomTip(e.target.value)}
-                placeholder={(0).toFixed(currency.decimals)}
-                autoFocus
-              />
-            </div>
-          )}
-
-          <div className="tender__new-total">
-            <span className="label">
-              {!tipsEnabled || tipAmount === 0 ? 'Total' : 'Total with tip'}
-            </span>
-            <Money value={total} className="value" />
-          </div>
-
-          {tab.payments.length > 0 && (
-            <ul className="tender__paid" aria-label="Payments taken">
-              {tab.payments.map((p, i) => (
-                <li key={i} className="tender__paid-row">
-                  <span>
-                    {TENDER_LABEL[p.method]}
-                    {p.ref && <Mono className="tender__paid-ref"> ·{p.ref}</Mono>}
-                  </span>
-                  <Money value={p.amount} />
+            {tipsEnabled && !tipLocked && (
+              <div className="tip-row" role="group" aria-label="Tip">
+                <div className="tip-row__line">
+                  {tipPresets.map((pct) => {
+                    const active = tip.kind === 'preset' && tip.pct === pct;
+                    return (
+                      <button
+                        key={pct}
+                        type="button"
+                        className={active ? 'tip-pill tip-pill--active' : 'tip-pill'}
+                        onClick={() => setTip({ kind: 'preset', pct })}
+                        aria-pressed={active}
+                      >
+                        <Mono className="tip-pill__pct">{`${Math.round(pct * 100)}%`}</Mono>
+                        <Money value={round(amountDue * pct)} className="tip-pill__amt" />
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="tip-row__line">
                   <button
                     type="button"
-                    className="tender__paid-remove"
-                    onClick={() => removePayment(i)}
-                    aria-label={`Take back ${TENDER_LABEL[p.method]} payment`}
+                    className={tip.kind === 'custom' ? 'tip-pill tip-pill--active' : 'tip-pill'}
+                    onClick={() => setTip({ kind: 'custom' })}
+                    aria-pressed={tip.kind === 'custom'}
                   >
-                    <span aria-hidden="true">×</span>
+                    <span className="tip-pill__pct">Custom</span>
                   </button>
-                </li>
-              ))}
-            </ul>
-          )}
+                  <button
+                    type="button"
+                    className={tip.kind === 'none' ? 'tip-pill tip-pill--active' : 'tip-pill'}
+                    onClick={() => setTip({ kind: 'none' })}
+                    aria-pressed={tip.kind === 'none'}
+                  >
+                    <span className="tip-pill__pct">No tip</span>
+                  </button>
+                </div>
+              </div>
+            )}
 
-          <div className="method-row" role="group" aria-label="Payment method">
-            {methods.map((m) => (
-              <button
-                key={m}
-                type="button"
-                className={m === method ? 'method method--active' : 'method'}
-                onClick={() => {
-                  setMethod(m);
-                  setTenderedText('');
-                  setRef('');
-                }}
-                aria-pressed={m === method}
-              >
-                <span className="method__icon" aria-hidden="true">
-                  {TENDER_ICON[m]}
+            {tipsEnabled && !tipLocked && tip.kind === 'custom' && (
+              <div className="tender__custom">
+                <label htmlFor="custom-tip">Custom tip</label>
+                <span className="tender__custom-symbol mono" aria-hidden="true">
+                  {currency.symbol}
                 </span>
-                {TENDER_LABEL[m]}
-              </button>
-            ))}
+                <input
+                  id="custom-tip"
+                  className="mono"
+                  type="text"
+                  inputMode={currency.decimals === 0 ? 'numeric' : 'decimal'}
+                  value={customTip}
+                  onChange={(e) => setCustomTip(e.target.value)}
+                  placeholder={(0).toFixed(currency.decimals)}
+                  autoFocus
+                />
+              </div>
+            )}
+
+            <div className="tender__new-total">
+              <span className="label">
+                {!tipsEnabled || tipAmount === 0 ? 'Total' : 'Total with tip'}
+              </span>
+              <Money value={total} className="value" />
+            </div>
+
+            {tab.payments.length > 0 && (
+              <ul className="tender__paid" aria-label="Payments taken">
+                {tab.payments.map((p, i) => (
+                  <li key={i} className="tender__paid-row">
+                    <span>
+                      {TENDER_LABEL[p.method]}
+                      {p.ref && <Mono className="tender__paid-ref"> ·{p.ref}</Mono>}
+                    </span>
+                    <Money value={p.amount} />
+                    <button
+                      type="button"
+                      className="tender__paid-remove"
+                      onClick={() => removePayment(i)}
+                      aria-label={`Take back ${TENDER_LABEL[p.method]} payment`}
+                    >
+                      <span aria-hidden="true">×</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+
           </div>
 
-          {canSplit && (
-            <div className="tender__split">
-              <div className="tender__split-row" role="group" aria-label="Split the bill">
-                {evenSplits.map((n) => (
+          <div className="tender__pay">
+            <div className="method-row" role="group" aria-label="Payment method">
+              {methods.map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  className={m === method ? 'method method--active' : 'method'}
+                  onClick={() => {
+                    setMethod(m);
+                    setTenderedText('');
+                    setRef('');
+                  }}
+                  aria-pressed={m === method}
+                >
+                  <Icon name={TENDER_ICON[m]} size={22} className="method__icon" />
+                  {TENDER_LABEL[m]}
+                </button>
+              ))}
+            </div>
+
+            {canSplit && (
+              <div className="tender__split">
+                <div className="tender__split-row" role="group" aria-label="Split the bill">
+                  {evenSplits.map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      className="tender__chip"
+                      onClick={() => {
+                        setByItem(null);
+                        setAmountText(String(round(Math.min(remaining, total / n))));
+                      }}
+                    >
+                      ÷ {n}
+                    </button>
+                  ))}
                   <button
-                    key={n}
                     type="button"
-                    className="tender__chip"
+                    className={byItem ? 'tender__chip tender__chip--active' : 'tender__chip'}
+                    aria-pressed={byItem !== null}
                     onClick={() => {
-                      setByItem(null);
-                      setAmountText(String(round(Math.min(remaining, total / n))));
+                      setAmountText('');
+                      setByItem(byItem ? null : new Set());
                     }}
                   >
-                    ÷ {n}
+                    By item
                   </button>
-                ))}
-                <button
-                  type="button"
-                  className={byItem ? 'tender__chip tender__chip--active' : 'tender__chip'}
-                  aria-pressed={byItem !== null}
-                  onClick={() => {
-                    setAmountText('');
-                    setByItem(byItem ? null : new Set());
-                  }}
-                >
-                  By item
-                </button>
+                </div>
+
+                {byItem && (
+                  <ul className="tender__items" aria-label="Items this payment covers">
+                    {cart.map((line) => (
+                      <li key={line.key}>
+                        <label className="tender__item">
+                          <input
+                            type="checkbox"
+                            checked={byItem.has(line.key)}
+                            onChange={(e) => {
+                              const next = new Set(byItem);
+                              if (e.target.checked) next.add(line.key);
+                              else next.delete(line.key);
+                              setByItem(next);
+                            }}
+                          />
+                          <span>
+                            {line.qty} × {line.name}
+                          </span>
+                          <Money value={line.unitPrice * line.qty} />
+                        </label>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                {!byItem && (
+                  <AmountInput
+                    id="pay-amount"
+                    label="This payment"
+                    value={amountText}
+                    onChange={setAmountText}
+                    placeholder={formatAmount(remaining)}
+                  />
+                )}
               </div>
+            )}
 
-              {byItem && (
-                <ul className="tender__items" aria-label="Items this payment covers">
-                  {cart.map((line) => (
-                    <li key={line.key}>
-                      <label className="tender__item">
-                        <input
-                          type="checkbox"
-                          checked={byItem.has(line.key)}
-                          onChange={(e) => {
-                            const next = new Set(byItem);
-                            if (e.target.checked) next.add(line.key);
-                            else next.delete(line.key);
-                            setByItem(next);
-                          }}
-                        />
-                        <span>
-                          {line.qty} × {line.name}
-                        </span>
-                        <Money value={line.unitPrice * line.qty} />
-                      </label>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              {!byItem && (
+            {method === 'cash' && (
+              <div className="tender__cash">
                 <AmountInput
-                  id="pay-amount"
-                  label="This payment"
-                  value={amountText}
-                  onChange={setAmountText}
-                  placeholder={String(remaining)}
+                  id="cash-tendered"
+                  label="Cash received"
+                  value={tenderedText}
+                  onChange={setTenderedText}
+                  placeholder={formatAmount(amount)}
                 />
-              )}
-            </div>
-          )}
-
-          {method === 'cash' && (
-            <div className="tender__cash">
-              <AmountInput
-                id="cash-tendered"
-                label="Cash received"
-                value={tenderedText}
-                onChange={setTenderedText}
-                placeholder={String(amount)}
-              />
-              <div className="tender__split-row" role="group" aria-label="Quick cash">
-                <button type="button" className="tender__chip" onClick={() => setTenderedText(String(amount))}>
-                  Exact
-                </button>
-                {quickCash(amount, currency.decimals).map((v) => (
-                  <button key={v} type="button" className="tender__chip" onClick={() => setTenderedText(String(v))}>
-                    <Money value={v} />
+                <div className="tender__split-row tender__quick" role="group" aria-label="Quick cash">
+                  <button type="button" className="tender__chip" onClick={() => setTenderedText(String(amount))}>
+                    Exact
                   </button>
-                ))}
+                  {quickCash(amount, currency.decimals).map((v) => (
+                    <button key={v} type="button" className="tender__chip" onClick={() => setTenderedText(String(v))}>
+                      <Money value={v} />
+                    </button>
+                  ))}
+                </div>
+                <div className={change < 0 ? 'tender__change tender__change--short' : 'tender__change'}>
+                  <span>{change < 0 ? 'Short by' : 'Change due'}</span>
+                  <Money value={Math.abs(change)} />
+                </div>
               </div>
-              <div className={change < 0 ? 'tender__change tender__change--short' : 'tender__change'}>
-                <span>{change < 0 ? 'Short by' : 'Change due'}</span>
-                <Money value={Math.abs(change)} />
-              </div>
-            </div>
-          )}
+            )}
 
-          {method !== 'cash' && (
-            <div className="tender__custom tender__ref">
-              <label htmlFor="pay-ref">
-                {method === 'card' ? 'Card last 4 / approval' : 'Transaction ID'}
-              </label>
-              <input
-                id="pay-ref"
-                className="mono"
-                type="text"
-                value={ref}
-                maxLength={24}
-                onChange={(e) => setRef(e.target.value.toUpperCase())}
-                placeholder="optional"
-              />
-            </div>
-          )}
+            {method !== 'cash' && (
+              <div className="tender__custom tender__ref">
+                <label htmlFor="pay-ref">
+                  {method === 'card' ? 'Card last 4 / approval' : 'Transaction ID'}
+                </label>
+                <input
+                  id="pay-ref"
+                  className="mono"
+                  type="text"
+                  value={ref}
+                  maxLength={24}
+                  onChange={(e) => setRef(e.target.value.toUpperCase())}
+                  placeholder="optional"
+                />
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -436,9 +445,11 @@ export function Tender() {
         <button
           type="button"
           className="tender__cancel"
-          onClick={() => navigate('/counter/register')}
+          onClick={() => navigate(back)}
         >
-          {paid > 0 ? 'Back to register — payments so far stay on the tab' : 'Cancel and return to register'}
+          {paid > 0
+            ? `Back to ${backLabel} — payments so far stay on the tab`
+            : `Cancel and return to ${backLabel}`}
         </button>
       </div>
     </div>
@@ -480,10 +491,12 @@ function AmountInput({
 
 function ChargedConfirmation({
   charged,
+  nextLabel,
   onNextTab,
   onViewHistory,
 }: {
   charged: Charged;
+  nextLabel: string;
   onNextTab: () => void;
   onViewHistory: () => void;
 }) {
@@ -532,7 +545,7 @@ function ChargedConfirmation({
           )}
           <div className="tender__done-actions">
             <Button size="lg" block onClick={onNextTab}>
-              Start next tab
+              {nextLabel}
             </Button>
             {order && (
               <Button variant="secondary" block onClick={() => window.print()}>
