@@ -303,8 +303,8 @@ export function Register() {
               ▾
             </span>
           </button>
-          <span className="cart__title-meta">
-            <Mono>{`#${tab.orderId}`}</Mono> · opened <Mono>{tab.openedAt}</Mono>
+          <span className="cart__title-meta" title={`Order #${tab.orderId}, opened ${tab.openedAt}`}>
+            <Mono>{`#${tab.orderId}`}</Mono> · <Mono>{tab.openedAt}</Mono>
           </span>
         </div>
 
