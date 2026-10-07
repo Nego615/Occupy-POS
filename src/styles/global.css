@@ -36,6 +36,11 @@ h4 {
   font-variant-numeric: tabular-nums;
 }
 
+/* "TSh 20,000" stays on one line in every list. */
+.money {
+  white-space: nowrap;
+}
+
 /* Global focus floor. Components may restyle the ring but must not remove it. */
 :focus-visible {
   outline: var(--focus-width) solid var(--focus-color);

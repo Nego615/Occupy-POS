@@ -53,7 +53,8 @@ export function formatCurrency(value: number, currency: Currency = active): stri
     minimumFractionDigits: currency.decimals,
     maximumFractionDigits: currency.decimals,
   });
-  return `${sign}${currency.symbol}${currency.spaced ? ' ' : ''}${number}`;
+  // A non-breaking space, so "TSh" never wraps away from its amount.
+  return `${sign}${currency.symbol}${currency.spaced ? ' ' : ''}${number}`;
 }
 
 /** Rounds to the currency's smallest unit — cents, or whole shillings. */

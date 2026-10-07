@@ -22,6 +22,12 @@
   min-width: 0;
 }
 
+/* Name above, category and description on their own line beneath. */
+.item-row__name,
+.item-row__meta {
+  display: block;
+}
+
 .item-row__name {
   font-size: 13.5px;
   font-weight: 600;

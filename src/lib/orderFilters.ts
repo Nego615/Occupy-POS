@@ -42,7 +42,8 @@ export function matchesQuery(order: Order, q: string): boolean {
     `#${order.id}`.includes(q) ||
     order.lines.some((l) => l.name.toLowerCase().includes(q) || (l.note?.toLowerCase().includes(q) ?? false)) ||
     order.payments.some((p) => p.ref?.toLowerCase().includes(q) ?? false) ||
-    formatMoney(orderTotal(order)).toLowerCase().includes(q) ||
+    // Amounts are formatted with a non-breaking space; searches are typed with a plain one.
+    formatMoney(orderTotal(order)).replace(/ /g, ' ').toLowerCase().includes(q) ||
     String(orderTotal(order)).includes(q) ||
     (order.method?.toLowerCase().includes(q) ?? false)
   );

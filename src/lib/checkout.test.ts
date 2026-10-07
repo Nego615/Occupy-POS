@@ -89,7 +89,7 @@ describe('line discounts and notes', () => {
     const [line] = setLineDiscount([promo], 'latte', { kind: 'amount', value: 1_000 });
     expect(line.unitPrice).toBe(4_000);
     expect(line.listPrice).toBe(6_500);
-    expect(line.promo).toBe('Happy Hour + TSh 1,000 off');
+    expect(line.promo).toBe('Happy Hour + TSh 1,000 off');
   });
 
   it('a noted line stays apart from plain ones, and merges with its twin', () => {

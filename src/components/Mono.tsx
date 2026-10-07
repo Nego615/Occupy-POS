@@ -17,9 +17,12 @@ export function Mono({ children, as: Tag = 'span', className }: MonoProps) {
   return <Tag className={className ? `mono ${className}` : 'mono'}>{children}</Tag>;
 }
 
-/** Formats a number in the business currency and renders it in the mono face. */
+/**
+ * Formats a number in the business currency and renders it in the mono face,
+ * the symbol and amount never split across lines.
+ */
 export function Money({ value, className }: { value: number; className?: string }) {
-  return <Mono className={className}>{formatMoney(value)}</Mono>;
+  return <Mono className={className ? `money ${className}` : 'money'}>{formatMoney(value)}</Mono>;
 }
 
 /** "TSh 6,500" or "$6.50" — whatever currency Settings names. */
