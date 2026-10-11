@@ -24,7 +24,7 @@
   color: var(--ink);
 }
 
-.range-pill__on {
+.range-pill button.range-pill__on {
   background: var(--brand);
   color: var(--on-brand);
 }

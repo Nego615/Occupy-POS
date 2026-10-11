@@ -150,5 +150,26 @@ where exists (select 1 from pos_records r where r.store_id = u.id)
   and not exists (select 1 from platform_admins a where a.user_id = u.id)
 on conflict do nothing;
 
+-- Only shops registered here can sync. An account made any other way — a
+-- public sign-up, or one added by hand under Authentication → Users — can
+-- sign in, but reads and writes no shop data until it has a row in shops.
+-- The register refuses such accounts too; this is what holds if it's bypassed.
+create or replace function is_registered_shop() returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from shops where store_id = auth.uid());
+$$;
+
+drop policy if exists "store owns its records" on pos_records;
+drop policy if exists "registered shop owns its records" on pos_records;
+create policy "registered shop owns its records" on pos_records
+  for all using (store_id = auth.uid() and (select is_registered_shop()))
+  with check (store_id = auth.uid() and (select is_registered_shop()));
+
+drop policy if exists "store owns its counters" on pos_counters;
+drop policy if exists "registered shop owns its counters" on pos_counters;
+create policy "registered shop owns its counters" on pos_counters
+  for all using (store_id = auth.uid() and (select is_registered_shop()))
+  with check (store_id = auth.uid() and (select is_registered_shop()));
+
 -- Make yourself a platform admin (your user id is under Authentication → Users):
 -- insert into platform_admins (user_id) values ('00000000-0000-0000-0000-000000000000');

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import './Register.css';
+import { AddOnDialog } from '../components/AddOnDialog';
 import { ApprovalDialog } from '../components/ApprovalDialog';
 import { AssignTabDialog } from '../components/AssignTabDialog';
 import { Button } from '../components/Button';
@@ -15,7 +16,9 @@ import { SearchField } from '../components/SearchField';
 import { StatusChip } from '../components/StatusChip';
 import { Stepper } from '../components/Stepper';
 import {
+  addOnOptions,
   categoryLabel,
+  lineContents,
   roundStock,
   STOCK_SLACK,
   stockFits,
@@ -32,8 +35,9 @@ import {
   type Promotion,
   type SetMeal,
 } from '../data/deals';
+import { sameDish } from '../data/kitchen';
 import { paidAmount, type Order } from '../data/orders';
-import { discountLabel, itemLine, itemQuantities, lineCap, lineItems, round, type CartLine } from '../lib/cart';
+import { discountLabel, itemLine, itemQuantities, lineCap, lineDishes, round, type CartLine } from '../lib/cart';
 import { rowInOut, snap } from '../lib/motion';
 import { usePos } from '../lib/store';
 import { useNow } from '../lib/useClock';
@@ -55,6 +59,8 @@ export function Register() {
   const [pricing, setPricing] = useState<CatalogItem | 'custom' | null>(null);
   // The item whose serving — whole or a portion — is being picked.
   const [portioning, setPortioning] = useState<CatalogItem | null>(null);
+  // The item whose sides and extras are being picked.
+  const [addingTo, setAddingTo] = useState<CatalogItem | null>(null);
   const [editingLine, setEditingLine] = useState<string | null>(null);
   const [choosingDocket, setChoosingDocket] = useState(false);
   // The docket being printed — on the page only while the print dialog is up. It keeps
@@ -134,12 +140,14 @@ export function Register() {
 
   /** Kitchen items on the line still waiting to go, or null if it has none. */
   function lineUnsent(line: CartLine): number | null {
-    const kitchen = lineItems(line).filter((i) => isKitchenItem(i.itemId));
+    const kitchen = lineDishes(line).filter((d) => isKitchenItem(d.itemId));
     if (kitchen.length === 0) return null;
     return Math.max(
-      ...kitchen.map((i) =>
-        Math.min(line.qty, unsent.find((l) => l.itemId === i.itemId && l.name === i.name)?.qty ?? 0),
-      ),
+      ...kitchen.map((d) => {
+        // The kitchen counts a dish by its note and sides too, so match on them.
+        const dish = { ...d, note: line.note, addOns: d.addOns.length > 0 ? d.addOns.map((a) => a.name) : undefined };
+        return Math.min(line.qty, unsent.find((l) => sameDish(l, dish))?.qty ?? 0);
+      }),
     );
   }
 
@@ -270,11 +278,13 @@ export function Register() {
           )}
           {showMeals &&
             meals.map((m) => {
-                const ready = m.courses.every((c) =>
+                // Courses can be skipped, so the meal sells while any course has something left.
+                const open = m.courses.map((c) =>
                   courseOptions(c, catalog).some(
                     (i) => i.available && stockFits(i, onTab.get(i.id) ?? 0),
                   ),
                 );
+                const any = open.some(Boolean);
                 return (
                   <ItemTile
                     key={m.id}
@@ -282,8 +292,8 @@ export function Register() {
                     price={m.price}
                     color={m.color}
                     deal={`${m.courses.length} courses`}
-                    note={ready ? undefined : 'A course is sold out'}
-                    disabled={!ready}
+                    note={open.every(Boolean) ? undefined : any ? 'A course is sold out' : 'Sold out'}
+                    disabled={!any}
                     onClick={() => setMeal(m)}
                   />
                 );
@@ -307,9 +317,11 @@ export function Register() {
                     onClick={() =>
                       openPrice
                         ? setPricing(item)
-                        : item.portions?.length
-                          ? setPortioning(item)
-                          : addItem(item)
+                        : addOnOptions(item, categories, catalog).length > 0
+                          ? setAddingTo(item)
+                          : item.portions?.length
+                            ? setPortioning(item)
+                            : addItem(item)
                     }
                   />
                 );
@@ -326,6 +338,7 @@ export function Register() {
           onClose={() => setPricing(null)}
         />
         <PortionDialog item={portioning} onClose={() => setPortioning(null)} />
+        <AddOnDialog item={addingTo} onClose={() => setAddingTo(null)} />
         <LineDialog lineKey={editingLine} onClose={() => setEditingLine(null)} />
         <DocketDialog
           open={choosingDocket}
@@ -418,10 +431,8 @@ export function Register() {
                   >
                     <div className="cart-line__name">{line.name}</div>
                     {line.note && <div className="cart-line__note">“{line.note}”</div>}
-                    {line.parts && (
-                      <div className="cart-line__parts">
-                        {line.parts.map((p) => p.name).join(' · ')}
-                      </div>
+                    {(line.parts || line.addOns) && (
+                      <div className="cart-line__parts">{lineContents(line).join(' · ')}</div>
                     )}
                     <div className="cart-line__unit">
                       <Money value={line.unitPrice} /> each

@@ -1,6 +1,7 @@
 import { createPortal } from 'react-dom';
 import './PrintableReceipt.css';
 import { formatMoney } from './Mono';
+import { lineContents } from '../data/catalog';
 import {
   changeGiven,
   localChange,
@@ -64,7 +65,7 @@ export function PrintableReceipt({ order: given }: { order: Order }) {
               </span>
               <span className="mono">{money(line.unitPrice * line.qty)}</span>
             </div>
-            {line.parts?.map((part, j) => (
+            {lineContents(line).map((part, j) => (
               <div className="print-receipt__part" key={j}>
                 {part}
               </div>

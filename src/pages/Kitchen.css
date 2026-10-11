@@ -178,8 +178,89 @@
   color: var(--open);
 }
 
+/* Start and Bump side by side, Start taking the room its who-and-when needs; a void has only its clear. */
 .ticket__foot {
+  display: flex;
+  gap: 8px;
   padding: 12px 16px 16px;
+}
+
+.ticket__bump {
+  flex: 0 0 auto;
+}
+
+/* Start: the same ring-then-check as a line, so "on it" reads like "done" one step earlier. */
+.ticket-start {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 50px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.ticket-start:hover {
+  background: var(--surface-hover);
+}
+
+.ticket-start:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
+}
+
+.ticket-start__mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  font-size: 11px;
+  color: transparent;
+}
+
+.ticket-start__label {
+  min-width: 0;
+}
+
+.ticket-start__by {
+  display: block;
+  margin-top: 1px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.ticket-start--on {
+  border-color: var(--open);
+  color: var(--open);
+}
+
+.ticket-start--on:hover {
+  background: var(--open-soft);
+}
+
+.ticket-start--on .ticket-start__mark {
+  border-color: var(--open);
+  background: var(--open-soft);
+  color: var(--open);
 }
 
 /* ---------- Done ---------- */
@@ -244,6 +325,14 @@
   .done-row__time {
     grid-column: 1 / -1;
   }
+}
+
+/* The sides a dish goes out with — part of what's made, so in ink, not the note's color. */
+.ticket-line__addons {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  margin-top: 2px;
 }
 
 .ticket-line__note {

@@ -16,6 +16,7 @@ import {
   type Payment,
   type TenderMethod,
 } from '../data/orders';
+import { withAddOnNames } from '../data/catalog';
 import { PAYMENT_METHODS, exchangeRate } from '../data/settings';
 import { round } from '../lib/cart';
 import {
@@ -407,7 +408,7 @@ export function Tender() {
                             }}
                           />
                           <span>
-                            {line.qty} × {line.name}
+                            {line.qty} × {line.parts ? line.name : withAddOnNames(line.name, line.addOns ?? [])}
                           </span>
                           <Money value={line.unitPrice * line.qty} />
                         </label>

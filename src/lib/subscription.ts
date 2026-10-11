@@ -1,3 +1,5 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
+
 /** A shop's subscription, as the `shops` table holds it. */
 export type ShopSubscription = {
   name: string;
@@ -8,6 +10,26 @@ export type ShopSubscription = {
   /** On a free trial: paid_until is when it ends. Absent on rows cached before trials. */
   trial?: boolean;
 };
+
+/**
+ * The account's row on the platform. Null when it has none — the account
+ * wasn't registered as a shop on /platform — and undefined when that can't be
+ * told: offline, signed in as someone else, or no platform on this database.
+ */
+export async function readShop(
+  client: SupabaseClient,
+  storeId: string,
+): Promise<ShopSubscription | null | undefined> {
+  // Read as anyone else, the row-level rules would hide the row and pass for "none".
+  const { data: auth } = await client.auth.getSession();
+  if (auth.session?.user.id !== storeId) return undefined;
+  const read = (columns: string) =>
+    client.from('shops').select(columns).eq('store_id', storeId).maybeSingle<ShopSubscription>();
+  let { data, error } = await read('name, paid_until, grace_days, suspended, trial');
+  // A database not yet upgraded for free trials has no `trial` column.
+  if (error?.code === '42703') ({ data, error } = await read('name, paid_until, grace_days, suspended'));
+  return error ? undefined : data;
+}
 
 /**
  * - `active`: paid up, more than WARN_DAYS to go.

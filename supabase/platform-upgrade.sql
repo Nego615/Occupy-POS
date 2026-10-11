@@ -5,6 +5,9 @@
 -- payment clears the shop's paid-until date.
 -- Free trials: shops.trial marks a shop whose paid_until is a trial end. The
 -- first payment ends the trial, and paid time starts from that day.
+-- Registered shops only: an account with no row in shops can't sync. Check
+-- that every real shop is on /platform before running this — one that isn't
+-- stops syncing until it's added.
 
 alter table plans drop constraint if exists plans_period_months_check;
 alter table plans add constraint plans_period_months_check check (period_months >= 0);
@@ -42,3 +45,24 @@ begin
   update shops set paid_until = next_until, plan_id = plan, trial = false where store_id = store;
   return next_until;
 end $$;
+
+-- Only shops registered here can sync. An account made any other way — a
+-- public sign-up, or one added by hand under Authentication → Users — can
+-- sign in, but reads and writes no shop data until it has a row in shops.
+-- The register refuses such accounts too; this is what holds if it's bypassed.
+create or replace function is_registered_shop() returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from shops where store_id = auth.uid());
+$$;
+
+drop policy if exists "store owns its records" on pos_records;
+drop policy if exists "registered shop owns its records" on pos_records;
+create policy "registered shop owns its records" on pos_records
+  for all using (store_id = auth.uid() and (select is_registered_shop()))
+  with check (store_id = auth.uid() and (select is_registered_shop()));
+
+drop policy if exists "store owns its counters" on pos_counters;
+drop policy if exists "registered shop owns its counters" on pos_counters;
+create policy "registered shop owns its counters" on pos_counters
+  for all using (store_id = auth.uid() and (select is_registered_shop()))
+  with check (store_id = auth.uid() and (select is_registered_shop()));

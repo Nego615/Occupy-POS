@@ -36,8 +36,9 @@ export type Course = {
 };
 
 /**
- * A full meal sold at one price: one pick from each course. On a tab it's a
- * single line; its picks are what come out of stock and go to the kitchen.
+ * A full meal sold at one price: up to one pick from each course — the guest
+ * can skip any. On a tab it's a single line; its picks are what come out of
+ * stock and go to the kitchen.
  */
 export type SetMeal = {
   id: string;

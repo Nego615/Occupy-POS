@@ -2,6 +2,9 @@ import { useState, type FormEvent } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import './SignIn.css';
 import { Button } from '../components/Button';
+import { readShop } from '../lib/subscription';
+
+const SUPPORT = import.meta.env.VITE_SUPPORT_CONTACT as string | undefined;
 
 /**
  * Links this device to a shop's Supabase account. Shown once per device,
@@ -24,8 +27,8 @@ export function DeviceSignIn({
     setBusy(true);
     setError(null);
     const { data, error } = await client.auth.signInWithPassword({ email: email.trim(), password });
-    setBusy(false);
     if (error || !data.user) {
+      setBusy(false);
       setError(
         error?.message === 'Invalid login credentials'
           ? 'That email and password don’t match a shop account.'
@@ -33,6 +36,16 @@ export function DeviceSignIn({
       );
       return;
     }
+    // Right password, but no shop on /platform behind it: refused, and not kept signed in.
+    if ((await readShop(client, data.user.id)) === null) {
+      await client.auth.signOut();
+      setBusy(false);
+      setError(
+        `That account isn’t registered as a shop, so it can’t open the register.${SUPPORT ? ` To register it, contact ${SUPPORT}.` : ''}`,
+      );
+      return;
+    }
+    setBusy(false);
     onSignedIn(data.user.id);
   }
 

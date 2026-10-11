@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import './PrintableReceipt.css';
 import { formatMoney } from './Mono';
+import { lineContents } from '../data/catalog';
 import { TENDER_METHODS, type CashUp, type LocalDrawer } from '../data/cashup';
 import {
   TENDER_LABEL,
@@ -101,7 +102,7 @@ export function PrintableDocket({ order, kind }: { order: Order; kind: DocketKin
               </span>
               {!kitchen && <span className="mono">{formatMoney(line.unitPrice * line.qty)}</span>}
             </div>
-            {line.parts?.map((part, j) => (
+            {lineContents(line).map((part, j) => (
               <div className="print-receipt__part" key={j}>
                 {part}
               </div>

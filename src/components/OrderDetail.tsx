@@ -21,6 +21,7 @@ import {
   type Order,
   type OrderStatus,
 } from '../data/orders';
+import { lineContents } from '../data/catalog';
 import { receiptCurrency } from '../lib/currencySwitch';
 import { activeCurrency, currencyOf, formatCurrency } from '../lib/currency';
 import { usePos } from '../lib/store';
@@ -158,7 +159,7 @@ export function OrderDetail({
         {order.lines.map((line, i) => {
           const back = refundedQty(order, i);
           const left = remaining(i);
-          const notes = [line.parts?.join(' · '), line.promo, line.note && `“${line.note}”`].filter(Boolean);
+          const notes = [lineContents(line).join(' · '), line.promo, line.note && `“${line.note}”`].filter(Boolean);
           return (
             <div className="detail-line" key={i}>
               <span>

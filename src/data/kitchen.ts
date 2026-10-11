@@ -1,4 +1,4 @@
-import { lineItems, type CartLine } from '../lib/cart';
+import { lineDishes, type CartLine } from '../lib/cart';
 
 /** What a tab has already sent to the kitchen, per item and note. */
 export type SentLine = {
@@ -7,22 +7,38 @@ export type SentLine = {
   qty: number;
   /** "No onions" — the same item with different notes is made separately. */
   note?: string;
+  /** The sides it goes out with, by name — chicken with chips isn't chicken with rice. */
+  addOns?: string[];
 };
 
-type DishId = Pick<SentLine, 'itemId' | 'name' | 'note'>;
+export type DishId = Pick<SentLine, 'itemId' | 'name' | 'note' | 'addOns'>;
 
-/** Sent lines match on the item, its name — a half isn't a whole — and its note. */
-function sameDish(a: DishId, b: DishId): boolean {
-  return a.itemId === b.itemId && a.name === b.name && (a.note ?? '') === (b.note ?? '');
+/** Sent lines match on the item, its name — a half isn't a whole — its note, and its sides. */
+export function sameDish(a: DishId, b: DishId): boolean {
+  return (
+    a.itemId === b.itemId &&
+    a.name === b.name &&
+    (a.note ?? '') === (b.note ?? '') &&
+    (a.addOns ?? []).join('|') === (b.addOns ?? []).join('|')
+  );
 }
 
-/** Every item on the tab as the kitchen counts it — by item and note, set meals by their picks. */
+/**
+ * Every item on the tab as the kitchen counts it — by item, note, and sides,
+ * set meals by their picks. Sides go out with their dish, not as dishes of their own.
+ */
 function dishes(cart: CartLine[], keep: (itemId: string) => boolean = () => true): SentLine[] {
   const out: SentLine[] = [];
   for (const line of cart) {
-    for (const item of lineItems(line)) {
+    for (const item of lineDishes(line)) {
       if (!keep(item.itemId)) continue;
-      const dish = { itemId: item.itemId, name: item.name, qty: line.qty, ...(line.note ? { note: line.note } : {}) };
+      const dish = {
+        itemId: item.itemId,
+        name: item.name,
+        qty: line.qty,
+        ...(line.note ? { note: line.note } : {}),
+        ...(item.addOns.length > 0 ? { addOns: item.addOns.map((a) => a.name) } : {}),
+      };
       const existing = out.find((d) => sameDish(d, dish));
       if (existing) existing.qty += line.qty;
       else out.push(dish);
@@ -36,6 +52,7 @@ export type TicketLine = {
   name: string;
   qty: number;
   note?: string;
+  addOns?: string[];
   /** Crossed off by the kitchen. Bumping doesn't need every line done. */
   done: boolean;
 };
@@ -54,7 +71,23 @@ export type KitchenTicket = {
   lines: TicketLine[];
   /** Epoch ms the kitchen cleared it off the screen; null while it's still up. */
   bumpedAt: number | null;
+  /** Epoch ms a cook started on it. Absent until then. */
+  startedAt?: number;
+  /** Whoever was signed in on the kitchen screen when it was started. */
+  startedBy?: string;
 };
+
+/** `ticket` marked as being worked on, by `by`. One already started keeps its start. */
+export function startTicket(ticket: KitchenTicket, by?: string, at = Date.now()): KitchenTicket {
+  if (ticket.startedAt !== undefined) return ticket;
+  return { ...ticket, startedAt: at, ...(by ? { startedBy: by } : {}) };
+}
+
+/** `ticket` back to not started — for a start tapped by mistake. */
+export function unstartTicket(ticket: KitchenTicket): KitchenTicket {
+  const { startedAt: _at, startedBy: _by, ...rest } = ticket;
+  return rest;
+}
 
 function sentQty(sent: SentLine[], dish: DishId): number {
   return sent.find((s) => sameDish(s, dish))?.qty ?? 0;

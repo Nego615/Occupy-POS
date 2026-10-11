@@ -1,4 +1,4 @@
-import { CATALOG, TAX_RATE } from './catalog';
+import { CATALOG, TAX_RATE, type AddOnPick } from './catalog';
 import { HISTORY_DAYS, dateOfDaysAgo, daysAgoOf } from './history';
 import { currencyOf, roundMoney, type CurrencyCode } from '../lib/currency';
 
@@ -81,6 +81,8 @@ export type OrderLine = {
   note?: string;
   /** Stock one of it used, for a portion — 0.5 for a half. Absent means 1. */
   units?: number;
+  /** Sides and extras it went out with, their prices in `unitPrice`. On a set meal, by pick. */
+  addOns?: AddOnPick[];
   /**
    * What one cost to buy in when it sold — a set meal's is its picks' costs
    * added up. Frozen at sale so margins don't move when costs change later.
@@ -279,7 +281,8 @@ export function refundValue(
 
 /**
  * The catalog items lines went out with — set meals counted by their picks,
- * portions by their share of a unit. What a refund puts back on the shelf. `qtyOf` overrides each line's count.
+ * portions by their share of a unit, and every add-on. What a refund puts back
+ * on the shelf. `qtyOf` overrides each line's count.
  */
 export function orderItems(
   order: OrderRecord,
@@ -289,9 +292,12 @@ export function orderItems(
   order.lines.forEach((line, index) => {
     const qty = qtyOf(index);
     if (qty <= 0) return;
-    const picks = line.parts
-      ? line.parts.map((name, j) => ({ itemId: line.partIds?.[j], name, units: 1 }))
-      : [{ itemId: line.itemId, name: line.name, units: line.units ?? 1 }];
+    const picks = [
+      ...(line.parts
+        ? line.parts.map((name, j) => ({ itemId: line.partIds?.[j], name, units: 1 }))
+        : [{ itemId: line.itemId, name: line.name, units: line.units ?? 1 }]),
+      ...(line.addOns ?? []).map((a) => ({ itemId: a.itemId, name: a.name, units: 1 })),
+    ];
     for (const { units, ...pick } of picks) {
       const existing = items.find((i) => (pick.itemId ? i.itemId === pick.itemId : i.name === pick.name));
       if (existing) existing.qty += qty * units;

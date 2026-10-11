@@ -1,4 +1,4 @@
-import { STOCK_SLACK, WHOLE, type CatalogItem, type Portion } from '../data/catalog';
+import { STOCK_SLACK, WHOLE, stockFits, type AddOnPick, type CatalogItem, type Portion } from '../data/catalog';
 import { discounted, type Promotion, type SetMeal } from '../data/deals';
 import { formatCurrency, roundMoney } from './currency';
 
@@ -35,6 +35,11 @@ export type CartLine = {
   manual?: LineDiscount;
   /** Stock one of it uses, for a portion — 0.5 for a half. Absent means 1. */
   units?: number;
+  /**
+   * Sides and extras rung up with it — chips with a main — their prices in
+   * `unitPrice`. On a set meal, each names which pick it goes with.
+   */
+  addOns?: AddOnPick[];
 };
 
 /** A discount given by hand — on one line or on the whole tab. */
@@ -102,6 +107,23 @@ export function portionLine(
     unitPrice: price,
     listPrice,
     promo: promo.name,
+  };
+}
+
+/**
+ * `line` rung up with `addOns`: their prices on top of its own, and in its
+ * key, so the same item with different sides sits on separate lines.
+ */
+export function withAddOns(line: Omit<CartLine, 'qty'>, addOns: AddOnPick[]): Omit<CartLine, 'qty'> {
+  if (addOns.length === 0) return line;
+  const extra = addOns.reduce((sum, a) => sum + a.price, 0);
+  const ids = addOns.map((a) => (a.part === undefined ? a.itemId : `${a.part}.${a.itemId}`));
+  return {
+    ...line,
+    key: `${line.key}+a:${ids.join(',')}`,
+    unitPrice: round(line.unitPrice + extra),
+    ...(line.listPrice !== undefined ? { listPrice: round(line.listPrice + extra) } : {}),
+    addOns,
   };
 }
 
@@ -209,19 +231,39 @@ export function editLine(
   return line ? replaceLine(lines, key, withNote(withDiscount(line, discount), note)) : lines;
 }
 
+/** An add-on picked in a set meal, before it's tied to its pick. */
+export type CourseAddOn = Omit<AddOnPick, 'part'>;
+
 /**
- * A line for one `meal` made of `picks`, one per course in order. It's rung up
- * at the meal's price whatever's picked — the picks' own prices don't show as
- * a list price or count as a discount.
+ * A line for one `meal` made of `picks`, one per course in order — null for a
+ * course the guest skipped. It's rung up at the meal's price whatever's picked,
+ * or skipped — the picks' own prices don't show as a list price or count as a
+ * discount. `addOns` are each course's add-ons, also by course, and cost extra.
  */
-export function mealLine(meal: SetMeal, picks: CatalogItem[]): Omit<CartLine, 'qty'> {
-  return {
-    key: `${meal.id}:${picks.map((p) => p.id).join('+')}`,
-    itemId: meal.id,
-    name: meal.name,
-    unitPrice: meal.price,
-    parts: picks.map((p, i) => ({ itemId: p.id, name: p.name, course: meal.courses[i].name })),
-  };
+export function mealLine(
+  meal: SetMeal,
+  picks: (CatalogItem | null)[],
+  addOns: CourseAddOn[][] = [],
+): Omit<CartLine, 'qty'> {
+  const parts: CartPart[] = [];
+  const extras: AddOnPick[] = [];
+  picks.forEach((p, i) => {
+    if (!p) return;
+    // Tied to the pick by where it sits in `parts`, which skipped courses don't take up.
+    for (const a of addOns[i] ?? []) extras.push({ ...a, part: parts.length });
+    parts.push({ itemId: p.id, name: p.name, course: meal.courses[i].name });
+  });
+  return withAddOns(
+    {
+      // Skipped courses keep their place, so "main, no dessert" and "dessert, no main" sit apart.
+      key: `${meal.id}:${picks.map((p) => p?.id ?? '').join('+')}`,
+      itemId: meal.id,
+      name: meal.name,
+      unitPrice: meal.price,
+      parts,
+    },
+    extras,
+  );
 }
 
 /** Adds one of `line`, incrementing the matching line if there is one. */
@@ -254,16 +296,42 @@ export function setLineQty(lines: CartLine[], key: string, qty: number): CartLin
     : lines.map((l) => (l.key === key ? { ...l, qty } : l));
 }
 
+type LineShape = Pick<CartLine, 'itemId' | 'name' | 'parts' | 'units' | 'addOns'>;
+
 /**
- * Catalog items one of `line` uses — itself, or a set meal's picks — and how
- * much stock of each: a portion's share, otherwise 1.
+ * What one of `line` is made of — itself, or a set meal's picks — each with
+ * the add-ons that go with it, and its share of stock: a portion's, otherwise 1.
  */
-export function lineItems(
-  line: Pick<CartLine, 'itemId' | 'name' | 'parts' | 'units'>,
-): { itemId: string; name: string; units: number }[] {
+export function lineDishes(
+  line: LineShape,
+): { itemId: string; name: string; units: number; addOns: AddOnPick[] }[] {
+  const addOns = line.addOns ?? [];
   return line.parts
-    ? line.parts.map((p) => ({ itemId: p.itemId, name: p.name, units: 1 }))
-    : [{ itemId: line.itemId, name: line.name, units: line.units ?? 1 }];
+    ? line.parts.map((p, i) => ({ itemId: p.itemId, name: p.name, units: 1, addOns: addOns.filter((a) => a.part === i) }))
+    : [{ itemId: line.itemId, name: line.name, units: line.units ?? 1, addOns }];
+}
+
+/**
+ * Catalog items one of `line` uses — itself or a set meal's picks, and their
+ * add-ons — and how much stock of each: a portion's share, otherwise 1.
+ */
+export function lineItems(line: LineShape): { itemId: string; name: string; units: number }[] {
+  return lineDishes(line).flatMap((d) => [
+    { itemId: d.itemId, name: d.name, units: d.units },
+    ...d.addOns.map((a) => ({ itemId: a.itemId, name: a.name, units: 1 })),
+  ]);
+}
+
+/** Whether one more of `line` fits in what's on hand, counting what `lines` already hold. */
+export function lineFits(lines: CartLine[], line: LineShape, catalog: CatalogItem[]): boolean {
+  const counts = itemQuantities(lines);
+  const uses = lineItems(line);
+  for (const { itemId, units } of uses) counts.set(itemId, (counts.get(itemId) ?? 0) + units);
+  // Items that have left the catalog aren't held back.
+  return uses.every(({ itemId }) => {
+    const item = catalog.find((i) => i.id === itemId);
+    return !item || stockFits(item, counts.get(itemId) ?? 0, 0);
+  });
 }
 
 /**

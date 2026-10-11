@@ -1,0 +1,50 @@
+/* ScarabLoader — see ScarabLoader.tsx. Same drawing as reference/scarab-loader.svg. */
+
+.scarab-loader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.scarab-loader__label {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--ink-soft);
+}
+.scarab {
+  --scarab-ink: var(--ink, #121212);
+  --scarab-ink-far: var(--ink-soft, #63615c);
+  --scarab-ball: #b3a288;
+  --scarab-ball-shade: #9c8a6e;
+  --scarab-ball-grain: #83725a;
+  --scarab-ground: var(--line, #e4e2dc);
+  --scarab-speed: 4s; /* one full turn of the ball */
+  overflow: visible;
+}
+.scarab * { transform-box: view-box; }
+
+/* Ground: the dashes and soil specks slide left, so the pair travels right. */
+.scarab__ground { animation: scarab-dash calc(var(--scarab-speed) * 0.08) linear infinite; }
+.scarab__soil { animation: scarab-soil calc(var(--scarab-speed) * 1.2) linear infinite; }
+
+/* Ball: rolls clockwise; one turn covers its circumference (~195 units). */
+.scarab__grain { animation: scarab-roll var(--scarab-speed) linear infinite; }
+
+/* Beetle: a small bob on every step, legs in a tripod gait. */
+.scarab__bob { animation: scarab-bob calc(var(--scarab-speed) * 0.15) ease-in-out infinite alternate; }
+.scarab__leg { animation: scarab-step calc(var(--scarab-speed) * 0.15) ease-in-out infinite alternate; }
+.scarab__leg--b { animation-delay: calc(var(--scarab-speed) * -0.15); }
+.scarab__leg--push { animation-name: scarab-push; }
+
+@keyframes scarab-dash { to { stroke-dashoffset: 16; } }
+@keyframes scarab-soil { to { transform: translateX(-240px); } }
+@keyframes scarab-roll { to { transform: rotate(360deg); } }
+@keyframes scarab-bob  { from { transform: translateY(0); } to { transform: translateY(-1.2px); } }
+@keyframes scarab-step { from { transform: rotate(-11deg); } to { transform: rotate(11deg); } }
+@keyframes scarab-push { from { transform: rotate(-6deg); } to { transform: rotate(7deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .scarab * { animation: none !important; }
+}
+  

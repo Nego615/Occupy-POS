@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { isLocked, subscriptionState, type ShopSubscription } from './subscription';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { isLocked, readShop, subscriptionState, type ShopSubscription } from './subscription';
 
 const now = new Date('2026-10-08T12:00:00Z');
 const DAY = 24 * 60 * 60 * 1000;
@@ -54,5 +55,54 @@ describe('isLocked', () => {
     expect(isLocked({ status: 'suspended' })).toBe(true);
     expect(isLocked({ status: 'grace' })).toBe(false);
     expect(isLocked({ status: 'expiring' })).toBe(false);
+  });
+});
+
+/**
+ * Just enough of a Supabase client for readShop: who's signed in, and what
+ * each read of `shops` answers, in turn.
+ */
+function fakeClient(userId: string | null, answers: { data: ShopSubscription | null; error: { code: string } | null }[]) {
+  const columns: string[] = [];
+  const client = {
+    auth: { getSession: async () => ({ data: { session: userId ? { user: { id: userId } } : null } }) },
+    from: () => ({
+      select: (cols: string) => {
+        columns.push(cols);
+        return { eq: () => ({ maybeSingle: async () => answers.shift()! }) };
+      },
+    }),
+  };
+  return { client: client as unknown as SupabaseClient, columns };
+}
+
+describe('readShop', () => {
+  it('returns the row of a registered shop', async () => {
+    const { client } = fakeClient('store-1', [{ data: shop({}), error: null }]);
+    expect(await readShop(client, 'store-1')).toEqual(shop({}));
+  });
+
+  it('returns null for an account with no shop on the platform', async () => {
+    const { client } = fakeClient('store-1', [{ data: null, error: null }]);
+    expect(await readShop(client, 'store-1')).toBeNull();
+  });
+
+  it('can’t tell offline or without the platform tables', async () => {
+    const { client } = fakeClient('store-1', [{ data: null, error: { code: 'PGRST205' } }]);
+    expect(await readShop(client, 'store-1')).toBeUndefined();
+  });
+
+  it('can’t tell when signed in as another account, or not at all', async () => {
+    expect(await readShop(fakeClient('store-2', [{ data: null, error: null }]).client, 'store-1')).toBeUndefined();
+    expect(await readShop(fakeClient(null, [{ data: null, error: null }]).client, 'store-1')).toBeUndefined();
+  });
+
+  it('reads without the trial column on a database from before trials', async () => {
+    const { client, columns } = fakeClient('store-1', [
+      { data: null, error: { code: '42703' } },
+      { data: null, error: null },
+    ]);
+    expect(await readShop(client, 'store-1')).toBeNull();
+    expect(columns[1]).not.toContain('trial');
   });
 });

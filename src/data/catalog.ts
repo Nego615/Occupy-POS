@@ -140,7 +140,70 @@ export function parseUnits(text: string): number | null {
 export type CategoryId = string;
 
 /** A shelf on the register and a heading in reports. Created and managed under Admin → Categories. */
-export type Category = { id: CategoryId; label: string };
+export type Category = {
+  id: CategoryId;
+  label: string;
+  /** Sides and extras offered with every item in it — chips or rice with a main. */
+  addOns?: AddOn[];
+};
+
+/**
+ * A side or extra a category's items can be rung up with. It's a catalog item
+ * of its own, so it draws down stock and counts in costs like one.
+ */
+export type AddOn = {
+  itemId: string;
+  /** What it adds to the item's price. 0 when it comes with it. */
+  price: number;
+};
+
+/** One add-on rung up with an item: what it was, and what it added. */
+export type AddOnPick = {
+  itemId: string;
+  name: string;
+  price: number;
+  /** In a set meal, which pick it goes with — its place in the line's picks, skipped courses aside. */
+  part?: number;
+};
+
+/**
+ * What `item` can be rung up with: its category's add-ons that are still in
+ * the catalog and on sale, itself aside, at their add-on prices.
+ */
+export function addOnOptions(
+  item: Pick<CatalogItem, 'id' | 'category'>,
+  categories: Category[],
+  catalog: CatalogItem[],
+): { item: CatalogItem; price: number }[] {
+  const addOns = categories.find((c) => c.id === item.category)?.addOns ?? [];
+  return addOns.flatMap(({ itemId, price }) => {
+    const side = catalog.find((i) => i.id === itemId);
+    return side && side.available && side.id !== item.id ? [{ item: side, price }] : [];
+  });
+}
+
+/** "Grilled Chicken with Chips, Kachumbari" — a name and the add-ons that go with it. */
+export function withAddOnNames(name: string, addOns: Pick<AddOnPick, 'name'>[]): string {
+  return addOns.length > 0 ? `${name} with ${addOns.map((a) => a.name).join(', ')}` : name;
+}
+
+/**
+ * What a line holds, to show under its name: a set meal's picks, each with
+ * its sides — "Soup", "Grilled Chicken with Chips" — or an item's sides,
+ * "with Chips, Kachumbari". Empty when it's just the item.
+ */
+export function lineContents(line: {
+  parts?: (string | { name: string })[];
+  addOns?: Pick<AddOnPick, 'name' | 'part'>[];
+}): string[] {
+  const addOns = line.addOns ?? [];
+  if (line.parts) {
+    return line.parts.map((p, j) =>
+      withAddOnNames(typeof p === 'string' ? p : p.name, addOns.filter((a) => a.part === j)),
+    );
+  }
+  return addOns.length > 0 ? [`with ${addOns.map((a) => a.name).join(', ')}`] : [];
+}
 
 /** The demo shop's categories. A new shop starts with none. */
 export const CATEGORIES: Category[] = [

@@ -108,7 +108,7 @@ export const POST = handle(async (req) => {
   // A database not yet upgraded for free trials has no `trial` column.
   if (shopError?.code === 'PGRST204') ({ error: shopError } = await admin.from('shops').insert(row));
   if (shopError) {
-    // No half-made shops: an account without its row would open unrestricted.
+    // No half-made shops: an account without its row is locked out, so it would only sit there.
     await admin.auth.admin.deleteUser(data.user.id);
     throw new Refused(500, shopError.message);
   }

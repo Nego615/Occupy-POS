@@ -23,13 +23,14 @@ const DONE_SHOWN = 40;
 
 /**
  * The kitchen display. Tickets arrive from the register oldest first, each
- * with a timer running since it was sent; the kitchen crosses lines off as
- * they're made and bumps the ticket once it's out. Done holds recent bumps
- * so a ticket cleared by mistake can be recalled.
+ * with a timer running since it was sent; a cook taps Start when they pick
+ * one up, crosses lines off as they're made, and bumps the ticket once it's
+ * out. Done holds recent bumps so a ticket cleared by mistake can be recalled.
  */
 export function Kitchen() {
   const navigate = useNavigate();
-  const { kitchenTickets, bumpTicket, recallTicket, toggleTicketLine, can, settings } = usePos();
+  const { kitchenTickets, bumpTicket, recallTicket, toggleTicketLine, toggleTicketStarted, can, settings } =
+    usePos();
   const [view, setView] = useState<View>('waiting');
   const now = useNow();
   const lateAfterMs = settings.kitchenLateMinutes * 60_000;
@@ -40,6 +41,7 @@ export function Kitchen() {
     .sort((a, b) => b.bumpedAt! - a.bumpedAt!)
     .slice(0, DONE_SHOWN);
   const lateCount = waiting.filter((k) => isLate(k, now, lateAfterMs)).length;
+  const notStarted = waiting.filter((k) => k.kind === 'order' && k.startedAt === undefined).length;
   const oldest = waiting[0];
 
   return (
@@ -77,7 +79,13 @@ export function Kitchen() {
             ) : (
               <>
                 <Mono>{waiting.length}</Mono> {waiting.length === 1 ? 'ticket' : 'tickets'} waiting
-                · oldest <Mono>{formatElapsed(now - oldest.sentAt)}</Mono>
+                {notStarted > 0 && (
+                  <>
+                    {' · '}
+                    <Mono>{notStarted}</Mono> not started
+                  </>
+                )}
+                {' · '}oldest <Mono>{formatElapsed(now - oldest.sentAt)}</Mono>
                 {lateCount > 0 && (
                   <StatusChip status="occupied" size="sm" className="kitchen__late-count">
                     {lateCount} late
@@ -105,6 +113,7 @@ export function Kitchen() {
                     now={now}
                     late={isLate(ticket, now, lateAfterMs)}
                     onToggleLine={(i) => toggleTicketLine(ticket.id, i)}
+                    onToggleStarted={() => toggleTicketStarted(ticket.id)}
                     onBump={() => bumpTicket(ticket.id)}
                   />
                 </motion.div>
@@ -165,16 +174,21 @@ function Ticket({
   now,
   late,
   onToggleLine,
+  onToggleStarted,
   onBump,
 }: {
   ticket: KitchenTicket;
   now: number;
   late: boolean;
   onToggleLine: (index: number) => void;
+  onToggleStarted: () => void;
   onBump: () => void;
 }) {
   const isVoid = ticket.kind === 'void';
+  const started = !isVoid && ticket.startedAt !== undefined;
   const allDone = ticket.lines.every((l) => l.done);
+  // Once someone's on it, it isn't new any more.
+  const isNew = !started && now - ticket.sentAt < NEW_FOR_MS;
   const classes = ['ticket', late ? 'ticket--late' : '', isVoid ? 'ticket--void' : '']
     .filter(Boolean)
     .join(' ');
@@ -191,7 +205,7 @@ function Ticket({
         <Mono className="ticket__timer">{formatElapsed(now - ticket.sentAt)}</Mono>
       </header>
 
-      {(isVoid || late || ticket.fire > 1 || now - ticket.sentAt < NEW_FOR_MS) && (
+      {(isVoid || late || ticket.fire > 1 || isNew) && (
         <div className="ticket__flags">
           {isVoid && (
             <StatusChip status="refunded" size="sm">
@@ -208,7 +222,7 @@ function Ticket({
               Added to tab · fire {ticket.fire}
             </StatusChip>
           )}
-          {!late && now - ticket.sentAt < NEW_FOR_MS && (
+          {!late && isNew && (
             <StatusChip status="open" size="sm">
               New
             </StatusChip>
@@ -218,7 +232,7 @@ function Ticket({
 
       <ul className="ticket__lines">
         {ticket.lines.map((line, i) => (
-          <li key={`${line.itemId}|${line.note ?? ''}`}>
+          <li key={`${line.itemId}|${line.note ?? ''}|${(line.addOns ?? []).join(',')}`}>
             <button
               type="button"
               className={line.done ? 'ticket-line ticket-line--done' : 'ticket-line'}
@@ -228,6 +242,7 @@ function Ticket({
               <Mono className="ticket-line__qty">{isVoid ? `−${line.qty}` : line.qty}</Mono>
               <span className="ticket-line__name">
                 {line.name}
+                {line.addOns && <span className="ticket-line__addons">with {line.addOns.join(', ')}</span>}
                 {line.note && <span className="ticket-line__note">{line.note}</span>}
               </span>
               <span className="ticket-line__check" aria-hidden="true">
@@ -239,9 +254,36 @@ function Ticket({
       </ul>
 
       <div className="ticket__foot">
+        {/* Tapped again, it un-starts — for a ticket started by mistake. */}
+        {!isVoid && (
+          <button
+            type="button"
+            className={started ? 'ticket-start ticket-start--on' : 'ticket-start'}
+            aria-pressed={started}
+            onClick={onToggleStarted}
+            title={started ? 'Tap again if it was started by mistake' : undefined}
+          >
+            <span className="ticket-start__mark" aria-hidden="true">
+              ✓
+            </span>
+            {started ? (
+              <span className="ticket-start__label">
+                Started
+                <span className="ticket-start__by">
+                  <Mono>{formatTime(new Date(ticket.startedAt!))}</Mono>
+                  {/* First name — the kitchen knows who's who, and a full name won't fit beside Bump. */}
+                  {ticket.startedBy && ` · ${ticket.startedBy.split(' ')[0]}`}
+                </span>
+              </span>
+            ) : (
+              <span className="ticket-start__label">Start</span>
+            )}
+          </button>
+        )}
         <Button
           size="lg"
-          block
+          block={isVoid}
+          className={isVoid ? undefined : 'ticket__bump'}
           variant={allDone || isVoid ? 'primary' : 'secondary'}
           onClick={onBump}
         >
@@ -256,7 +298,9 @@ function isLate(ticket: KitchenTicket, now: number, lateAfterMs: number): boolea
   return ticket.kind === 'order' && now - ticket.sentAt >= lateAfterMs;
 }
 
-/** "2 × Grain Bowl, 1 × Soup of the Day". */
+/** "2 × Grain Bowl, 1 × Grilled Chicken with Chips (no salt)". */
 function summarize(ticket: KitchenTicket): string {
-  return ticket.lines.map((l) => `${l.qty} × ${l.name}${l.note ? ` (${l.note})` : ''}`).join(', ');
+  return ticket.lines
+    .map((l) => `${l.qty} × ${l.name}${l.addOns ? ` with ${l.addOns.join(', ')}` : ''}${l.note ? ` (${l.note})` : ''}`)
+    .join(', ');
 }

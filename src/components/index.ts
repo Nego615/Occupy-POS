@@ -31,3 +31,5 @@ export { ApprovalDialog } from './ApprovalDialog';
 export type { ApprovalDialogProps } from './ApprovalDialog';
 export { AccountMenu } from './AccountMenu';
 export { RequireSignIn, RequirePermission, NoAccess } from './Guards';
+export { ScarabLoader } from './ScarabLoader';
+export type { ScarabLoaderProps } from './ScarabLoader';

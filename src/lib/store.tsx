@@ -7,6 +7,8 @@ import {
   titleCase,
   withTitleCaseNames,
   withUsedCategories,
+  type AddOn,
+  type AddOnPick,
   type CatalogItem,
   type Category,
   type CategoryId,
@@ -32,9 +34,11 @@ import {
 import {
   addSent,
   seedTickets,
+  startTicket,
   takeVoids,
   ticketLines,
   unsentLines,
+  unstartTicket,
   type KitchenTicket,
   type SentLine,
 } from '../data/kitchen';
@@ -72,6 +76,7 @@ import {
   discountLabel,
   itemQuantities,
   lineCap,
+  lineFits,
   lineItems,
   mealLine,
   mergeLines,
@@ -80,8 +85,10 @@ import {
   round,
   editLine as withLineEdit,
   setLineQty,
+  withAddOns,
   type CartLine,
   type CartTotals,
+  type CourseAddOn,
   type ManualDiscount,
 } from './cart';
 import { salaried, type PayrollRun } from './payroll';
@@ -177,6 +184,8 @@ type PosStore = {
   /** Adds a category at the end of the list and returns it. */
   createCategory: (label: string) => Category;
   renameCategory: (id: string, label: string) => void;
+  /** Sets the sides and extras offered with every item in a category. */
+  setCategoryAddOns: (id: string, addOns: AddOn[]) => void;
   /**
    * Removes a category, and drops it from promotions and kitchen routing.
    * Refused (false) while any item is still in it.
@@ -201,18 +210,20 @@ type PosStore = {
   orders: Order[];
   /**
    * Rings up one of `item` — or one `portion` of it — at its promotion price
-   * if one's running now.
+   * if one's running now, with any `addOns` at their add-on prices. Refused
+   * (false) if it or an add-on isn't on hand.
    */
-  addItem: (item: CatalogItem, portion?: Portion) => void;
+  addItem: (item: CatalogItem, portion?: Portion, addOns?: AddOnPick[]) => boolean;
   /** Rings up one of an open-price item at the price typed in. */
   addOpenPriceItem: (item: CatalogItem, price: number) => void;
   /** Rings up a one-off amount that isn't in the catalog. */
   addCustomAmount: (name: string, price: number) => void;
   /**
-   * Rings up one set meal made of `picks`, one per course. Refused if the
-   * picks aren't on hand.
+   * Rings up one set meal made of `picks`, one per course — null for a course
+   * the guest skipped — with each course's `addOns`. Refused if nothing's
+   * picked, or the picks or add-ons aren't on hand.
    */
-  addMeal: (meal: SetMeal, picks: CatalogItem[]) => boolean;
+  addMeal: (meal: SetMeal, picks: (CatalogItem | null)[], addOns?: CourseAddOn[][]) => boolean;
   /** `key` is the cart line's. */
   setQty: (key: string, qty: number) => void;
   /** Sets a line's note (blank clears it) and manual discount (null takes it off). */
@@ -303,8 +314,10 @@ type PosStore = {
   bumpTicket: (ticketId: number) => void;
   /** Puts a bumped ticket back up. */
   recallTicket: (ticketId: number) => void;
-  /** Crosses a line off a ticket, or back on. */
+  /** Crosses a line off a ticket, or back on. Crossing one off starts the ticket. */
   toggleTicketLine: (ticketId: number, lineIndex: number) => void;
+  /** Marks a ticket as being worked on — or, tapped again, not started after all. */
+  toggleTicketStarted: (ticketId: number) => void;
   /**
    * Refunds some or all of a paid order. `byStaffId` is who issued or
    * approved it. Refunding the last of it marks the whole order refunded.
@@ -452,6 +465,7 @@ function toOrderLines(cart: CartLine[], catalog?: CatalogItem[]): OrderLine[] {
         : {}),
       ...(l.note ? { note: l.note } : {}),
       ...(l.units !== undefined ? { units: l.units } : {}),
+      ...(l.addOns ? { addOns: l.addOns } : {}),
       ...(catalog && unitCost !== undefined ? { unitCost } : {}),
     };
   });
@@ -687,16 +701,15 @@ export function PosProvider({
   );
 
   // Items can't be rung up past what's on hand — counting any in set meals,
-  // and portions by their share.
+  // portions by their share, and add-ons, which draw down stock of their own.
   const addItem = useCallback(
-    (item: CatalogItem, portion?: Portion) => {
-      const line = portionLine(item, portion ?? null, bestPromo(promotions, item, new Date()));
-      updateActiveCart((lines) => {
-        const inCart = itemQuantities(lines).get(item.id) ?? 0;
-        return stockFits(item, inCart, line.units) ? addLine(lines, line) : lines;
-      });
+    (item: CatalogItem, portion?: Portion, addOns: AddOnPick[] = []) => {
+      const line = withAddOns(portionLine(item, portion ?? null, bestPromo(promotions, item, new Date())), addOns);
+      if (!lineFits(cart, line, catalog)) return false;
+      updateActiveCart((lines) => (lineFits(lines, line, catalog) ? addLine(lines, line) : lines));
+      return true;
     },
-    [updateActiveCart, promotions],
+    [updateActiveCart, promotions, cart, catalog],
   );
 
   const addOpenPriceItem = useCallback(
@@ -719,15 +732,14 @@ export function PosProvider({
   );
 
   const addMeal = useCallback(
-    (meal: SetMeal, picks: CatalogItem[]) => {
-      if (picks.length !== meal.courses.length) return false;
-      const counts = itemQuantities(cart);
-      for (const p of picks) counts.set(p.id, (counts.get(p.id) ?? 0) + 1);
-      if (picks.some((p) => !stockFits(p, counts.get(p.id) ?? 0, 0))) return false;
-      updateActiveCart((lines) => addLine(lines, mealLine(meal, picks)));
+    (meal: SetMeal, picks: (CatalogItem | null)[], addOns: CourseAddOn[][] = []) => {
+      if (picks.length !== meal.courses.length || !picks.some(Boolean)) return false;
+      const line = mealLine(meal, picks, addOns);
+      if (!lineFits(cart, line, catalog)) return false;
+      updateActiveCart((lines) => addLine(lines, line));
       return true;
     },
-    [cart, updateActiveCart],
+    [cart, catalog, updateActiveCart],
   );
 
   const isKitchenItem = useCallback(
@@ -1089,18 +1101,33 @@ export function PosProvider({
     );
   }, []);
 
-  const toggleTicketLine = useCallback((ticketId: number, lineIndex: number) => {
-    setKitchenTickets((prev) =>
-      prev.map((k) =>
-        k.id === ticketId
-          ? {
-              ...k,
-              lines: k.lines.map((l, i) => (i === lineIndex ? { ...l, done: !l.done } : l)),
-            }
-          : k,
-      ),
-    );
-  }, []);
+  const toggleTicketLine = useCallback(
+    (ticketId: number, lineIndex: number) => {
+      setKitchenTickets((prev) =>
+        prev.map((k) => {
+          if (k.id !== ticketId) return k;
+          const next = {
+            ...k,
+            lines: k.lines.map((l, i) => (i === lineIndex ? { ...l, done: !l.done } : l)),
+          };
+          // Something crossed off means someone's on it.
+          return next.kind === 'order' && next.lines[lineIndex]?.done ? startTicket(next, me?.name) : next;
+        }),
+      );
+    },
+    [me],
+  );
+
+  const toggleTicketStarted = useCallback(
+    (ticketId: number) => {
+      setKitchenTickets((prev) =>
+        prev.map((k) =>
+          k.id !== ticketId ? k : k.startedAt !== undefined ? unstartTicket(k) : startTicket(k, me?.name),
+        ),
+      );
+    },
+    [me],
+  );
 
   const addLocation = useCallback(
     (kind: LocationKind) => {
@@ -1160,6 +1187,16 @@ export function PosProvider({
 
   const renameCategory = useCallback((id: string, label: string) => {
     setCategories((prev) => prev.map((c) => (c.id === id ? { ...c, label } : c)));
+  }, []);
+
+  const setCategoryAddOns = useCallback((id: string, addOns: AddOn[]) => {
+    setCategories((prev) =>
+      prev.map((c) => {
+        if (c.id !== id) return c;
+        const { addOns: _old, ...rest } = c;
+        return addOns.length > 0 ? { ...rest, addOns } : rest;
+      }),
+    );
   }, []);
 
   const deleteCategory = useCallback(
@@ -1469,6 +1506,7 @@ export function PosProvider({
       bumpTicket,
       recallTicket,
       toggleTicketLine,
+      toggleTicketStarted,
       refundOrder,
       updateItem,
       createItem,
@@ -1476,6 +1514,7 @@ export function PosProvider({
       categories,
       createCategory,
       renameCategory,
+      setCategoryAddOns,
       deleteCategory,
       addLocation,
       updateLocation,
@@ -1546,6 +1585,7 @@ export function PosProvider({
       bumpTicket,
       recallTicket,
       toggleTicketLine,
+      toggleTicketStarted,
       refundOrder,
       updateItem,
       createItem,
@@ -1553,6 +1593,7 @@ export function PosProvider({
       categories,
       createCategory,
       renameCategory,
+      setCategoryAddOns,
       deleteCategory,
       addLocation,
       updateLocation,

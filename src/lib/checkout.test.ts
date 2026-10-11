@@ -13,7 +13,7 @@ import {
   type OrderRecord,
 } from '../data/orders';
 import { hashPin, hasPermission, pinMatches, uniquePin } from '../data/staff';
-import { unsentLines, takeVoids } from '../data/kitchen';
+import { seedTickets, startTicket, takeVoids, unsentLines, unstartTicket } from '../data/kitchen';
 import {
   addLine,
   computeTotals,
@@ -164,6 +164,22 @@ describe('kitchen with notes', () => {
     const { voids, sent: kept } = takeVoids(next, sent);
     expect(voids).toEqual([{ itemId: 'toast', name: 'Toast', qty: 1 }]);
     expect(kept).toEqual([]);
+  });
+});
+
+describe('starting a ticket', () => {
+  const [ticket] = seedTickets(0);
+
+  it('records when and by whom, and keeps the first start', () => {
+    const started = startTicket(ticket, 'Amina', 5_000);
+    expect(started).toMatchObject({ startedAt: 5_000, startedBy: 'Amina' });
+    expect(startTicket(started, 'Juma', 9_000)).toBe(started);
+  });
+
+  it('can be taken back', () => {
+    const back = unstartTicket(startTicket(ticket, 'Amina', 5_000));
+    expect(back).toEqual(ticket);
+    expect('startedAt' in back).toBe(false);
   });
 });
 
