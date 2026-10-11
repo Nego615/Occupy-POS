@@ -9,8 +9,9 @@ import { Money, Mono } from './Mono';
 
 /**
  * Builds one set meal: a pick from each course, then onto the tab as a single
- * line at the meal's price. Items already on the tab count against what's on
- * hand, so a pick that would oversell is shown sold out.
+ * line at the meal's price, whichever items are picked. Items already on the
+ * tab count against what's on hand, so a pick that would oversell is shown
+ * sold out.
  */
 export function MealDialog({ meal, onClose }: { meal: SetMeal | null; onClose: () => void }) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -48,7 +49,6 @@ export function MealDialog({ meal, onClose }: { meal: SetMeal | null; onClose: (
 
   const chosen = picks.map((id) => catalog.find((i) => i.id === id));
   const complete = !!meal && picks.length === meal.courses.length && chosen.every(Boolean);
-  const worth = complete ? chosen.reduce((sum, i) => sum + i!.price, 0) : null;
 
   function pick(course: number, itemId: string) {
     setPicks((prev) => prev.map((id, i) => (i === course ? itemId : id)));
@@ -114,9 +114,8 @@ export function MealDialog({ meal, onClose }: { meal: SetMeal | null; onClose: (
                           aria-pressed={selected}
                         >
                           <span className="meal-option__name">{item.name}</span>
-                          <span className="meal-option__note">
-                            {soldOut ? 'Sold out' : <Money value={item.price} />}
-                          </span>
+                          {/* No item prices — whatever's picked, the meal costs its own price. */}
+                          {soldOut && <span className="meal-option__note">Sold out</span>}
                         </button>
                       );
                     })}
@@ -136,14 +135,8 @@ export function MealDialog({ meal, onClose }: { meal: SetMeal | null; onClose: (
             <div className="meal-dialog__price">
               <Money value={meal.price} className="meal-dialog__amount" />
               <span className="meal-dialog__worth">
-                {worth !== null ? (
-                  worth > meal.price ? (
-                    <>
-                      Saves <Money value={worth - meal.price} /> on <Money value={worth} />
-                    </>
-                  ) : (
-                    'Set price'
-                  )
+                {complete ? (
+                  'Set price, whatever’s picked'
                 ) : (
                   <>
                     <Mono>{picks.filter(Boolean).length}</Mono> of{' '}

@@ -9,6 +9,7 @@ import { Pill, PillGroup } from '../components/Pill';
 import { StatusChip } from '../components/StatusChip';
 import { TopBar } from '../components/TopBar';
 import { formatElapsed, type KitchenTicket } from '../data/kitchen';
+import { ADMIN_PERMISSIONS } from '../data/staff';
 import { quick, snap } from '../lib/motion';
 import { usePos } from '../lib/store';
 import { formatTime, useNow } from '../lib/useClock';
@@ -62,6 +63,8 @@ export function Kitchen() {
             {can('register') && (
               <Pill onClick={() => navigate('/counter/register')}>Register</Pill>
             )}
+            {/* Cooks keep the menu and set meals there. */}
+            {ADMIN_PERMISSIONS.some(can) && <Pill onClick={() => navigate('/admin')}>Admin</Pill>}
           </nav>
         }
       />

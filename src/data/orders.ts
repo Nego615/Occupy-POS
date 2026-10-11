@@ -1,6 +1,6 @@
 import { CATALOG, TAX_RATE } from './catalog';
 import { HISTORY_DAYS, dateOfDaysAgo, daysAgoOf } from './history';
-import { roundMoney } from '../lib/currency';
+import { currencyOf, roundMoney, type CurrencyCode } from '../lib/currency';
 
 /** `charged` is closed onto a room's bill, to be paid when the room settles up. */
 export type OrderStatus = 'paid' | 'occupied' | 'refunded' | 'charged';
@@ -26,7 +26,16 @@ export type Payment = {
   at?: string;
   /** Staff id of whoever took it. */
   by?: string;
+  /**
+   * Cash handed over in the cost currency — shillings against a dollar bill.
+   * `amount` is still what it put toward the bill; this is the cash itself:
+   * what that came to at `rate`, and what was handed over. Its change was
+   * given in the same currency.
+   */
+  local?: LocalCash;
 };
+
+export type LocalCash = { currency: CurrencyCode; rate: number; amount: number; tendered: number };
 
 export const REFUND_REASONS = [
   'Customer changed mind',
@@ -120,6 +129,11 @@ export type Order = OrderRecord & {
   time: string;
   /** "Card ·4471", "Cash", "Split · Card + Cash". Absent while a tab is still open. */
   method?: string;
+  /**
+   * Set on orders closed before the shop switched what it sells in: this one
+   * is converted at `rate`, and `original` is the order as it was taken.
+   */
+  recordedIn?: { currency: CurrencyCode; rate: number; original: Order };
 };
 
 /** Fills in the labels an order is read with. */
@@ -141,9 +155,9 @@ export function paymentLabel(payments: Payment[]): string | undefined {
   if (payments.length === 0) return undefined;
   if (payments.length === 1) {
     const p = payments[0];
-    return p.ref ? `${TENDER_LABEL[p.method]} ·${p.ref}` : TENDER_LABEL[p.method];
+    return p.ref ? `${tenderLabel(p)} ·${p.ref}` : tenderLabel(p);
   }
-  const methods = [...new Set(payments.map((p) => TENDER_LABEL[p.method]))];
+  const methods = [...new Set(payments.map(tenderLabel))];
   return `Split · ${methods.join(' + ')}`;
 }
 
@@ -180,8 +194,21 @@ export function paidAmount(payments: Payment[]): number {
 }
 
 /** Cash handed back across all payments. */
+/** Change handed back in the sales currency. Change on cash in the cost currency is localChange's. */
 export function changeGiven(payments: Payment[]): number {
-  return round(payments.reduce((sum, p) => sum + Math.max(0, (p.tendered ?? p.amount) - p.amount), 0));
+  return round(
+    payments.reduce((sum, p) => sum + (p.local ? 0 : Math.max(0, (p.tendered ?? p.amount) - p.amount)), 0),
+  );
+}
+
+/** Change handed back in the cost currency, on cash taken in it. */
+export function localChange(payments: Payment[]): number {
+  return payments.reduce((sum, p) => sum + (p.local ? Math.max(0, p.local.tendered - p.local.amount) : 0), 0);
+}
+
+/** "Cash", or "Cash · TSh" for cash taken in the cost currency. */
+export function tenderLabel(p: Pick<Payment, 'method' | 'local'>): string {
+  return p.local ? `${TENDER_LABEL[p.method]} · ${currencyOf(p.local.currency).symbol}` : TENDER_LABEL[p.method];
 }
 
 /* ---------- Refunds ---------- */

@@ -36,7 +36,7 @@
 .report-link--on,
 .report-link--on:hover {
   background: var(--surface);
-  box-shadow: inset 3px 0 0 var(--ink);
+  box-shadow: inset 3px 0 0 var(--brand);
 }
 
 .report-link:focus-visible {
@@ -250,7 +250,7 @@
 .share__fill {
   display: block;
   height: 100%;
-  background: var(--ink);
+  background: var(--accent);
   border-radius: 0 4px 4px 0;
 }
 
@@ -299,4 +299,24 @@
   font-size: 12.5px;
   line-height: 1.5;
   color: var(--ink-soft);
+}
+
+/* Profit & loss: the answer in one line. Profit and loss are states, so they
+   take the signal colors — as a 3px edge on a soft fill, never a solid block. */
+.report-verdict {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.report-verdict--profit {
+  background: var(--open-soft);
+  box-shadow: inset 3px 0 0 var(--open);
+}
+
+.report-verdict--loss {
+  background: var(--occupied-soft);
+  box-shadow: inset 3px 0 0 var(--occupied);
 }

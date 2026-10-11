@@ -5,7 +5,7 @@ export type ButtonVariant = 'primary' | 'secondary';
 export type ButtonSize = 'sm' | 'md' | 'lg';
 
 export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
-  /** `primary` = ink fill (Charge, Save, Confirm). `secondary` = paper + hairline. */
+  /** `primary` = brand fill, ink by default (Charge, Save, Confirm). `secondary` = paper + hairline. */
   variant?: ButtonVariant;
   /** `lg` is the countertop action size used for Charge. */
   size?: ButtonSize;

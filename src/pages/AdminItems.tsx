@@ -18,34 +18,47 @@ function needsRestock(item: CatalogItem, lowDefault: number): boolean {
 
 /**
  * The catalog list — the way into the item editor. Renders inside
- * AdminLayout's sidebar like every other admin page.
+ * AdminLayout's sidebar like every other admin page. The kitchen sees only
+ * the categories it's let edit.
  */
 export function AdminItems() {
   const navigate = useNavigate();
-  const { catalog, categories, settings } = usePos();
+  const { catalog, categories: allCategories, settings, can, canEditCategory } = usePos();
   const restock = (item: CatalogItem) => needsRestock(item, settings.lowStockDefault);
   const [filter, setFilter] = useState<Filter>('all');
 
-  const restockCount = catalog.filter(restock).length;
+  const wholeMenu = can('catalog');
+  const categories = allCategories.filter((c) => canEditCategory(c.id));
+  const mine = wholeMenu ? catalog : catalog.filter((i) => canEditCategory(i.category));
+  const restockCount = mine.filter(restock).length;
   const items =
     filter === 'all'
-      ? catalog
+      ? mine
       : filter === 'restock'
-        ? catalog.filter(restock)
-        : catalog.filter((i) => i.category === filter);
+        ? mine.filter(restock)
+        : mine.filter((i) => i.category === filter);
 
   return (
     <>
       <div className="page-head">
         <div>
           <h1 className="page-title">Items &amp; catalog</h1>
-          <div className="page-sub">{settings.locationName} · everything the register can ring up</div>
+          <div className="page-sub">
+            {settings.locationName} ·{' '}
+            {wholeMenu
+              ? 'everything the register can ring up'
+              : `the kitchen’s items${categories.length ? ` — ${categories.map((c) => c.label).join(', ')}` : ''}`}
+          </div>
         </div>
         <div className="head-actions">
-          <Button variant="secondary" onClick={() => navigate('/admin/categories')}>
-            Manage categories
+          {wholeMenu && (
+            <Button variant="secondary" onClick={() => navigate('/admin/categories')}>
+              Manage categories
+            </Button>
+          )}
+          <Button onClick={() => navigate('/items/new')} disabled={!wholeMenu && categories.length === 0}>
+            New item
           </Button>
-          <Button onClick={() => navigate('/items/new')}>New item</Button>
         </div>
       </div>
 
@@ -72,7 +85,9 @@ export function AdminItems() {
           <p className="admin-items__empty">
             {filter === 'restock'
               ? 'Everything tracked is well stocked.'
-              : 'No items here yet — add one with New item.'}
+              : categories.length === 0 && !wholeMenu
+                ? 'No categories are open to the kitchen yet — a manager can pick them in Settings, under Kitchen menu.'
+                : 'No items here yet — add one with New item.'}
           </p>
         )}
 

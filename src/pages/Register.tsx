@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { useNavigate } from 'react-router';
 import './Register.css';
 import { ApprovalDialog } from '../components/ApprovalDialog';
 import { AssignTabDialog } from '../components/AssignTabDialog';
 import { Button } from '../components/Button';
-import { DocketDialog, LineDialog, PortionDialog, PriceDialog, TabDiscountDialog } from '../components/CounterDialogs';
+import { DocketDialog, LineDialog, PortionDialog, PriceDialog } from '../components/CounterDialogs';
 import { PrintableDocket, type DocketKind } from '../components/PrintableSlip';
 import { ItemTile } from '../components/ItemTile';
 import { MealDialog } from '../components/MealDialog';
@@ -43,7 +42,6 @@ import { useNow } from '../lib/useClock';
 type Shelf = CategoryId | 'meals';
 
 export function Register() {
-  const navigate = useNavigate();
   // Null until someone picks a shelf: the first category, else set meals.
   const [chosenShelf, setCategory] = useState<Shelf | null>(null);
   const [meal, setMeal] = useState<SetMeal | null>(null);
@@ -58,7 +56,6 @@ export function Register() {
   // The item whose serving — whole or a portion — is being picked.
   const [portioning, setPortioning] = useState<CatalogItem | null>(null);
   const [editingLine, setEditingLine] = useState<string | null>(null);
-  const [discounting, setDiscounting] = useState(false);
   const [choosingDocket, setChoosingDocket] = useState(false);
   // The docket being printed — on the page only while the print dialog is up. It keeps
   // its own copy of the tab, so a bill sent to the front desk still prints once it's gone.
@@ -86,6 +83,7 @@ export function Register() {
     setMeals,
     categories,
     orders,
+    locations,
   } = usePos();
   const tabOrder = orders.find((o) => o.id === tab.orderId && o.status === 'occupied');
 
@@ -181,10 +179,12 @@ export function Register() {
     takeOff({ action, key: line.key, qty });
   }
 
-  // Only the front desk (and owners and managers) take payment; everyone else sends the bill there.
-  const takesPayment = can('payments');
+  // The register never takes payment or gives discounts — that's the front desk's job.
+  // It charges each tab to its table or room, and a walk-in picks one first, unless
+  // the shop has none to pick.
+  const placed = tab.locationId !== null || locations.length === 0;
 
-  // "Or press Enter to take payment" — wired, not decorative.
+  // "Or press Enter" — wired, not decorative.
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       // Not while a dialog is up — a manager's PIN, say — on top of the register.
@@ -208,10 +208,10 @@ export function Register() {
     if (hasItems) setBillSent(null);
   }, [hasItems]);
 
-  /** Hands the open tab over to the tender screen, or sends it to the front desk to be paid. */
+  /** Charges the open tab to its table or room, which sends its bill to the front desk to be paid. */
   function charge() {
-    if (takesPayment) {
-      navigate('/counter/tender', { state: { from: '/counter/register' } });
+    if (!placed) {
+      setAssigning(true);
       return;
     }
     requestBill();
@@ -327,7 +327,6 @@ export function Register() {
         />
         <PortionDialog item={portioning} onClose={() => setPortioning(null)} />
         <LineDialog lineKey={editingLine} onClose={() => setEditingLine(null)} />
-        <TabDiscountDialog open={discounting} onClose={() => setDiscounting(false)} />
         <DocketDialog
           open={choosingDocket}
           onPick={(kind) => tabOrder && setDocket({ order: tabOrder, kind })}
@@ -415,7 +414,7 @@ export function Register() {
                     type="button"
                     className="cart-line__info"
                     onClick={() => setEditingLine(line.key)}
-                    aria-label={`${line.name} — add a note or discount`}
+                    aria-label={`${line.name} — add a note`}
                   >
                     <div className="cart-line__name">{line.name}</div>
                     {line.note && <div className="cart-line__note">“{line.note}”</div>}
@@ -484,23 +483,18 @@ export function Register() {
             </>
           )}
 
-          {hasItems && (
-            <div className="cart__links">
-              <button type="button" className="cart__discount" onClick={() => setChoosingDocket(true)}>
-                Print docket
-              </button>
-              <button type="button" className="cart__discount" onClick={() => setDiscounting(true)}>
-                {tab.discount ? 'Change tab discount' : 'Discount the tab'}
-              </button>
-            </div>
-          )}
-
           {unsentCount > 0 && (
             <Button variant="secondary" block className="cart__send" onClick={sendToKitchen}>
               <span>
                 Send <Mono>{unsentCount}</Mono> to kitchen
               </span>
             </Button>
+          )}
+
+          {hasItems && (
+            <button type="button" className="cart__docket" onClick={() => setChoosingDocket(true)}>
+              Print docket
+            </button>
           )}
 
           <Button
@@ -510,23 +504,18 @@ export function Register() {
             disabled={!hasItems}
             onClick={charge}
           >
-            {takesPayment ? (
-              <>
-                {partPaid ? 'Charge the rest' : 'Charge'} <Money value={partPaid ? dueNow : totals.total} />
-              </>
-            ) : (
-              <>
-                Send bill to front desk <Money value={partPaid ? dueNow : totals.total} />
-              </>
-            )}
+            {tab.locationId !== null
+              ? `Charge to ${tab.name}`
+              : placed
+                ? 'Send bill to front desk'
+                : 'Charge to a table or room'}{' '}
+            <Money value={partPaid ? dueNow : totals.total} />
           </Button>
 
           <p className="cart__charge-sub">
             {!hasItems
               ? 'Add an item to start charging'
-              : takesPayment
-                ? 'Or press Enter to take payment'
-                : 'Payment is taken at the front desk · or press Enter'}
+              : 'Paid and discounted at the front desk · or press Enter'}
           </p>
         </div>
       </aside>

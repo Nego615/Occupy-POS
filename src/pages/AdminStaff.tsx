@@ -7,7 +7,7 @@ import { FilterSelect } from '../components/FilterSelect';
 import { Mono } from '../components/Mono';
 import { Pill, PillRow } from '../components/Pill';
 import { Switch } from '../components/Switch';
-import { PERMISSIONS, ROLES, uniquePin, type RoleId, type StaffMember } from '../data/staff';
+import { KITCHEN_MENU_ROLES, PERMISSIONS, ROLES, uniquePin, type RoleId, type StaffMember } from '../data/staff';
 import { payLabel } from '../lib/payroll';
 import { usePos } from '../lib/store';
 
@@ -345,7 +345,7 @@ function StaffRow({
 
 /** What each role can do, read off the role definitions. */
 function RoleTable() {
-  const { staff } = usePos();
+  const { staff, settings } = usePos();
   return (
     <section className="panel staff__roles" aria-labelledby="roles-title">
       <div className="staff__roles-head">
@@ -378,7 +378,13 @@ function RoleTable() {
                 <th scope="row">{p.label}</th>
                 {ROLES.map((r) => (
                   <td key={r.id}>
-                    {r.can.includes(p.id) ? (
+                    {/* The kitchen's item editing follows Settings → Kitchen menu. */}
+                    {p.id === 'menu' && KITCHEN_MENU_ROLES.includes(r.id) ? (
+                      <span className="role-table__setting">
+                        {settings.kitchenMenu ? 'On' : 'Off'} in Settings
+                        <span className="sr-only">, for the kitchen’s categories only</span>
+                      </span>
+                    ) : r.can.includes(p.id) ? (
                       <>
                         <span aria-hidden="true" className="role-table__yes">
                           ✓

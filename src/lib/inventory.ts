@@ -10,6 +10,7 @@ import {
   type SupplierBill,
 } from '../data/inventory';
 import { round } from './cart';
+import { toSales } from './currency';
 import { formatTime } from './useClock';
 
 /**
@@ -99,16 +100,27 @@ export function receivedTotal(order: PurchaseOrder): number {
   return round(order.lines.reduce((sum, l) => sum + l.received * l.unitCost, 0));
 }
 
+/** What `itemId` last cost on a delivery, in the cost currency — undefined if it's never come in. */
+export function lastPaid(orders: PurchaseOrder[], itemId: string): number | undefined {
+  const received = orders
+    .filter((o) => o.lines.some((l) => l.itemId === itemId && l.received > 0))
+    .sort((a, b) => (b.orderedAt ?? b.createdAt).localeCompare(a.orderedAt ?? a.createdAt));
+  return received[0]?.lines.find((l) => l.itemId === itemId)?.unitCost;
+}
+
 export type Receipt = { itemId: string; qty: number; unitCost: number };
 
 /**
  * Takes a delivery against an order: the order's received counts and status,
- * stock entries for what arrived, and each item's new average cost.
+ * stock entries for what arrived, and each item's new average cost. Receipt
+ * costs are in the cost currency, and so is `amount`, the bill; item costs
+ * and the stock entries are in the sales currency, converted at `rate`.
  */
 export function receiveAgainst(
   order: PurchaseOrder,
   catalog: CatalogItem[],
   receipts: Receipt[],
+  rate?: number,
 ): { order: PurchaseOrder; catalog: CatalogItem[]; entries: StockEntry[]; amount: number } {
   const arrived = receipts.filter((r) => r.qty > 0);
   const lines = order.lines.map((line) => {
@@ -122,11 +134,12 @@ export function receiveAgainst(
   const costed = catalog.map((item) => {
     const r = arrived.find((x) => x.itemId === item.id);
     if (!r) return item;
+    const unitCost = toSales(r.unitCost, rate);
     const onHand = Math.max(0, item.stock);
     const cost =
       item.cost === undefined || onHand === 0
-        ? r.unitCost
-        : round((onHand * item.cost + r.qty * r.unitCost) / (onHand + r.qty));
+        ? unitCost
+        : round((onHand * item.cost + r.qty * unitCost) / (onHand + r.qty));
     return { ...item, cost };
   });
 
@@ -138,7 +151,7 @@ export function receiveAgainst(
       change: r.qty,
       reason: 'received' as const,
       ref: order.id,
-      unitCost: r.unitCost,
+      unitCost: toSales(r.unitCost, rate),
     })),
     amount: round(arrived.reduce((sum, r) => sum + r.qty * r.unitCost, 0)),
   };
@@ -196,6 +209,7 @@ export function newBill(
   amount: number,
   termsDays: number,
   seq: number,
+  rate?: number,
 ): SupplierBill {
   const issuedAt = todayIso();
   return {
@@ -206,6 +220,7 @@ export function newBill(
     issuedAt,
     dueAt: addDays(issuedAt, termsDays),
     amount,
+    ...(rate ? { rate } : {}),
     payments: [],
   };
 }

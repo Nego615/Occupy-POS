@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router';
 import './ItemEditor.css';
 import { Button } from '../components/Button';
 import { ItemTile } from '../components/ItemTile';
-import { Mono, formatMoney } from '../components/Mono';
+import { Mono, formatCost, formatMoney } from '../components/Mono';
 import { Pill, PillRow } from '../components/Pill';
 import { StatusChip } from '../components/StatusChip';
 import { Switch } from '../components/Switch';
@@ -18,7 +18,8 @@ import {
   type Portion,
   type StockState,
 } from '../data/catalog';
-import { activeCurrency, isAmountText } from '../lib/currency';
+import { exchangeRate } from '../data/settings';
+import { activeCurrency, isAmountText, toCost } from '../lib/currency';
 import { usePos } from '../lib/store';
 
 /** Tile colors offered in the editor, matching the mockup's swatch row. */
@@ -145,9 +146,12 @@ export function ItemEditor() {
   const { itemId } = useParams();
   const navigate = useNavigate();
 
-  const { catalog, categories, updateItem, createItem, deleteItem, settings, suppliers, can } = usePos();
+  const { catalog, categories, updateItem, createItem, deleteItem, settings, suppliers, can, canEditCategory } =
+    usePos();
   const creating = itemId === 'new';
   const item = creating ? undefined : catalog.find((i) => i.id === itemId);
+  // The kitchen only files items under the categories it's let edit.
+  const editable = categories.filter((c) => canEditCategory(c.id));
 
   const saved: ItemDraft = useMemo(
     () =>
@@ -175,7 +179,7 @@ export function ItemEditor() {
             measure: item.unitSize ? 'ml' : 'share',
             unitSize: item.unitSize !== undefined ? String(item.unitSize) : '',
           }
-        : { ...BLANK, category: categories[0]?.id ?? '', lowStockAt: String(settings.lowStockDefault) },
+        : { ...BLANK, category: editable[0]?.id ?? '', lowStockAt: String(settings.lowStockDefault) },
     // Categories are read once, for a new item's starting pick.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [item, settings.lowStockDefault],
@@ -189,7 +193,7 @@ export function ItemEditor() {
   const priceValue = Number.parseFloat(draft.price);
   const priceValid = isAmountText(draft.price) && priceValue > 0;
   const nameValid = draft.name.trim().length > 0;
-  const categoryValid = categories.some((c) => c.id === draft.category);
+  const categoryValid = editable.some((c) => c.id === draft.category);
   // An existing item's stock is changed on the Stock page, through the ledger — only new items set it here.
   const stockValid = !creating || WHOLE_NUMBER.test(draft.stock);
   const costValid = draft.cost === '' || isAmountText(draft.cost);
@@ -255,7 +259,7 @@ export function ItemEditor() {
 
   // A stale link to a deleted item lands here rather than on someone else's item.
   // Every item belongs to a category, so a new shop makes one first.
-  if (creating && categories.length === 0) {
+  if (creating && categories.length === 0 && can('catalog')) {
     return (
       <div className="editor">
         <header className="editor__bar">
@@ -274,6 +278,36 @@ export function ItemEditor() {
         <div className="editor__missing">
           <p>Items are sorted into categories, and there aren’t any yet. Create one first.</p>
           <Button onClick={() => navigate('/admin/categories')}>Create a category</Button>
+        </div>
+      </div>
+    );
+  }
+
+  // The kitchen with no categories to file under, or opening an item outside them.
+  const outside = !!item && !canEditCategory(item.category);
+  if ((creating && editable.length === 0) || outside) {
+    return (
+      <div className="editor">
+        <header className="editor__bar">
+          <div className="editor__bar-left">
+            <button
+              type="button"
+              className="editor__back"
+              onClick={() => navigate('/admin/items')}
+              aria-label="Back to items"
+            >
+              <span aria-hidden="true">&larr;</span>
+            </button>
+            <div className="editor__title">{outside ? item!.name : 'New item'}</div>
+          </div>
+        </header>
+        <div className="editor__missing">
+          <p>
+            {outside
+              ? `This item is under ${categoryLabel(categories, item!.category)}, which the kitchen can’t edit. A manager can open it to the kitchen in Settings, under Kitchen menu.`
+              : 'No categories are open to the kitchen yet. A manager can choose them in Settings, under Kitchen menu.'}
+          </p>
+          <Button onClick={() => navigate('/admin/items')}>Back to items</Button>
         </div>
       </div>
     );
@@ -544,7 +578,6 @@ export function ItemEditor() {
               <label className="stock-panel__buy-field stock-panel__buy-field--wide">
                 Supplier
                 <select
-                  className="stock-panel__select"
                   value={draft.supplierId}
                   onChange={(e) => set('supplierId', e.target.value)}
                 >
@@ -565,6 +598,13 @@ export function ItemEditor() {
               </p>
             )}
             <p className="stock-panel__help">
+              {/* Bought in another currency: what the cost comes to in it, at today's rate. */}
+              {exchangeRate(settings) && costValid && draft.cost !== '' && (
+                <>
+                  About <Mono>{formatCost(toCost(Number(draft.cost), exchangeRate(settings)))}</Mono> at
+                  today’s rate.{' '}
+                </>
+              )}
               Cost updates itself as deliveries are received. Low-stock reorders top up to the
               reorder level.
             </p>
@@ -585,7 +625,6 @@ export function ItemEditor() {
               <label htmlFor="item-measure">Measure in</label>
               <select
                 id="item-measure"
-                className="portions__select"
                 value={draft.measure}
                 onChange={(e) => setMeasure(e.target.value as Measure)}
               >
@@ -694,7 +733,7 @@ export function ItemEditor() {
           <div className="field">
             <span className="field__label">Category</span>
             <PillRow label="Category">
-              {categories.map((c) => (
+              {editable.map((c) => (
                 <Pill
                   key={c.id}
                   active={c.id === draft.category}

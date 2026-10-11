@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router';
 import './Inventory.css';
 import { Button } from '../components/Button';
-import { Money, Mono } from '../components/Mono';
+import { CostMoney, Mono } from '../components/Mono';
 import { StatusChip } from '../components/StatusChip';
 import { Switch } from '../components/Switch';
 import type { Supplier } from '../data/inventory';
@@ -133,7 +133,7 @@ function SupplierRow({
       <td className="num">
         {account.owed > 0 ? (
           <span className="inv-strong">
-            <Money value={account.owed} />
+            <CostMoney value={account.owed} />
             {account.overdue > 0 && (
               <>
                 {' '}
@@ -208,7 +208,7 @@ function SupplierPanel({ supplier }: { supplier: Supplier }) {
       <dl className="inv-facts">
         <dt>Owed</dt>
         <dd>
-          <Money value={account.owed} className="inv-strong" />
+          <CostMoney value={account.owed} className="inv-strong" />
         </dd>
         <dt>Overdue bills</dt>
         <dd>

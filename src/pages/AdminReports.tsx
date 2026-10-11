@@ -1,12 +1,16 @@
 import { useMemo, type ReactNode } from 'react';
-import { useSearchParams } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import './AdminReports.css';
 import { Button } from '../components/Button';
 import { ColumnChart } from '../components/ColumnChart';
-import { Mono } from '../components/Mono';
+import { Mono, formatCost } from '../components/Mono';
 import { Pill, PillRow } from '../components/Pill';
 import type { CatalogItem, Category } from '../data/catalog';
+import { dateOfDaysAgo } from '../data/history';
+import type { Expense } from '../data/expenses';
 import type { StockMovement, Supplier, SupplierBill } from '../data/inventory';
+import { exchangeRate } from '../data/settings';
+import type { StaffMember } from '../data/staff';
 import { downloadCsv, money } from '../lib/analytics';
 import {
   REPORT_RANGES,
@@ -14,19 +18,25 @@ import {
   byDay,
   byHour,
   byItem,
+  byMonth,
   byPayment,
   byTab,
+  daysSpanned,
   inLastDays,
   ledger,
   toCsv,
   type GroupRow,
+  type Ledger,
   type ReportRangeId,
 } from '../lib/reports';
 import { losses, margins, supplierSpend, valuation } from '../lib/costReports';
+import type { PayrollRun } from '../lib/payroll';
+import { profitAndLoss } from '../lib/profit';
 import { usePos } from '../lib/store';
 
 type ReportId =
   | 'summary'
+  | 'profit'
   | 'items'
   | 'categories'
   | 'payments'
@@ -38,6 +48,7 @@ type ReportId =
 
 const REPORTS: { id: ReportId; label: string; blurb: string }[] = [
   { id: 'summary', label: 'Sales summary', blurb: 'What came in, day by day' },
+  { id: 'profit', label: 'Profit & loss', blurb: 'Whether you made money, after every cost' },
   { id: 'items', label: 'Items', blurb: 'What sold, ranked by sales' },
   { id: 'categories', label: 'Categories', blurb: 'Sales rolled up by menu category' },
   { id: 'payments', label: 'Payments', blurb: 'How customers paid' },
@@ -57,13 +68,30 @@ const pct = (fraction: number) => `${(fraction * 100).toFixed(1)}%`;
  * and Export CSV downloads exactly the table on screen.
  */
 export function AdminReports() {
-  const { orders, catalog, categories, settings, movements, bills, suppliers } = usePos();
+  const {
+    orders,
+    catalog,
+    categories,
+    settings,
+    movements,
+    bills,
+    suppliers,
+    payrollRuns,
+    expenses,
+    staff,
+    can,
+  } = usePos();
   const [params, setParams] = useSearchParams();
 
   const report = (REPORTS.find((r) => r.id === params.get('report'))?.id ?? 'summary') as ReportId;
   const range = (REPORT_RANGES.find((r) => r.id === params.get('range'))?.id ??
     'week') as ReportRangeId;
   const days = REPORT_RANGES.find((r) => r.id === range)!.days;
+  // All time has no cutoff, but the sales summary still needs a first day to chart from.
+  const span = useMemo(
+    () => (Number.isFinite(days) ? days : daysSpanned(orders)),
+    [days, orders],
+  );
   const meta = REPORTS.find((r) => r.id === report)!;
 
   function setParam(key: 'report' | 'range', value: string) {
@@ -82,18 +110,24 @@ export function AdminReports() {
 
   const view = useMemo(
     () =>
-      buildReport(report, windowed, days, items, settings.tipsEnabled, {
+      buildReport(report, windowed, days, span, items, settings.tipsEnabled, {
         catalog,
         categories,
         movements,
         bills,
         suppliers,
+        payrollRuns,
+        expenses,
+        staff,
+        canRecordExpenses: can('expenses'),
+        rate: exchangeRate(settings),
       }),
     // The view holds formatted money, so a currency switch has to rebuild it.
     [
       report,
       windowed,
       days,
+      span,
       items,
       settings.tipsEnabled,
       catalog,
@@ -101,7 +135,11 @@ export function AdminReports() {
       movements,
       bills,
       suppliers,
-      settings.currency,
+      payrollRuns,
+      expenses,
+      staff,
+      can,
+      settings,
     ],
   );
 
@@ -160,7 +198,7 @@ export function AdminReports() {
               {meta.label}
             </h2>
             <span className="report-head__range">
-              {range === 'today' ? 'Today' : `Last ${days} days`}
+              {rangeLabel(range, days, span)}
               {report === 'inventory' && ' · stock value is as of now'}
             </span>
           </div>
@@ -193,19 +231,41 @@ type CostContext = {
   movements: StockMovement[];
   bills: SupplierBill[];
   suppliers: Supplier[];
+  payrollRuns: PayrollRun[];
+  expenses: Expense[];
+  staff: StaffMember[];
+  /** Whether to link to the Expenses page. */
+  canRecordExpenses: boolean;
+  /** Cost-currency units to one sales unit, when the shop buys in another currency. */
+  rate?: number;
 };
+
+/** "Today", "Last 7 days", or "All time · since Mar 29, 2026". */
+function rangeLabel(range: ReportRangeId, days: number, span: number): string {
+  if (range === 'today') return 'Today';
+  if (range !== 'all') return `Last ${days} days`;
+  const since = dateOfDaysAgo(span - 1).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+  return `All time · since ${since}`;
+}
 
 function buildReport(
   report: ReportId,
   orders: ReturnType<typeof inLastDays>,
+  /** The window's length; Infinity for All time, which the cost reports read as no cutoff. */
   days: number,
+  /** The same window in whole days, through the oldest order — finite even for All time. */
+  span: number,
   items: ReturnType<typeof byItem>,
   tipsEnabled: boolean,
   ctx: CostContext,
 ): ReportView {
   switch (report) {
     case 'summary':
-      return summaryReport(orders, days, tipsEnabled);
+      return summaryReport(orders, span, tipsEnabled);
     case 'items':
       return itemsReport(items);
     case 'categories':
@@ -216,6 +276,8 @@ function buildReport(
       return hoursReport(orders);
     case 'tabs':
       return groupReport(byTab(orders), 'Tab', tipsEnabled);
+    case 'profit':
+      return profitReport(orders, days, span, ctx);
     case 'margins':
       return marginsReport(orders);
     case 'inventory':
@@ -227,18 +289,28 @@ function buildReport(
 
 /* ---------- Sales summary ---------- */
 
+/** Past this many days the summary goes month by month — a column a day stops reading. */
+const DAILY_LIMIT = 62;
+
 function summaryReport(
   orders: ReturnType<typeof inLastDays>,
   days: number,
   tipsEnabled: boolean,
 ): ReportView {
   const total = ledger(orders);
-  const daily = byDay(orders, days);
+  const monthly = days > DAILY_LIMIT;
+  const unit = monthly ? 'month' : 'day';
+  const periods: (Ledger & { key: string | number; label: string })[] = monthly
+    ? byMonth(orders, days)
+    : byDay(orders, days).map((d) => ({ ...d, key: d.daysAgo }));
+  const labelEvery = monthly
+    ? Math.ceil(periods.length / 12)
+    : days > 31 ? 10 : days > 7 ? 5 : 1;
   const cols = tipColumns(tipsEnabled || total.tips > 0, 4);
 
   const csv: ReportView['csv'] = [
-    cols(['date', 'orders', 'item_sales', 'tax', 'tips', 'collected', 'refunds']),
-    ...[...daily]
+    cols([monthly ? 'month' : 'date', 'orders', 'item_sales', 'tax', 'tips', 'collected', 'refunds']),
+    ...[...periods]
       .reverse()
       .map((d) => cols([
         d.label,
@@ -270,23 +342,23 @@ function summaryReport(
         />
       </div>
 
-      {days > 1 && (
+      {periods.length > 1 && (
         <div className="report-card">
-          <h3 className="report-card__title">Collected by day</h3>
+          <h3 className="report-card__title">Collected by {unit}</h3>
           <ColumnChart
-            title="Collected by day"
-            data={daily.map((d) => ({ label: d.label, value: d.collected }))}
+            title={`Collected by ${unit}`}
+            data={periods.map((d) => ({ label: d.label, value: d.collected }))}
             format={money}
-            labelEvery={days > 7 ? 5 : 1}
+            labelEvery={labelEvery}
           />
         </div>
       )}
 
       <ReportTable
-        head={cols(['Day', 'Orders', 'Item sales', 'Tax', 'Tips', 'Collected', 'Refunds'])}
+        head={cols([monthly ? 'Month' : 'Day', 'Orders', 'Item sales', 'Tax', 'Tips', 'Collected', 'Refunds'])}
         numericFrom={1}
-        rows={[...daily].reverse().map((d) => ({
-          key: d.daysAgo,
+        rows={[...periods].reverse().map((d) => ({
+          key: d.key,
           cells: cols([
             d.label,
             <Mono>{d.orders}</Mono>,
@@ -298,7 +370,7 @@ function summaryReport(
           ]),
         }))}
         foot={
-          days > 1
+          periods.length > 1
             ? cols([
                 'Total',
                 <Mono>{total.orders}</Mono>,
@@ -489,6 +561,143 @@ function hoursReport(orders: ReturnType<typeof inLastDays>): ReportView {
   return { body, csv };
 }
 
+/* ---------- Profit & loss ---------- */
+
+function profitReport(
+  orders: ReturnType<typeof inLastDays>,
+  days: number,
+  span: number,
+  ctx: CostContext,
+): ReportView {
+  const pl = profitAndLoss({
+    orders,
+    days,
+    span,
+    movements: ctx.movements,
+    payrollRuns: ctx.payrollRuns,
+    expenses: ctx.expenses,
+    staff: ctx.staff,
+    rate: ctx.rate,
+  });
+  const loss = pl.net < 0;
+  const costs = pl.cost + pl.stockLosses + pl.wages + pl.expenseTotal;
+
+  // Costs read as subtractions; a stock count that found extra adds back.
+  const minus = (n: number) => (n === 0 ? <Muted /> : <Mono>{`${n > 0 ? '−' : '+'}${money(Math.abs(n))}`}</Mono>);
+  const ofSales = (n: number) => (pl.sales > 0 ? <Mono>{pct(n / pl.sales)}</Mono> : <Muted />);
+
+  type Line = { key: string; label: ReactNode; amount: ReactNode; share: ReactNode; csv: [string, number] };
+  const lines: Line[] = [
+    { key: 'sales', label: 'Sales', amount: <Mono>{money(pl.sales)}</Mono>, share: ofSales(pl.sales), csv: ['sales', pl.sales] },
+    { key: 'cogs', label: 'Cost of goods sold', amount: minus(pl.cost), share: ofSales(pl.cost), csv: ['cost_of_goods', -pl.cost] },
+    {
+      key: 'gross',
+      label: <span className="report-table__strong">Gross profit</span>,
+      amount: <Mono className="report-table__strong">{money(pl.grossProfit)}</Mono>,
+      share: ofSales(pl.grossProfit),
+      csv: ['gross_profit', pl.grossProfit],
+    },
+    {
+      key: 'stock',
+      label: 'Stock written off or missing',
+      amount: minus(pl.stockLosses),
+      share: ofSales(pl.stockLosses),
+      csv: ['stock_losses', -pl.stockLosses],
+    },
+    { key: 'wages', label: 'Wages', amount: minus(pl.wages), share: ofSales(pl.wages), csv: ['wages', -pl.wages] },
+    ...pl.expenses.map((e) => ({
+      key: `exp-${e.category}`,
+      label: (
+        <>
+          {e.label} <span className="report-table__soft">· {e.count} {e.count === 1 ? 'expense' : 'expenses'}</span>
+        </>
+      ),
+      amount: minus(e.amount),
+      share: ofSales(e.amount),
+      csv: [`expense_${e.category}`, -e.amount] as [string, number],
+    })),
+  ];
+
+  const csv: ReportView['csv'] = [
+    ['line', 'amount'],
+    ...lines.map((l) => [l.csv[0], l.csv[1].toFixed(2)]),
+    ['net_profit', pl.net.toFixed(2)],
+  ];
+
+  if (pl.sales === 0 && costs === 0) {
+    return { body: <p className="report-empty">No sales or costs in this range yet.</p>, csv };
+  }
+
+  const withUnpaid = pl.net - pl.unpaidWagesEstimate;
+
+  const body = (
+    <>
+      <div className="report-tiles">
+        <Tile
+          label={loss ? 'Net loss' : 'Net profit'}
+          value={money(Math.abs(pl.net))}
+          note={pl.sales > 0 ? `${pct(Math.abs(pl.netMargin))} of sales` : 'no sales in range'}
+        />
+        <Tile
+          label="Gross profit"
+          value={money(pl.grossProfit)}
+          note={pl.sales > 0 ? `${pct(pl.grossProfit / pl.sales)} margin` : undefined}
+        />
+        <Tile label="Total costs" value={money(costs)} note="goods, losses, wages, expenses" />
+      </div>
+
+      <p className={loss ? 'report-verdict report-verdict--loss' : 'report-verdict report-verdict--profit'}>
+        {loss ? 'You made a loss of ' : 'You made a profit of '}
+        <Mono>{money(Math.abs(pl.net))}</Mono>
+        {loss
+          ? ' — costs came to more than sales brought in.'
+          : pl.net === 0
+            ? ' — you broke even.'
+            : '.'}
+      </p>
+
+      <ReportTable
+        head={['', 'Amount', 'Of sales']}
+        numericFrom={1}
+        rows={lines.map((l) => ({ key: l.key, cells: [l.label, l.amount, l.share] }))}
+        foot={[loss ? 'Net loss' : 'Net profit', <Mono>{money(pl.net)}</Mono>, ofSales(pl.net)]}
+      />
+
+      {pl.uncostedSales > 0 && (
+        <p className="report-note">
+          {money(pl.uncostedSales)} of sales had no item cost recorded, so their cost of goods is
+          missing and the profit reads high. Set unit costs on the Stock page or by receiving
+          deliveries.
+        </p>
+      )}
+      {pl.unpaidWageDays > 0 && (
+        <p className="report-note">
+          Payroll isn’t marked paid for <Mono>{pl.unpaidWageDays}</Mono>{' '}
+          {pl.unpaidWageDays === 1 ? 'day' : 'days'} in this range, so those wages aren’t counted.
+          At today’s salaries that’s about {money(pl.unpaidWagesEstimate)}, which would make it a{' '}
+          {withUnpaid < 0 ? 'loss' : 'profit'} of {money(Math.abs(withUnpaid))}.
+        </p>
+      )}
+      {pl.expenses.length === 0 && (
+        <p className="report-note">
+          No expenses recorded in this range.{' '}
+          {ctx.canRecordExpenses ? (
+            <Link to="/admin/expenses?expense=new">Record rent, power, and other running costs</Link>
+          ) : (
+            'Ask an owner or manager to record rent, power, and other running costs'
+          )}{' '}
+          so the profit is complete.
+        </p>
+      )}
+      <p className="report-note">
+        Sales are after discounts and refunds. Tax (owed to the government) and tips (the
+        staff’s) are left out. Stock bought from suppliers counts when it sells, as cost of goods.
+      </p>
+    </>
+  );
+  return { body, csv };
+}
+
 /* ---------- Margins ---------- */
 
 function marginsReport(orders: ReturnType<typeof inLastDays>): ReportView {
@@ -659,6 +868,8 @@ function inventoryReport(ctx: CostContext, days: number): ReportView {
 
 function purchasingReport(ctx: CostContext, days: number): ReportView {
   const rows = supplierSpend(ctx.bills, ctx.suppliers, days);
+  // Bills are in what the shop buys in.
+  const money = formatCost;
   const csv: ReportView['csv'] = [
     ['supplier', 'deliveries', 'received', 'paid', 'owed_now', 'overdue_now'],
     ...rows.map((r) => [

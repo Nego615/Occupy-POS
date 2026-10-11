@@ -131,12 +131,12 @@
 
 .floor--picking .location--current,
 .floor--picking .location--current:hover {
-  border-color: var(--ink);
-  background: var(--ink);
-  color: var(--paper);
+  border-color: var(--brand);
+  background: var(--brand);
+  color: var(--on-brand);
   cursor: default;
 }
 
 .floor--picking .location--current .location__meta {
-  color: var(--line);
+  color: var(--on-brand-soft);
 }

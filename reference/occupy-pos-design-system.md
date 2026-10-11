@@ -14,8 +14,9 @@ Reference implementation: `occupy-pos-mockup.html` (register screen).
 1. **Borders do the separating, not shadows.** Nearly everything is flat. The only
    elevation in the system is a very soft `--shadow` reserved for floating/modal
    surfaces (dialogs, popovers) — never for cards or buttons in the base UI.
-2. **Ink black is the only "loud" color for actions.** Primary buttons, active tabs,
-   and the brand mark are all `--ink`. Never make a primary CTA orange or green.
+2. **One "loud" color for actions: the brand color.** Primary buttons, active tabs,
+   and the brand mark are all `--brand` — ink black unless the shop picks its own
+   in Settings → Brand colors. Never make a primary CTA orange or green.
 3. **Accent color is reserved for state, not decoration.** Orange = occupied/pending.
    Green = open/paid/success. If a color doesn't communicate a state, it shouldn't
    appear as a solid fill — use it only as a small dot, chip, or 2px accent.
@@ -41,6 +42,13 @@ Reference implementation: `occupy-pos-mockup.html` (register screen).
   --surface-hover:  #eeece6; /* hover state for surface elements */
   --line:           #e4e2dc; /* all hairline borders/dividers */
 
+  /* Brand — the shop's own colors (Settings → Brand colors), set on :root
+     at runtime by src/lib/brand.ts. Unset, they fall back to ink. */
+  --brand:          var(--ink);   /* primary buttons, active states, brand mark */
+  --on-brand:       var(--paper); /* text on --brand; ink instead for light brands */
+  --on-brand-soft:  var(--line);  /* secondary text on --brand */
+  --accent:         var(--brand); /* chart columns and share bars */
+
   /* Signal (state only — never decorative) */
   --occupied:       #ff4b2e; /* tab/table occupied, pending payment */
   --occupied-soft:  #fff0ec; /* occupied chip background */
@@ -58,7 +66,10 @@ Reference implementation: `occupy-pos-mockup.html` (register screen).
 ```
 
 **Rules of use**
-- Never introduce a new brand color without a stated state it represents.
+- Never introduce a new brand color without a stated state it represents. A shop's
+  own brand color goes through `--brand` / `--accent`, never hard-coded.
+- Signal colors are never brandable: paid, open, and refunded look the same in
+  every shop.
 - `--occupied` / `--open` should almost always appear as: a 7px dot, a soft-background
   chip with the solid color as text, or a 2px left-border accent. Rarely as a large
   solid fill.
@@ -125,10 +136,10 @@ Import:
 ## 5. Components
 
 ### Buttons
-- **Primary (Charge, Save, Confirm):** `--ink` background, `--paper` text, 700
+- **Primary (Charge, Save, Confirm):** `--brand` background, `--on-brand` text, 700
   weight, `--radius-sm`, 16px vertical padding. Hover: opacity 0.88. No border.
 - **Tab / filter pill:** `--paper` bg, `1px solid var(--line)`, pill radius (100px).
-  Active: `--ink` bg, `--paper` text, border matches bg.
+  Active: `--brand` bg, `--on-brand` text, border matches bg.
 - **Icon stepper (qty +/-):** circular 22px buttons inside a pill-shaped
   `--paper` container with `1px solid var(--line)`.
 

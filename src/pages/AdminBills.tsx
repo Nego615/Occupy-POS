@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router';
 import './Inventory.css';
 import { Button } from '../components/Button';
 import { FilterSelect } from '../components/FilterSelect';
-import { Money, Mono, formatMoney } from '../components/Mono';
+import { CostMoney, Mono, formatCost } from '../components/Mono';
 import { Pill, PillRow } from '../components/Pill';
 import { StatusChip } from '../components/StatusChip';
 import {
@@ -14,7 +14,7 @@ import {
   type PaymentMethod,
   type SupplierBill,
 } from '../data/inventory';
-import { isAmountText } from '../lib/currency';
+import { activeCurrency, costCurrency, isAmountText } from '../lib/currency';
 import { billStatus, type BillStatus } from '../lib/inventory';
 import { usePos } from '../lib/store';
 import { useRevealPanel } from '../lib/useRevealPanel';
@@ -119,18 +119,18 @@ export function AdminBills() {
       </div>
 
       <div className="inv-tiles">
-        <Tile label="Owed" value={formatMoney(summary.owed)} />
+        <Tile label="Owed" value={formatCost(summary.owed)} />
         <Tile
           label="Overdue"
-          value={formatMoney(sum(summary.overdue))}
+          value={formatCost(sum(summary.overdue))}
           note={`${summary.overdue.length} ${summary.overdue.length === 1 ? 'bill' : 'bills'}`}
         />
         <Tile
           label="Due in 7 days"
-          value={formatMoney(sum(summary.dueSoon))}
+          value={formatCost(sum(summary.dueSoon))}
           note={`${summary.dueSoon.length} ${summary.dueSoon.length === 1 ? 'bill' : 'bills'}`}
         />
-        <Tile label="Paid this month" value={formatMoney(summary.paidThisMonth)} />
+        <Tile label="Paid this month" value={formatCost(summary.paidThisMonth)} />
       </div>
 
       <div className="inv-toolbar">
@@ -203,11 +203,11 @@ export function AdminBills() {
                       <span className="inv-sub">{dueText(bill, status)}</span>
                     </td>
                     <td className="num">
-                      <Money value={bill.amount} />
+                      <CostMoney value={bill.amount} />
                     </td>
                     <td className="num">
                       {status.balance > 0 ? (
-                        <Money value={status.balance} className="inv-strong" />
+                        <CostMoney value={status.balance} className="inv-strong" />
                       ) : (
                         <span className="inv-soft">—</span>
                       )}
@@ -258,8 +258,8 @@ function BillPanel({
   function pay() {
     const text = amount.trim().replace(/,/g, '');
     const n = Number(text);
-    if (!isAmountText(text) || n <= 0) return setError('Enter the amount paid.');
-    if (n > status.balance) return setError(`That’s more than the ${formatMoney(status.balance)} owed.`);
+    if (!isAmountText(text, costCurrency()) || n <= 0) return setError('Enter the amount paid.');
+    if (n > status.balance) return setError(`That’s more than the ${formatCost(status.balance)} owed.`);
     if (!confirming) return setConfirming(true);
     recordBillPayment(bill.id, n, method);
     setConfirming(false);
@@ -294,15 +294,15 @@ function BillPanel({
         </dd>
         <dt>Amount</dt>
         <dd>
-          <Money value={bill.amount} />
+          <CostMoney value={bill.amount} />
         </dd>
         <dt>Paid</dt>
         <dd>
-          <Money value={status.paid} />
+          <CostMoney value={status.paid} />
         </dd>
         <dt>Balance</dt>
         <dd>
-          <Money value={status.balance} className="inv-strong" />
+          <CostMoney value={status.balance} className="inv-strong" />
         </dd>
       </dl>
 
@@ -314,7 +314,7 @@ function BillPanel({
               <li key={p.id}>
                 <span className="inv-history__what">{PAYMENT_METHOD_LABEL[p.method]}</span>
                 <span className="inv-history__change">
-                  <Money value={p.amount} />
+                  <CostMoney value={p.amount} />
                 </span>
                 <span className="inv-history__meta">
                   {formatDay(p.date)} · {p.by}
@@ -331,7 +331,7 @@ function BillPanel({
           {canPay ? (
             <div className="inv-form">
               <label className="inv-field">
-                Amount
+                Amount{costCurrency() !== activeCurrency() && ` (${costCurrency().symbol})`}
                 <span className="inv-field__hint">The full balance, or part of it.</span>
                 <input
                   className="inv-input inv-input--num"
@@ -366,7 +366,7 @@ function BillPanel({
               )}
               <Button size="sm" onClick={pay} onBlur={() => setConfirming(false)}>
                 {confirming
-                  ? `Confirm ${formatMoney(Number(amount.replace(/,/g, '')) || 0)} paid`
+                  ? `Confirm ${formatCost(Number(amount.replace(/,/g, '')) || 0)} paid`
                   : 'Record payment'}
               </Button>
             </div>

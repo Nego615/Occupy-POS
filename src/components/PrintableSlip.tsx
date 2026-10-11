@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import './PrintableReceipt.css';
 import { formatMoney } from './Mono';
-import { TENDER_METHODS, type CashUp } from '../data/cashup';
+import { TENDER_METHODS, type CashUp, type LocalDrawer } from '../data/cashup';
 import {
   TENDER_LABEL,
   orderDiscount,
@@ -13,6 +13,7 @@ import {
   type OrderRecord,
 } from '../data/orders';
 import { stationLabel } from '../data/settings';
+import { currencyOf, type Currency } from '../lib/currency';
 import { usePos } from '../lib/store';
 
 /**
@@ -38,11 +39,22 @@ function Slip({ head, children, brand = true }: { head: ReactNode; children: Rea
   );
 }
 
-function Row({ label, value, total = false }: { label: ReactNode; value: number; total?: boolean }) {
+function Row({
+  label,
+  value,
+  total = false,
+  currency,
+}: {
+  label: ReactNode;
+  value: number;
+  total?: boolean;
+  /** The business currency unless told otherwise. */
+  currency?: Currency;
+}) {
   return (
     <div className={total ? 'print-receipt__row print-receipt__total' : 'print-receipt__row'}>
       <span>{label}</span>
-      <span className="mono">{formatMoney(value)}</span>
+      <span className="mono">{formatMoney(value, currency)}</span>
     </div>
   );
 }
@@ -124,8 +136,8 @@ export function PrintableFolio({
 }: {
   room: string;
   orders: OrderRecord[];
-  /** How the room settled up, once it has. */
-  paid?: { method: string; tendered?: number; change?: number };
+  /** How the room settled up, once it has — `currency` when the cash was in the cost currency. */
+  paid?: { method: string; tendered?: number; change?: number; currency?: Currency };
 }) {
   const total = orders.reduce((sum, o) => sum + orderTotal(o), 0);
   return (
@@ -155,15 +167,19 @@ export function PrintableFolio({
       </div>
       <div className="print-receipt__totals">
         <Row label="Total" value={total} total />
-        {paid && <Row label={paid.method} value={paid.tendered ?? total} />}
-        {paid?.change ? <Row label="Change" value={paid.change} /> : null}
+        {paid && <Row label={paid.method} value={paid.tendered ?? total} currency={paid.currency} />}
+        {paid?.change ? <Row label="Change" value={paid.change} currency={paid.currency} /> : null}
       </div>
     </Slip>
   );
 }
 
-/** A closed shift: money in and out by method, and the drawer count. */
-export function PrintableCashUp({ cashUp }: { cashUp: CashUp }) {
+/**
+ * A closed shift: money in and out by method, and the drawer count — and the
+ * count of the cost-currency drawer, when the shop takes cash in it.
+ * `currency` is for a shift closed before the shop switched what it sells in.
+ */
+export function PrintableCashUp({ cashUp, currency }: { cashUp: CashUp; currency?: Currency }) {
   const { allStaff } = usePos();
   const by = allStaff.find((m) => m.id === cashUp.by)?.name;
   const variance = cashUp.countedCash - cashUp.expectedCash;
@@ -184,21 +200,48 @@ export function PrintableCashUp({ cashUp }: { cashUp: CashUp }) {
     >
       <div className="print-receipt__lines">
         {TENDER_METHODS.map((m) => (
-          <Row key={m} label={TENDER_LABEL[m]} value={cashUp.taken[m] - cashUp.refunded[m]} />
+          <Row key={m} label={TENDER_LABEL[m]} value={cashUp.taken[m] - cashUp.refunded[m]} currency={currency} />
         ))}
         <Row
           label="Taken, less refunds"
           value={TENDER_METHODS.reduce((sum, m) => sum + cashUp.taken[m] - cashUp.refunded[m], 0)}
           total
+          currency={currency}
         />
       </div>
       <div className="print-receipt__totals">
-        <Row label="Opening float" value={cashUp.float} />
-        <Row label="Cash expected" value={cashUp.expectedCash} />
-        <Row label="Cash counted" value={cashUp.countedCash} />
-        <Row label={variance < 0 ? 'Short' : variance > 0 ? 'Over' : 'Balanced'} value={Math.abs(variance)} total />
-        {cashUp.note && <div className="print-receipt__part">{cashUp.note}</div>}
+        <Row label="Opening float" value={cashUp.float} currency={currency} />
+        <Row label="Cash expected" value={cashUp.expectedCash} currency={currency} />
+        <Row label="Cash counted" value={cashUp.countedCash} currency={currency} />
+        <Row
+          label={variance < 0 ? 'Short' : variance > 0 ? 'Over' : 'Balanced'}
+          value={Math.abs(variance)}
+          total
+          currency={currency}
+        />
       </div>
+      {cashUp.local && <LocalDrawerRows drawer={cashUp.local} />}
+      {cashUp.note && <div className="print-receipt__part">{cashUp.note}</div>}
     </Slip>
+  );
+}
+
+/** The cost-currency drawer's count, in its own currency. */
+function LocalDrawerRows({ drawer }: { drawer: LocalDrawer }) {
+  const currency = currencyOf(drawer.currency);
+  const variance = drawer.counted - drawer.expected;
+  return (
+    <div className="print-receipt__totals">
+      <Row label={`${currency.symbol} float`} value={drawer.float} currency={currency} />
+      <Row label={`${currency.symbol} cash taken, less refunds`} value={drawer.taken - drawer.refunded} currency={currency} />
+      <Row label={`${currency.symbol} expected`} value={drawer.expected} currency={currency} />
+      <Row label={`${currency.symbol} counted`} value={drawer.counted} currency={currency} />
+      <Row
+        label={variance < 0 ? 'Short' : variance > 0 ? 'Over' : 'Balanced'}
+        value={Math.abs(variance)}
+        total
+        currency={currency}
+      />
+    </div>
   );
 }

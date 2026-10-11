@@ -2,6 +2,7 @@ import { useState } from 'react';
 import './Inventory.css';
 import './Deals.css';
 import { Button } from '../components/Button';
+import { FilterSelect } from '../components/FilterSelect';
 import { Money, Mono } from '../components/Mono';
 import { StatusChip } from '../components/StatusChip';
 import { Switch } from '../components/Switch';
@@ -181,10 +182,13 @@ function MealPanel({ meal, onDeleted }: { meal: SetMeal; onDeleted: () => void }
     );
   }
 
-  function toggleItem(index: number, itemId: string) {
+  /** Adds or takes off several items at once — one, or a whole category. */
+  function setItems(index: number, itemIds: string[], on: boolean) {
     const ids = draft.courses[index].itemIds;
     setCourse(index, {
-      itemIds: ids.includes(itemId) ? ids.filter((id) => id !== itemId) : [...ids, itemId],
+      itemIds: on
+        ? [...ids, ...itemIds.filter((id) => !ids.includes(id))]
+        : ids.filter((id) => !itemIds.includes(id)),
     });
   }
 
@@ -329,7 +333,7 @@ function MealPanel({ meal, onDeleted }: { meal: SetMeal; onDeleted: () => void }
               <CourseItems
                 catalog={catalog}
                 selected={course.itemIds}
-                onToggle={(id) => toggleItem(ci, id)}
+                onChange={(ids, on) => setItems(ci, ids, on)}
                 label={course.name || `Course ${ci + 1}`}
               />
             </div>
@@ -389,43 +393,130 @@ function MealPanel({ meal, onDeleted }: { meal: SetMeal; onDeleted: () => void }
   );
 }
 
-/** A course's item picker, grouped by category so a long catalog stays scannable. */
+/**
+ * A course's item picker, grouped by category so a long catalog stays
+ * scannable. Every category starts closed — tap its heading to open it, or
+ * pick it from the dropdown to see just that one — and a whole category can
+ * go into the course in one tap, open or not.
+ */
 function CourseItems({
   catalog,
   selected,
-  onToggle,
+  onChange,
   label,
 }: {
   catalog: CatalogItem[];
   selected: string[];
-  onToggle: (itemId: string) => void;
+  /** Puts `itemIds` in the course, or takes them out. */
+  onChange: (itemIds: string[], on: boolean) => void;
   label: string;
 }) {
   const { categories } = usePos();
+  // 'all', 'picked', or a category id ('' for items whose category has gone).
+  const [show, setShow] = useState('all');
+  // Categories opened by their heading, while showing all of them.
+  const [open, setOpen] = useState<Set<string>>(() => new Set());
+
+  function toggle(id: string) {
+    setOpen((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
   // Items whose category has gone still show, under their own heading.
   const known = new Set(categories.map((c) => c.id));
-  const groups = [...categories, { id: '', label: NO_CATEGORY }];
+  const groups = [...categories, { id: '', label: NO_CATEGORY }]
+    .map((cat) => ({
+      ...cat,
+      items: catalog.filter((i) => (cat.id ? i.category === cat.id : !known.has(i.category))),
+    }))
+    .filter((g) => g.items.length > 0);
+
+  const visible = groups
+    .filter((g) => show === 'all' || show === 'picked' || g.id === show)
+    .map((g) => (show === 'picked' ? { ...g, items: g.items.filter((i) => selected.includes(i.id)) } : g))
+    .filter((g) => g.items.length > 0);
+
   return (
     <div className="deal-course__items" role="group" aria-label={`${label} options`}>
-      {groups.map((cat) => {
-        const items = catalog.filter((i) => (cat.id ? i.category === cat.id : !known.has(i.category)));
-        if (items.length === 0) return null;
+      {groups.length > 1 && (
+        <FilterSelect value={show} onChange={setShow} label={`Show ${label} options from`}>
+          <option value="all">All categories</option>
+          <option value="picked">Picked so far ({selected.length})</option>
+          {groups.map((g) => (
+            <option key={g.id} value={g.id}>
+              {g.label}
+            </option>
+          ))}
+        </FilterSelect>
+      )}
+      {visible.length === 0 && <p className="inv-note">Nothing picked for this course yet.</p>}
+      {visible.map((cat) => {
+        const ids = cat.items.map((i) => i.id);
+        const picked = ids.filter((id) => selected.includes(id)).length;
+        const everything = picked === ids.length;
+        // Narrowed by the dropdown, what was asked for shows straight away.
+        const isOpen = show !== 'all' || open.has(cat.id);
+        const heading = (
+          <>
+            {cat.label}
+            {show !== 'picked' && picked > 0 && (
+              <>
+                {' '}
+                · <Mono>{picked}</Mono> of <Mono>{ids.length}</Mono>
+              </>
+            )}
+          </>
+        );
         return (
           <div key={cat.id} className="deal-group">
-            <span className="inv-field__hint">{cat.label}</span>
-            <div className="deal-chips">
-              {items.map((i) => (
+            <span className="deal-group__label">
+              {show === 'all' ? (
                 <button
-                  key={i.id}
                   type="button"
-                  className="deal-chip"
-                  aria-pressed={selected.includes(i.id)}
-                  onClick={() => onToggle(i.id)}
+                  className="deal-group__toggle"
+                  aria-expanded={isOpen}
+                  onClick={() => toggle(cat.id)}
                 >
-                  {i.name}
+                  <span className="deal-group__caret" aria-hidden="true">
+                    ▸
+                  </span>
+                  {heading}
                 </button>
-              ))}
-            </div>
+              ) : (
+                <span className="inv-field__hint">{heading}</span>
+              )}
+              {show !== 'picked' && ids.length > 1 && (
+                <button
+                  type="button"
+                  className="deal-link"
+                  onClick={() => onChange(ids, !everything)}
+                  aria-label={`${everything ? 'Remove all' : 'Add all'} ${cat.label} to ${label}`}
+                >
+                  {everything ? 'Remove all' : 'Add all'}
+                </button>
+              )}
+            </span>
+            {isOpen && (
+              <div className="deal-chips">
+                {cat.items.map((i) => {
+                  const on = selected.includes(i.id);
+                  return (
+                    <button
+                      key={i.id}
+                      type="button"
+                      className="deal-chip"
+                      aria-pressed={on}
+                      onClick={() => onChange([i.id], !on)}
+                    >
+                      {i.name}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         );
       })}

@@ -8,14 +8,15 @@ export type FilterSelectProps = {
   label: string;
   /** <option> / <optgroup> elements. */
   children: ReactNode;
+  disabled?: boolean;
 };
 
 /** Native select, dressed as a pill so it sits with the rest of a toolbar. */
-export function FilterSelect({ value, onChange, label, children }: FilterSelectProps) {
+export function FilterSelect({ value, onChange, label, children, disabled }: FilterSelectProps) {
   return (
     <label className="filter-select">
       <span className="sr-only">{label}</span>
-      <select value={value} onChange={(e) => onChange(e.target.value)}>
+      <select value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled}>
         {children}
       </select>
     </label>

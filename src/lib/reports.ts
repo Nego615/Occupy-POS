@@ -9,6 +9,7 @@ import {
   refundedQty,
   type Order,
 } from '../data/orders';
+import { dateOfDaysAgo } from '../data/history';
 import { round } from './cart';
 
 /**
@@ -17,16 +18,23 @@ import { round } from './cart';
  * a partial refund comes off its order) and are also tallied on their own.
  */
 
-export type ReportRangeId = 'today' | 'week' | 'month';
+export type ReportRangeId = 'today' | 'week' | 'month' | 'all';
 
+/** `days` is Infinity for All time — every filter below reads it as "no cutoff". */
 export const REPORT_RANGES: { id: ReportRangeId; label: string; days: number }[] = [
   { id: 'today', label: 'Today', days: 1 },
   { id: 'week', label: '7 days', days: 7 },
   { id: 'month', label: '30 days', days: 30 },
+  { id: 'all', label: 'All time', days: Infinity },
 ];
 
 export function inLastDays(orders: Order[], days: number): Order[] {
   return orders.filter((o) => o.daysAgo < days);
+}
+
+/** Days from the oldest order through today — how far back All time reaches. */
+export function daysSpanned(orders: Order[]): number {
+  return orders.reduce((most, o) => Math.max(most, o.daysAgo + 1), 1);
 }
 
 const paidOnly = (orders: Order[]) => orders.filter((o) => o.status === 'paid');
@@ -86,6 +94,37 @@ export function byDay(orders: Order[], days: number): DayRow[] {
       label: dayLabel(daysAgo),
       ...ledger(orders.filter((o) => o.daysAgo === daysAgo)),
     });
+  }
+  return rows;
+}
+
+export type MonthRow = Ledger & { key: string; label: string };
+
+/**
+ * One ledger per calendar month, oldest first, from the month `days` back
+ * through this one — quiet months still get a row. For spans too long to
+ * read day by day.
+ */
+export function byMonth(orders: Order[], days: number): MonthRow[] {
+  const keyOf = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  const groups = new Map<string, Order[]>();
+  for (const order of orders) {
+    const key = keyOf(dateOfDaysAgo(order.daysAgo));
+    groups.set(key, [...(groups.get(key) ?? []), order]);
+  }
+
+  const rows: MonthRow[] = [];
+  const first = dateOfDaysAgo(days - 1);
+  const cursor = new Date(first.getFullYear(), first.getMonth(), 1);
+  const now = new Date();
+  while (cursor <= now) {
+    const key = keyOf(cursor);
+    rows.push({
+      key,
+      label: cursor.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+      ...ledger(groups.get(key) ?? []),
+    });
+    cursor.setMonth(cursor.getMonth() + 1);
   }
   return rows;
 }

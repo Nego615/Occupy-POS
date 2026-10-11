@@ -111,6 +111,14 @@
   line-height: 1;
 }
 
+/* The same bill in cash in the cost currency, when the shop takes it. */
+.tender__total-alt {
+  display: block;
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
 /* ---------- Tip ---------- */
 
 .tip-row {
@@ -146,13 +154,13 @@
 }
 
 .tip-pill--active {
-  background: var(--ink);
-  border-color: var(--ink);
+  background: var(--brand);
+  border-color: var(--brand);
 }
 
 .tip-pill--active .tip-pill__pct,
 .tip-pill--active .tip-pill__amt {
-  color: var(--paper);
+  color: var(--on-brand);
 }
 
 .tip-pill:focus-visible {
@@ -260,9 +268,9 @@
 }
 
 .method--active {
-  background: var(--ink);
-  color: var(--paper);
-  border-color: var(--ink);
+  background: var(--brand);
+  color: var(--on-brand);
+  border-color: var(--brand);
 }
 
 .method:focus-visible {
@@ -439,9 +447,9 @@
 }
 
 .tender__chip--active {
-  background: var(--ink);
-  border-color: var(--ink);
-  color: var(--paper);
+  background: var(--brand);
+  border-color: var(--brand);
+  color: var(--on-brand);
 }
 
 .tender__custom input.tender__amount {

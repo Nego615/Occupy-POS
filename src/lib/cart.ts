@@ -209,15 +209,17 @@ export function editLine(
   return line ? replaceLine(lines, key, withNote(withDiscount(line, discount), note)) : lines;
 }
 
-/** A line for one `meal` made of `picks`, one per course in order. */
+/**
+ * A line for one `meal` made of `picks`, one per course in order. It's rung up
+ * at the meal's price whatever's picked — the picks' own prices don't show as
+ * a list price or count as a discount.
+ */
 export function mealLine(meal: SetMeal, picks: CatalogItem[]): Omit<CartLine, 'qty'> {
-  const worth = picks.reduce((sum, p) => sum + p.price, 0);
   return {
     key: `${meal.id}:${picks.map((p) => p.id).join('+')}`,
     itemId: meal.id,
     name: meal.name,
     unitPrice: meal.price,
-    ...(worth > meal.price ? { listPrice: worth } : {}),
     parts: picks.map((p, i) => ({ itemId: p.id, name: p.name, course: meal.courses[i].name })),
   };
 }

@@ -2,14 +2,15 @@ import { useState, type ReactNode } from 'react';
 import './OrderDetail.css';
 import { ApprovalDialog } from './ApprovalDialog';
 import { Button } from './Button';
-import { Money, Mono, formatMoney } from './Mono';
+import { InCurrency, Money, Mono, formatMoney } from './Mono';
 import { SummaryRow } from './Receipt';
 import { StatusChip, type StatusKind } from './StatusChip';
 import { Stepper } from './Stepper';
 import {
   REFUND_REASONS,
-  TENDER_LABEL,
   changeGiven,
+  localChange,
+  tenderLabel,
   orderDiscount,
   orderItems,
   orderSubtotal,
@@ -20,6 +21,8 @@ import {
   type Order,
   type OrderStatus,
 } from '../data/orders';
+import { receiptCurrency } from '../lib/currencySwitch';
+import { activeCurrency, currencyOf, formatCurrency } from '../lib/currency';
 import { usePos } from '../lib/store';
 
 /** An order's `paid` maps onto the shared chip's `open` (success) styling. */
@@ -55,13 +58,16 @@ export type OrderDetailProps = {
  * different order.
  */
 export function OrderDetail({
-  order,
+  order: given,
   when,
   onOpenTab,
   headingLevel: Heading = 'h2',
   openActions,
 }: OrderDetailProps) {
   const { me, can, allStaff: staff, catalog, settings, refundOrder, locations } = usePos();
+  // An order from before the shop switched currencies shows as it was taken.
+  const order = given.recordedIn?.original ?? given;
+  const currency = receiptCurrency(given);
   const room = order.roomId ? locations.find((l) => l.id === order.roomId)?.name ?? 'a room' : null;
   // Units to refund per line index, while the refund panel is open.
   const [refunding, setRefunding] = useState<Map<number, number> | null>(null);
@@ -79,6 +85,9 @@ export function OrderDetail({
   const cashier = nameOf(order.staffId);
   const alreadyRefunded = refundedAmount(order);
   const change = changeGiven(order.payments);
+  // Cash taken in the cost currency, and its change — all in that currency.
+  const localCash = order.payments.find((p) => p.local)?.local;
+  const changeLocal = localChange(order.payments);
 
   const remaining = (index: number) => order.lines[index].qty - refundedQty(order, index);
   const picked = refunding
@@ -111,7 +120,7 @@ export function OrderDetail({
   }
 
   return (
-    <>
+    <InCurrency currency={currency}>
       <div className="detail__head">
         <Heading className="detail__title">
           {order.name} · <Mono>{`#${order.id}`}</Mono>
@@ -126,6 +135,14 @@ export function OrderDetail({
           {order.status === 'paid' && room && ` · settled with ${room}`}
           {cashier && ` · ${cashier}`}
         </div>
+        {given.recordedIn && (
+          <div className="detail__sub">
+            Taken in {currency!.symbol} · counted as{' '}
+            <Mono>{formatCurrency(orderTotal(given))}</Mono> in reports, at{' '}
+            <Mono>{formatCurrency(given.recordedIn.rate, currency)}</Mono> to{' '}
+            <Mono>{`${activeCurrency().symbol}1`}</Mono>
+          </div>
+        )}
         <div className="detail__status">
           <StatusChip status={chip.status}>{chip.label}</StatusChip>
           {refundedBy && <span className="detail__by">by {refundedBy}</span>}
@@ -187,11 +204,25 @@ export function OrderDetail({
           order.payments.map((p, i) => (
             <SummaryRow
               key={i}
-              label={`${TENDER_LABEL[p.method]}${p.ref ? ` ·${p.ref}` : ''}`}
+              label={`${tenderLabel(p)}${p.ref ? ` ·${p.ref}` : ''}`}
               value={p.amount}
             />
           ))}
         {change > 0 && <SummaryRow label="Change given" value={change} />}
+        {localCash && (
+          <InCurrency currency={currencyOf(localCash.currency)}>
+            {order.payments
+              .filter((p) => p.local)
+              .map((p, i) => (
+                <SummaryRow
+                  key={`local-${i}`}
+                  label={`${tenderLabel(p)} received · at ${formatCurrency(p.local!.rate, currencyOf(p.local!.currency))}`}
+                  value={p.local!.tendered}
+                />
+              ))}
+            {changeLocal > 0 && <SummaryRow label="Change given" value={changeLocal} />}
+          </InCurrency>
+        )}
         {(order.refunds ?? []).map((r) => (
           <SummaryRow key={r.id} label={`Refund · ${r.reason}`} value={-r.amount} />
         ))}
@@ -247,7 +278,8 @@ export function OrderDetail({
             <Button variant="secondary" onClick={() => window.print()}>
               Reprint receipt
             </Button>
-            <Button variant="secondary" onClick={startRefund} disabled={order.status !== 'paid'}>
+            {/* Refunds go back in today's currency; one taken in another is refunded by hand. */}
+            <Button variant="secondary" onClick={startRefund} disabled={order.status !== 'paid' || !!given.recordedIn}>
               {canRefund ? 'Refund…' : 'Refund · needs approval'}
             </Button>
           </>
@@ -257,13 +289,13 @@ export function OrderDetail({
       <ApprovalDialog
         open={approving}
         permission="refunds"
-        action={`Refund #${order.id} · ${formatMoney(refundTotal)} · ${reason}`}
+        action={`Refund #${order.id} · ${formatMoney(refundTotal, currency)} · ${reason}`}
         onApproved={(approver) => {
           issue(approver.id);
           setApproving(false);
         }}
         onClose={() => setApproving(false)}
       />
-    </>
+    </InCurrency>
   );
 }

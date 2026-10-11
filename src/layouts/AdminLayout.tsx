@@ -25,11 +25,12 @@ export const ADMIN_NAV: { section: string; items: NavEntry[] }[] = [
     items: [
       { to: '/admin', icon: 'overview', label: 'Overview', permission: 'reports' },
       { to: '/admin/orders', icon: 'receipt', label: 'Orders', permission: 'reports' },
-      { to: '/admin/items', icon: 'tag', label: 'Items & catalog', permission: 'catalog' },
+      { to: '/admin/items', icon: 'tag', label: 'Items & catalog', permission: 'menu' },
       { to: '/admin/categories', icon: 'layers', label: 'Categories', permission: 'catalog' },
-      { to: '/admin/meals', icon: 'plate', label: 'Set meals', permission: 'catalog' },
-      { to: '/admin/promotions', icon: 'percent', label: 'Promotions', permission: 'catalog' },
+      { to: '/admin/meals', icon: 'plate', label: 'Set meals', permission: 'menu' },
+      { to: '/admin/promotions', icon: 'percent', label: 'Promotions', permission: 'promotions' },
       { to: '/admin/reports', icon: 'chart', label: 'Reports', permission: 'reports' },
+      { to: '/admin/expenses', icon: 'cash', label: 'Expenses', permission: 'expenses' },
     ],
   },
   {
@@ -64,6 +65,7 @@ export function AdminLayout() {
   const [menuOpen, setMenuOpen] = useState(false);
   const { pathname } = useLocation();
   useEffect(() => setMenuOpen(false), [pathname]);
+  const home = me ? homePath(me) : '/counter/register';
 
   // No admin permission at all — no sidebar to show, just the explanation.
   if (!ADMIN_PERMISSIONS.some(can)) return <NoAccess />;
@@ -129,10 +131,10 @@ export function AdminLayout() {
           );
         })}
 
-        {/* The one link out of the admin branch, back to the counter flow (or the front desk). */}
-        <NavLink to={me ? homePath(me) : '/counter/register'} className="nav-item admin__exit">
+        {/* The one link out of the admin branch, back to the counter flow (or the front desk, or the kitchen). */}
+        <NavLink to={home} className="nav-item admin__exit">
           <Icon name="back" className="nav-icon" />
-          {me && homePath(me) === '/desk' ? 'Back to front desk' : 'Back to register'}
+          {home === '/desk' ? 'Back to front desk' : home === '/kitchen' ? 'Back to kitchen' : 'Back to register'}
         </NavLink>
 
         {me && (

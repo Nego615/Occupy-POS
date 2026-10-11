@@ -375,90 +375,67 @@ function useApprovedDiscount(action: string, apply: (d: ManualDiscount | null) =
   return { submit, dialog, allowed };
 }
 
-/** A cart line's note and manual discount. */
+/**
+ * A cart line's note. Discounts are the front desk's to give, so a line's
+ * discount isn't touched here — one already on it stays as it is.
+ */
 export function LineDialog({ lineKey, onClose }: { lineKey: string | null; onClose: () => void }) {
   const { cart, editLine } = usePos();
   const line = cart.find((l) => l.key === lineKey) ?? null;
   const [note, setNote] = useState('');
-  const [discount, setDiscount] = useState<ManualDiscount | null>(null);
 
   // Filled from the line each time the dialog opens on one.
   useEffect(() => {
     if (!lineKey) return;
-    const current = cart.find((l) => l.key === lineKey);
-    setNote(current?.note ?? '');
-    setDiscount(current?.manual ? { kind: current.manual.kind, value: current.manual.value } : null);
+    setNote(cart.find((l) => l.key === lineKey)?.note ?? '');
     // Only on opening — not as the cart changes underneath.
   }, [lineKey]);
 
-  const base = line ? (line.manual?.base.unitPrice ?? line.unitPrice) * line.qty : 0;
-  const sameDiscount =
-    (line?.manual?.kind ?? null) === (discount?.kind ?? null) &&
-    (line?.manual?.value ?? null) === (discount?.value ?? null);
-  const unchanged = !!line && (line.note ?? '') === note.trim() && sameDiscount;
-
-  const { submit, dialog, allowed } = useApprovedDiscount(
-    `Discount on ${line?.qty ?? 1} × ${line?.name ?? ''}`,
-    (d) => {
-      if (line) editLine(line.key, note, d);
-      onClose();
-    },
-  );
+  const unchanged = !!line && (line.note ?? '') === note.trim();
 
   function save() {
     if (!line) return;
-    // An unchanged discount (say, one a manager already okayed) isn't re-approved.
-    if (sameDiscount) {
-      editLine(line.key, note, line.manual ? { ...discount!, by: line.manual.by } : null);
-      onClose();
-    } else {
-      submit(discount);
-    }
+    const kept = line.manual ? { kind: line.manual.kind, value: line.manual.value, by: line.manual.by } : null;
+    editLine(line.key, note, kept);
+    onClose();
   }
 
   return (
-    <>
-      <Modal
-        open={line !== null}
-        title={line ? `${line.qty} × ${line.name}` : ''}
-        sub={line && <Money value={line.unitPrice * line.qty} />}
-        onClose={onClose}
-      >
-        {line && (
-          <form
-            className="counter-dialog__form"
-            onSubmit={(e) => {
-              e.preventDefault();
-              save();
-            }}
-          >
-            <label className="counter-field">
-              <span>Note for the kitchen and receipt</span>
-              <input
-                type="text"
-                value={note}
-                maxLength={60}
-                onChange={(e) => setNote(e.target.value)}
-                placeholder="No onions, extra hot…"
-                autoFocus
-              />
-            </label>
-            <fieldset className="counter-fieldset">
-              <legend>Discount{!allowed && ' · needs a manager'}</legend>
-              <DiscountPicker base={base} value={discount} onChange={setDiscount} />
-            </fieldset>
-            <Button type="submit" size="lg" block disabled={unchanged}>
-              Save
-            </Button>
-          </form>
-        )}
-      </Modal>
-      {dialog}
-    </>
+    <Modal
+      open={line !== null}
+      title={line ? `${line.qty} × ${line.name}` : ''}
+      sub={line && <Money value={line.unitPrice * line.qty} />}
+      onClose={onClose}
+    >
+      {line && (
+        <form
+          className="counter-dialog__form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            save();
+          }}
+        >
+          <label className="counter-field">
+            <span>Note for the kitchen and receipt</span>
+            <input
+              type="text"
+              value={note}
+              maxLength={60}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="No onions, extra hot…"
+              autoFocus
+            />
+          </label>
+          <Button type="submit" size="lg" block disabled={unchanged}>
+            Save
+          </Button>
+        </form>
+      )}
+    </Modal>
   );
 }
 
-/** A discount off the whole tab, before tax. */
+/** A discount off the whole bill, before tax — given at the front desk. */
 export function TabDiscountDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { tab, totals, setTabDiscount } = usePos();
   const [discount, setDiscount] = useState<ManualDiscount | null>(null);
@@ -480,7 +457,7 @@ export function TabDiscountDialog({ open, onClose }: { open: boolean; onClose: (
     <>
       <Modal
         open={open}
-        title="Discount the whole tab"
+        title="Discount the bill"
         sub={
           <>
             Comes off <Money value={base} /> before tax

@@ -12,12 +12,32 @@ export const PAYMENT_METHODS: { id: PaymentMethodId; label: string; icon: IconNa
   { id: 'split', label: 'Split bills', icon: 'split' },
 ];
 
+/**
+ * A shop that sold in `from` and now sells in Settings' currency. Orders,
+ * stock movements, and cash-ups from before `at` were recorded in `from`,
+ * and are read back converted at `rate`.
+ */
+export type CurrencySwitch = { from: CurrencyCode; rate: number; at: string };
+
+/**
+ * Cost-currency units to one sales unit, when the shop buys in a different
+ * currency than it sells in. Undefined otherwise — and every conversion is
+ * then a no-op.
+ */
+export function exchangeRate(s: Pick<Settings, 'currency' | 'costCurrency' | 'exchangeRate'>): number | undefined {
+  return s.costCurrency && s.costCurrency !== s.currency && s.exchangeRate ? s.exchangeRate : undefined;
+}
+
 /** Business-wide settings, edited from Admin → Settings. */
 export type Settings = {
   /** The brand shown in the top bar, on sign-in, and on receipts. */
   businessName: string;
   /** Uploaded logo as a data URL, shown beside the name and atop receipts; null uses the built-in mark. */
   logo: string | null;
+  /** Primary buttons, selected chips, active nav, and the brand mark, as "#1d5fa8"; null is the stock ink. */
+  brandColor: string | null;
+  /** Chart columns and share bars; null follows the brand color. */
+  accentColor: string | null;
   /** This location — "Front Counter". */
   locationName: string;
   /** This register — "Register 1". */
@@ -28,9 +48,21 @@ export type Settings = {
   autoPrintReceipt: boolean;
   /**
    * What every price, total, and wage is shown in. Display only — switching
-   * doesn't convert amounts already entered.
+   * doesn't convert amounts already entered. With a `costCurrency`, it's what
+   * the shop sells in: prices, orders, item costs, and every report.
    */
   currency: CurrencyCode;
+  /**
+   * What the shop buys in, when that's not what it sells in: purchase orders,
+   * supplier bills, expenses, and wages. Absent buys in `currency`.
+   */
+  costCurrency?: CurrencyCode;
+  /** Cost-currency units to one unit of `currency` — 2650 for "$1 = TSh 2,650". */
+  exchangeRate?: number;
+  /** ISO day the rate was last changed. */
+  rateUpdatedAt?: string;
+  /** Set when the shop switched what it sells in, converting its prices — see currencySwitch.ts. */
+  currencySwitch?: CurrencySwitch;
 
   /** VAT / sales tax as a fraction — 0.18 is 18%, Tanzania's standard VAT rate. */
   taxRate: number;
@@ -57,6 +89,13 @@ export type Settings = {
   kitchenCategories: CategoryId[];
   /** Minutes a kitchen ticket can wait before it's flagged late. */
   kitchenLateMinutes: number;
+  /**
+   * Let the kitchen — cooks — add, edit, and delete items in
+   * `kitchenMenuCategories`, and build set meals.
+   */
+  kitchenMenu: boolean;
+  /** The categories whose items the kitchen manages while `kitchenMenu` is on. */
+  kitchenMenuCategories: CategoryId[];
 
   /** Minutes without a tap or keypress before the register locks; null never locks. */
   autoLockMinutes: number | null;
@@ -67,6 +106,8 @@ export type Settings = {
 export const DEFAULT_SETTINGS: Settings = {
   businessName: 'Occupy',
   logo: null,
+  brandColor: null,
+  accentColor: null,
   locationName: 'Front Counter',
   registerName: 'Register 1',
   receiptFooter: 'Thanks for stopping in.',
@@ -81,6 +122,8 @@ export const DEFAULT_SETTINGS: Settings = {
   lowStockDefault: LOW_STOCK_DEFAULT,
   kitchenCategories: ['food'],
   kitchenLateMinutes: 10,
+  kitchenMenu: false,
+  kitchenMenuCategories: [],
   autoLockMinutes: 15,
   maxPinTries: 5,
 };

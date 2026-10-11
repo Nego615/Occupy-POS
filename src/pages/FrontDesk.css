@@ -245,3 +245,12 @@
     padding: 0 16px 18px;
   }
 }
+
+/* The cost-currency drawer's heading, in line with the drawer fields above it. */
+.desk__drawer-title {
+  margin: 18px 0 2px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+  font-size: 14px;
+  font-weight: 800;
+}

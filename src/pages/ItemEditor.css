@@ -403,8 +403,7 @@
   grid-column: 1 / -1;
 }
 
-.stock-panel__par,
-.stock-panel__select {
+.stock-panel__par {
   min-height: var(--hit-area);
   padding: 8px 10px;
   border: 1px solid var(--line);
@@ -412,10 +411,6 @@
   background: var(--paper);
   font-size: 13.5px;
   color: var(--ink);
-}
-
-.stock-panel__select {
-  font-family: inherit;
 }
 
 /* Portions — one row per serving: name, price, share of a unit, remove. */
@@ -434,17 +429,6 @@
   align-items: center;
   gap: 8px;
   font-size: 14px;
-}
-
-.portions__select {
-  min-height: var(--hit-area);
-  padding: 8px 10px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--paper);
-  font-family: inherit;
-  font-size: 14px;
-  color: var(--ink);
 }
 
 .portions__size {

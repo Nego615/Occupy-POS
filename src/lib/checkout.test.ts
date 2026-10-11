@@ -12,7 +12,7 @@ import {
   refundValue,
   type OrderRecord,
 } from '../data/orders';
-import { hashPin, pinMatches, uniquePin } from '../data/staff';
+import { hashPin, hasPermission, pinMatches, uniquePin } from '../data/staff';
 import { unsentLines, takeVoids } from '../data/kitchen';
 import {
   addLine,
@@ -20,10 +20,13 @@ import {
   customLine,
   discountOff,
   editLine,
+  mealLine,
   setLineDiscount,
   setLineNote,
   type CartLine,
 } from './cart';
+import type { CatalogItem } from '../data/catalog';
+import type { SetMeal } from '../data/deals';
 import { byPayment, ledger } from './reports';
 import { quickCash } from './tender';
 import { nextSeq } from './usePersist';
@@ -68,6 +71,32 @@ describe('cart totals', () => {
   it('never discounts below zero', () => {
     expect(discountOff(5_000, { kind: 'amount', value: 9_000 })).toBe(5_000);
     expect(discountOff(5_000, { kind: 'percent', value: 150 })).toBe(5_000);
+  });
+});
+
+describe('set meals', () => {
+  const pick = (id: string, price: number) => ({ id, name: id, price }) as CatalogItem;
+  const lunch: SetMeal = {
+    id: 'lunch',
+    name: 'Lunch',
+    price: 20_000,
+    color: '#000',
+    available: true,
+    courses: [
+      { name: 'Main', itemIds: ['fish', 'beans'] },
+      { name: 'Drink', itemIds: ['juice'] },
+    ],
+  };
+
+  it('charges the meal price whatever is picked, with no discount shown', () => {
+    for (const main of [pick('fish', 25_000), pick('beans', 4_000)]) {
+      const line = { ...mealLine(lunch, [main, pick('juice', 3_000)]), qty: 1 };
+      const t = computeTotals([line], 0.18);
+      expect(line.unitPrice).toBe(20_000);
+      expect(line.listPrice).toBeUndefined();
+      expect(t.subtotal).toBe(20_000);
+      expect(t.discount).toBe(0);
+    }
   });
 });
 
@@ -154,6 +183,11 @@ describe('tender', () => {
     expect(quickCash(7_500, 0)).toEqual([8_000, 10_000, 50_000]);
     expect(quickCash(12.4, 2)).toEqual([13, 15, 20]);
   });
+
+  it('offers shilling notes for a dollar bill paid in shillings', () => {
+    expect(quickCash(106_000, 0)).toEqual([110_000, 150_000]);
+    expect(quickCash(106_027, 0)).toEqual([107_000, 110_000, 150_000]);
+  });
 });
 
 describe('refunds', () => {
@@ -236,6 +270,26 @@ describe('order timestamps', () => {
     expect(o.daysAgo).toBe(2);
     expect(o.time).toMatch(/^\w{3} 2:14 PM$/);
     expect(o.method).toBe('Card');
+  });
+});
+
+describe('permissions', () => {
+  const cook = { role: 'cook' as const, active: true };
+  const manager = { role: 'manager' as const, active: true };
+
+  it('lets the kitchen manage items only while Settings allows it', () => {
+    expect(hasPermission(cook, 'menu')).toBe(false);
+    expect(hasPermission(cook, 'menu', { kitchenMenu: false })).toBe(false);
+    expect(hasPermission(cook, 'menu', { kitchenMenu: true })).toBe(true);
+    // Never the whole menu: categories stay with managers.
+    expect(hasPermission(cook, 'catalog', { kitchenMenu: true })).toBe(false);
+    expect(hasPermission({ ...cook, active: false }, 'menu', { kitchenMenu: true })).toBe(false);
+  });
+
+  it('gives managers the whole menu and promotions', () => {
+    expect(hasPermission(manager, 'catalog')).toBe(true);
+    expect(hasPermission(manager, 'menu')).toBe(true);
+    expect(hasPermission(manager, 'promotions')).toBe(true);
   });
 });
 

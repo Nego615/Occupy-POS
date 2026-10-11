@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react';
 import './AdminSalaries.css';
 import { Button } from '../components/Button';
-import { Mono } from '../components/Mono';
+import { Mono, formatCost } from '../components/Mono';
 import { Pill, PillRow } from '../components/Pill';
 import { StatusChip } from '../components/StatusChip';
 import { roleLabel, type StaffMember } from '../data/staff';
-import { downloadCsv, money } from '../lib/analytics';
+import { downloadCsv } from '../lib/analytics';
 import {
   PAY_PARTS,
   computePayroll,
@@ -16,7 +16,7 @@ import {
   type PayPeriodId,
   type Payroll,
 } from '../lib/payroll';
-import { activeCurrency, roundMoney, isAmountText } from '../lib/currency';
+import { costCurrency, roundMoney, isAmountText } from '../lib/currency';
 import { toCsv } from '../lib/reports';
 import { usePos } from '../lib/store';
 import { formatDate } from '../lib/useClock';
@@ -178,7 +178,7 @@ export function AdminSalaries() {
       </div>
 
       <div className="pay-tiles">
-        <Tile label="Gross pay" value={money(payroll.totals.gross)} />
+        <Tile label="Gross pay" value={formatCost(payroll.totals.gross)} />
         <Tile
           label="People paid"
           value={String(payroll.lines.length)}
@@ -210,7 +210,7 @@ export function AdminSalaries() {
                   onBlur={() => setConfirming(false)}
                   disabled={blocked !== null}
                 >
-                  {confirming ? `Confirm ${money(payroll.totals.gross)} paid` : 'Mark as paid'}
+                  {confirming ? `Confirm ${formatCost(payroll.totals.gross)} paid` : 'Mark as paid'}
                 </Button>
               </>
             )}
@@ -244,7 +244,7 @@ export function AdminSalaries() {
                     </td>
                     <td className="pay-table__soft">{payLabel(l.member)}</td>
                     <td className="pay-table__num">
-                      <Mono className="pay-table__strong">{money(l.gross)}</Mono>
+                      <Mono className="pay-table__strong">{formatCost(l.gross)}</Mono>
                     </td>
                   </tr>
                 ))}
@@ -253,7 +253,7 @@ export function AdminSalaries() {
                 <tr>
                   <td colSpan={2}>Total</td>
                   <td className="pay-table__num">
-                    <Mono>{money(payroll.totals.gross)}</Mono>
+                    <Mono>{formatCost(payroll.totals.gross)}</Mono>
                   </td>
                 </tr>
               </tfoot>
@@ -305,18 +305,18 @@ function RateRow({ member }: { member: StaffMember }) {
   const [draft, setDraft] = useState(stored !== undefined ? String(stored) : '');
   const [error, setError] = useState<string | null>(null);
   const errorId = `rate-error-${member.id}`;
-  const currency = activeCurrency();
+  const currency = costCurrency();
 
   function commit() {
     const text = draft.trim().replace(/,/g, '');
     const value = Number(text);
-    if (text === '' || !isAmountText(text) || value <= 0) {
+    if (text === '' || !isAmountText(text, currency) || value <= 0) {
       setError(`Enter the pay per month in ${currency.code}, e.g. ${currency.example * 200}.`);
       setDraft(stored !== undefined ? String(stored) : '');
       return;
     }
     setError(null);
-    const rounded = roundMoney(value);
+    const rounded = roundMoney(value, currency);
     setDraft(String(rounded));
     updateStaff(member.id, { monthlySalary: rounded });
   }
@@ -401,7 +401,7 @@ function PayrollHistory() {
                   <Mono>{run.lines.length}</Mono>
                 </td>
                 <td className="pay-table__num">
-                  <Mono className="pay-table__strong">{money(run.gross)}</Mono>
+                  <Mono className="pay-table__strong">{formatCost(run.gross)}</Mono>
                 </td>
               </tr>
             ))}

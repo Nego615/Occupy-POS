@@ -343,14 +343,6 @@
 }
 
 .inv-select {
-  min-height: var(--hit-area);
-  padding: 0 10px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--paper);
-  font-family: inherit;
-  font-size: 13.5px;
-  color: var(--ink);
   width: 100%;
 }
 

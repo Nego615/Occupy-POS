@@ -134,12 +134,3 @@
   color: var(--ink-soft);
 }
 
-.detail__refund-field select {
-  min-height: var(--hit-area);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--paper);
-  padding: 0 10px;
-  font: inherit;
-  color: var(--ink);
-}

@@ -6,8 +6,9 @@ import './Tender.css';
 import './FrontDesk.css';
 import { AccountMenu } from '../components/AccountMenu';
 import { Button } from '../components/Button';
+import { TabDiscountDialog } from '../components/CounterDialogs';
 import { Icon, type IconName } from '../components/Icon';
-import { Money, Mono } from '../components/Mono';
+import { InCurrency, Money, Mono } from '../components/Mono';
 import { OrderDetail } from '../components/OrderDetail';
 import { Pill, PillGroup } from '../components/Pill';
 import { PrintableCashUp, PrintableFolio } from '../components/PrintableSlip';
@@ -15,7 +16,7 @@ import { PrintableReceipt } from '../components/PrintableReceipt';
 import { ReceiptEdge, SummaryRow } from '../components/Receipt';
 import { StatusChip } from '../components/StatusChip';
 import { TopBar } from '../components/TopBar';
-import { TENDER_METHODS, expectedCash, shiftStart, shiftTotals, type CashUp } from '../data/cashup';
+import { TENDER_METHODS, expectedCash, expectedLocalCash, shiftStart, shiftTotals, type CashUp } from '../data/cashup';
 import {
   TENDER_LABEL,
   orderItemCount,
@@ -24,10 +25,20 @@ import {
   type OrderRecord,
   type TenderMethod,
 } from '../data/orders';
-import { PAYMENT_METHODS, stationLabel } from '../data/settings';
+import { PAYMENT_METHODS, exchangeRate, stationLabel } from '../data/settings';
 import { ADMIN_PERMISSIONS } from '../data/staff';
 import { round } from '../lib/cart';
-import { activeCurrency, formatAmount, isAmountText } from '../lib/currency';
+import {
+  activeCurrency,
+  costCurrency,
+  costDue,
+  currencyOf,
+  formatAmount,
+  isAmountText,
+  roundMoney,
+  type Currency,
+} from '../lib/currency';
+import { beforeSwitch } from '../lib/currencySwitch';
 import { usePos } from '../lib/store';
 import { formatTime, useNow } from '../lib/useClock';
 import { OrderHistory } from './OrderHistory';
@@ -45,11 +56,11 @@ const TENDER_ICON: Record<TenderMethod, IconName> = Object.fromEntries(
   PAYMENT_METHODS.map((m) => [m.id, m.icon]),
 ) as Record<TenderMethod, IconName>;
 
-/** Typed money, commas allowed; null when blank or not an amount. */
-function parseAmount(text: string): number | null {
+/** Typed money, commas allowed; null when blank or not an amount. In the business currency unless told otherwise. */
+function parseAmount(text: string, currency?: Currency): number | null {
   const t = text.trim().replace(/,/g, '');
-  if (!t || !isAmountText(t)) return null;
-  return round(Number.parseFloat(t));
+  if (!t || !isAmountText(t, currency)) return null;
+  return roundMoney(Number.parseFloat(t), currency);
 }
 
 /** "4:12 PM" today, "Tue 4:12 PM" otherwise. */
@@ -111,14 +122,15 @@ export function FrontDesk() {
 
 /**
  * Every open bill, the ones sent over to be paid first, then the longest
- * running. Payment happens on the tender screen; a bill can also go onto a
- * room to be paid at checkout.
+ * running. Discounts are given here, before any payment; payment happens on
+ * the tender screen; a bill can also go onto a room to be paid at checkout.
  */
 function BillsView({ selectedParam }: { selectedParam: number | null }) {
   const navigate = useNavigate();
   const { tabs, orders, locations, switchTab, chargeToRoom } = usePos();
   const [picked, setPicked] = useState<number | null>(selectedParam);
   const [roomFor, setRoomFor] = useState<string | null>(null);
+  const [discounting, setDiscounting] = useState(false);
 
   const bills = useMemo(
     () =>
@@ -142,6 +154,12 @@ function BillsView({ selectedParam }: { selectedParam: number | null }) {
   function takePayment(orderId: number) {
     switchTab(orderId);
     navigate('/counter/tender', { state: { from: '/desk' } });
+  }
+
+  function discount(orderId: number) {
+    // The discount dialog works on the open tab, so this bill becomes it.
+    switchTab(orderId);
+    setDiscounting(true);
   }
 
   function startRoomCharge() {
@@ -259,6 +277,14 @@ function BillsView({ selectedParam }: { selectedParam: number | null }) {
                     <Button size="lg" block onClick={() => takePayment(selected.id)}>
                       Take payment
                     </Button>
+                    <Button
+                      variant="secondary"
+                      block
+                      onClick={() => discount(selected.id)}
+                      disabled={selectedTab.payments.length > 0}
+                    >
+                      {selectedTab.discount ? 'Change discount' : 'Discount the bill'}
+                    </Button>
                     <div className="desk__row">
                       <Button variant="secondary" onClick={() => window.print()}>
                         Print bill
@@ -272,7 +298,7 @@ function BillsView({ selectedParam }: { selectedParam: number | null }) {
                       </Button>
                     </div>
                     {selectedTab.payments.length > 0 && (
-                      <p className="desk__hint">Part-paid bills are paid off here, not put on a room.</p>
+                      <p className="desk__hint">Part-paid bills can only be paid off — no new discounts or room charges.</p>
                     )}
                     {rooms.length === 0 && (
                       <p className="desk__hint">Add rooms under Admin → Tables &amp; rooms to charge bills to them.</p>
@@ -287,6 +313,8 @@ function BillsView({ selectedParam }: { selectedParam: number | null }) {
         )}
       </aside>
 
+      <TabDiscountDialog open={discounting} onClose={() => setDiscounting(false)} />
+
       {/* Off-screen until Print bill fires window.print(). */}
       {selected && <PrintableReceipt order={selected} />}
     </div>
@@ -295,13 +323,25 @@ function BillsView({ selectedParam }: { selectedParam: number | null }) {
 
 /* ---------- Rooms ---------- */
 
-type Settled = { room: string; orders: OrderRecord[]; method: string; amount: number; tendered?: number; change: number };
+type Settled = {
+  room: string;
+  orders: OrderRecord[];
+  method: string;
+  amount: number;
+  tendered?: number;
+  change: number;
+  /** What the cash and change were in, when not the business currency. */
+  currency?: Currency;
+};
 
 /** Rooms with charges waiting, and settling a room's whole bill in one payment. */
 function RoomsView({ onShowBill }: { onShowBill: (orderId: number) => void }) {
   const { orders, locations, tabs, settings, settleRoom } = usePos();
   const currency = activeCurrency();
   const methods = (['cash', 'card', 'mobile'] as TenderMethod[]).filter((m) => settings.paymentMethods.includes(m));
+  // Cash in what the shop buys in, when it buys in another currency.
+  const rate = exchangeRate(settings);
+  const local = rate ? costCurrency() : null;
 
   const folios = useMemo(() => {
     const byRoom = new Map<string, OrderRecord[]>();
@@ -314,20 +354,29 @@ function RoomsView({ onShowBill }: { onShowBill: (orderId: number) => void }) {
       name: locations.find((l) => l.id === roomId)?.name ?? 'Removed room',
       charges: [...charges].sort((a, b) => a.at.localeCompare(b.at)),
       total: round(charges.reduce((sum, o) => sum + orderTotal(o), 0)),
+      // Each bill's share in cash in the cost currency, rounded up the way it's taken.
+      localTotal: rate ? charges.reduce((sum, o) => sum + costDue(orderTotal(o), rate), 0) : 0,
     }));
-  }, [orders, locations]);
+  }, [orders, locations, rate]);
 
   const [picked, setPicked] = useState<string | null>(null);
   const [method, setMethod] = useState<TenderMethod>(methods[0] ?? 'cash');
   const [tenderedText, setTenderedText] = useState('');
   const [ref, setRef] = useState('');
   const [settled, setSettled] = useState<Settled | null>(null);
+  const [cashIn, setCashIn] = useState<'sales' | 'local'>('sales');
 
   const folio = folios.find((f) => f.roomId === picked) ?? folios[0] ?? null;
   const openHere = folio ? tabs.find((t) => t.locationId === folio.roomId && t.cart.length > 0) : undefined;
-  const tendered = method === 'cash' ? (parseAmount(tenderedText) ?? folio?.total ?? 0) : (folio?.total ?? 0);
-  const change = folio ? round(tendered - folio.total) : 0;
-  const valid = !!folio && (method !== 'cash' || tenderedText === '' || parseAmount(tenderedText) !== null) && change >= 0;
+  const paysLocal = method === 'cash' && local !== null && cashIn === 'local';
+  const cashCurrency = paysLocal ? local! : undefined;
+  const due = folio ? (paysLocal ? folio.localTotal : folio.total) : 0;
+  const tendered = method === 'cash' ? (parseAmount(tenderedText, cashCurrency) ?? due) : due;
+  const change = folio ? roundMoney(tendered - due, cashCurrency) : 0;
+  const valid =
+    !!folio &&
+    (method !== 'cash' || tenderedText === '' || parseAmount(tenderedText, cashCurrency) !== null) &&
+    change >= 0;
 
   function select(roomId: string) {
     setPicked(roomId);
@@ -338,15 +387,20 @@ function RoomsView({ onShowBill }: { onShowBill: (orderId: number) => void }) {
 
   function settle() {
     if (!folio || !valid) return;
-    const amount = settleRoom(folio.roomId, { method, ...(ref.trim() ? { ref: ref.trim() } : {}) });
+    const amount = settleRoom(folio.roomId, {
+      method,
+      ...(ref.trim() ? { ref: ref.trim() } : {}),
+      ...(paysLocal ? { local: { currency: local!.code, rate: rate! } } : {}),
+    });
     if (amount > 0) {
       setSettled({
         room: folio.name,
         orders: folio.charges,
-        method: TENDER_LABEL[method],
+        method: paysLocal ? `${TENDER_LABEL[method]} · ${local!.symbol}` : TENDER_LABEL[method],
         amount,
         ...(method === 'cash' ? { tendered } : {}),
         change: method === 'cash' ? change : 0,
+        ...(paysLocal ? { currency: local! } : {}),
       });
     }
     setTenderedText('');
@@ -390,7 +444,11 @@ function RoomsView({ onShowBill }: { onShowBill: (orderId: number) => void }) {
         {settled ? (
           <div className="desk__done">
             <span className="desk__done-label">{settled.change > 0 ? 'Change due' : 'Settled'}</span>
-            <Money value={settled.change > 0 ? settled.change : settled.amount} className="desk__done-amount" />
+            <Money
+              value={settled.change > 0 ? settled.change : settled.amount}
+              currency={settled.change > 0 ? settled.currency : undefined}
+              className="desk__done-amount"
+            />
             <p className="desk__hint">
               {settled.room} paid <Money value={settled.amount} /> · {settled.method} ·{' '}
               <Mono>{settled.orders.length}</Mono> {settled.orders.length === 1 ? 'charge' : 'charges'}
@@ -404,7 +462,12 @@ function RoomsView({ onShowBill }: { onShowBill: (orderId: number) => void }) {
             <PrintableFolio
               room={settled.room}
               orders={settled.orders}
-              paid={{ method: settled.method, tendered: settled.tendered, change: settled.change }}
+              paid={{
+                method: settled.method,
+                tendered: settled.tendered,
+                change: settled.change,
+                currency: settled.currency,
+              }}
             />
           </div>
         ) : folio ? (
@@ -440,6 +503,11 @@ function RoomsView({ onShowBill }: { onShowBill: (orderId: number) => void }) {
             </div>
             <div className="detail__summary">
               <SummaryRow label="Room total" value={folio.total} total />
+              {local && (
+                <InCurrency currency={local}>
+                  <SummaryRow label={`In cash in ${local.symbol}`} value={folio.localTotal} />
+                </InCurrency>
+              )}
             </div>
             <div className="desk__actions">
               <div className="desk__methods" role="group" aria-label="Payment method">
@@ -460,25 +528,43 @@ function RoomsView({ onShowBill }: { onShowBill: (orderId: number) => void }) {
                   </button>
                 ))}
               </div>
+              {method === 'cash' && local && (
+                <div className="tender__split-row" role="group" aria-label="Cash in">
+                  {(['sales', 'local'] as const).map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      className={cashIn === c ? 'tender__chip tender__chip--active' : 'tender__chip'}
+                      aria-pressed={cashIn === c}
+                      onClick={() => {
+                        setCashIn(c);
+                        setTenderedText('');
+                      }}
+                    >
+                      Cash in {(c === 'local' ? local : currency).symbol}
+                    </button>
+                  ))}
+                </div>
+              )}
               {method === 'cash' ? (
                 <label className="desk__field">
                   <span>Cash received</span>
                   <span className="desk__money">
                     <span className="mono" aria-hidden="true">
-                      {currency.symbol}
+                      {(cashCurrency ?? currency).symbol}
                     </span>
                     <input
                       className="mono"
                       type="text"
-                      inputMode={currency.decimals === 0 ? 'numeric' : 'decimal'}
+                      inputMode={(cashCurrency ?? currency).decimals === 0 ? 'numeric' : 'decimal'}
                       value={tenderedText}
-                      placeholder={formatAmount(folio.total)}
+                      placeholder={formatAmount(due, cashCurrency)}
                       onChange={(e) => setTenderedText(e.target.value)}
                     />
                   </span>
                   {change !== 0 && (
                     <span className={change < 0 ? 'desk__change desk__change--short' : 'desk__change'}>
-                      {change < 0 ? 'Short by' : 'Change'} <Money value={Math.abs(change)} />
+                      {change < 0 ? 'Short by' : 'Change'} <Money value={Math.abs(change)} currency={cashCurrency} />
                     </span>
                   )}
                 </label>
@@ -512,6 +598,22 @@ function RoomsView({ onShowBill }: { onShowBill: (orderId: number) => void }) {
   );
 }
 
+/** "Counted · expected TSh 50,000 · short TSh 2,000", in whatever currency the drawer's in. */
+function DrawerResult({ counted, expected }: { counted: number; expected: number }) {
+  return (
+    <p className="desk__hint">
+      Counted · expected <Money value={expected} /> ·{' '}
+      {counted === expected ? (
+        'balanced'
+      ) : (
+        <>
+          {counted < expected ? 'short' : 'over'} <Money value={Math.abs(counted - expected)} />
+        </>
+      )}
+    </p>
+  );
+}
+
 function computeOpenTotal(orders: OrderRecord[], orderId: number): number {
   const order = orders.find((o) => o.id === orderId);
   return order ? round(orderTotal(order) - paidAmount(order.payments)) : 0;
@@ -524,8 +626,10 @@ function computeOpenTotal(orders: OrderRecord[], orderId: number): number {
  * the drawer count that closes it. Closed shifts are listed for reprinting.
  */
 function CashUpView() {
-  const { orders, tabs, cashUps, closeShift, allStaff } = usePos();
+  const { orders, tabs, cashUps, closeShift, allStaff, settings } = usePos();
   const currency = activeCurrency();
+  // A second drawer for cash taken in what the shop buys in, when it does.
+  const local = exchangeRate(settings) ? costCurrency() : null;
   const now = useNow(30_000);
   const from = shiftStart(cashUps, new Date(now));
   const totals = useMemo(
@@ -541,6 +645,8 @@ function CashUpView() {
 
   const [floatText, setFloatText] = useState(() => String(cashUps[0]?.float ?? 0));
   const [countedText, setCountedText] = useState('');
+  const [localFloatText, setLocalFloatText] = useState(() => String(cashUps[0]?.local?.float ?? 0));
+  const [localCountedText, setLocalCountedText] = useState('');
   const [note, setNote] = useState('');
   const [confirming, setConfirming] = useState(false);
   const [printing, setPrinting] = useState<CashUp | null>(null);
@@ -550,7 +656,11 @@ function CashUpView() {
   const expected = expectedCash(float ?? 0, totals);
   const variance = counted !== null ? round(counted - expected) : null;
   const net = TENDER_METHODS.reduce((sum, m) => sum + totals.taken[m] - totals.refunded[m], 0);
-  const valid = float !== null && counted !== null;
+  const localFloat = local ? parseAmount(localFloatText, local) : null;
+  const localCounted = local ? parseAmount(localCountedText, local) : null;
+  const localExpected = expectedLocalCash(localFloat ?? 0, totals);
+  const localVariance = local && localCounted !== null ? roundMoney(localCounted - localExpected, local) : null;
+  const valid = float !== null && counted !== null && (!local || (localFloat !== null && localCounted !== null));
 
   function close() {
     if (!valid) return;
@@ -558,14 +668,23 @@ function CashUpView() {
       setConfirming(true);
       return;
     }
-    const cashUp = closeShift({ float: float!, countedCash: counted!, note });
+    const cashUp = closeShift({
+      float: float!,
+      countedCash: counted!,
+      note,
+      ...(local ? { local: { float: localFloat!, counted: localCounted! } } : {}),
+    });
     setPrinting(cashUp);
     setCountedText('');
+    setLocalCountedText('');
     setNote('');
     setConfirming(false);
   }
 
   const nameOf = (id: string) => allStaff.find((m) => m.id === id)?.name ?? '—';
+  // A shift closed before the shop switched what it sells in was counted in the old currency.
+  const shiftCurrency = (c: CashUp) =>
+    beforeSwitch(c.closedAt, settings.currencySwitch) ? currencyOf(settings.currencySwitch.from) : undefined;
 
   return (
     <div className="history__body">
@@ -616,14 +735,22 @@ function CashUpView() {
             </tr>
           </tfoot>
         </table>
+        {local && totals.local.taken > 0 && (
+          <p className="history__summary">
+            Cash includes <Money value={totals.local.taken} currency={local} /> taken in {local.symbol}, for{' '}
+            <Money value={totals.local.value.taken} /> of bills — it’s counted in its own drawer.
+          </p>
+        )}
 
         {cashUps.length > 0 && (
           <>
             <h2 className="desk__subheading">Past cash-ups</h2>
             {cashUps.slice(0, 10).map((c, i) => {
-              const diff = round(c.countedCash - c.expectedCash);
+              // The dollar drawer's result, else the cost-currency drawer's when that's the one that's off.
+              const localOff = !!c.local && c.local.counted !== c.local.expected && c.countedCash === c.expectedCash;
+              const diff = localOff ? c.local!.counted - c.local!.expected : round(c.countedCash - c.expectedCash);
               return (
-                <div key={c.id}>
+                <InCurrency key={c.id} currency={shiftCurrency(c)}>
                   <button
                     type="button"
                     className={printing?.id === c.id ? 'order-row order-row--selected' : 'order-row'}
@@ -636,15 +763,25 @@ function CashUpView() {
                       <span className="order-row__meta">
                         {nameOf(c.by)} · <Mono>{c.payments}</Mono> payments · counted{' '}
                         <Money value={c.countedCash} />
+                        {c.local && (
+                          <>
+                            {' '}
+                            + <Money value={c.local.counted} currency={currencyOf(c.local.currency)} />
+                          </>
+                        )}
                       </span>
                     </span>
                     <StatusChip status={diff === 0 ? 'open' : 'occupied'} size="sm">
                       {diff === 0 ? 'Balanced' : diff < 0 ? 'Short' : 'Over'}
                     </StatusChip>
-                    <Money value={Math.abs(diff)} className="order-row__amount desk__amount" />
+                    <Money
+                      value={Math.abs(diff)}
+                      currency={localOff ? currencyOf(c.local!.currency) : undefined}
+                      className="order-row__amount desk__amount"
+                    />
                   </button>
                   {i < Math.min(cashUps.length, 10) - 1 && <hr className="history__divider desk__divider" />}
-                </div>
+                </InCurrency>
               );
             })}
           </>
@@ -654,28 +791,28 @@ function CashUpView() {
       <aside className="detail" aria-label="Cash drawer">
         <ReceiptEdge />
         {printing ? (
-          <div className="desk__done">
-            <span className="desk__done-label">Shift closed</span>
-            <Money value={printing.countedCash} className="desk__done-amount" />
-            <p className="desk__hint">
-              Counted · expected <Money value={printing.expectedCash} /> ·{' '}
-              {printing.countedCash === printing.expectedCash ? (
-                'balanced'
-              ) : (
-                <>
-                  {printing.countedCash < printing.expectedCash ? 'short' : 'over'}{' '}
-                  <Money value={Math.abs(printing.countedCash - printing.expectedCash)} />
-                </>
+          <InCurrency currency={shiftCurrency(printing)}>
+            <div className="desk__done">
+              <span className="desk__done-label">Shift closed</span>
+              <Money value={printing.countedCash} className="desk__done-amount" />
+              <DrawerResult counted={printing.countedCash} expected={printing.expectedCash} />
+              {printing.local && (
+                <InCurrency currency={currencyOf(printing.local.currency)}>
+                  <p className="desk__hint">
+                    <Money value={printing.local.counted} /> in the {currencyOf(printing.local.currency).symbol} drawer
+                  </p>
+                  <DrawerResult counted={printing.local.counted} expected={printing.local.expected} />
+                </InCurrency>
               )}
-            </p>
-            <div className="desk__row">
-              <Button variant="secondary" onClick={() => window.print()}>
-                Print cash-up
-              </Button>
-              <Button onClick={() => setPrinting(null)}>Done</Button>
+              <div className="desk__row">
+                <Button variant="secondary" onClick={() => window.print()}>
+                  Print cash-up
+                </Button>
+                <Button onClick={() => setPrinting(null)}>Done</Button>
+              </div>
+              <PrintableCashUp cashUp={printing} currency={shiftCurrency(printing)} />
             </div>
-            <PrintableCashUp cashUp={printing} />
-          </div>
+          </InCurrency>
         ) : (
           <>
             <div className="detail__head">
@@ -701,8 +838,9 @@ function CashUpView() {
                   />
                 </span>
               </label>
-              <SummaryRow label="Cash taken" value={totals.taken.cash} />
-              <SummaryRow label="Cash refunded" value={-totals.refunded.cash} />
+              {/* Cash taken in the cost currency is in the other drawer. */}
+              <SummaryRow label="Cash taken" value={round(totals.taken.cash - totals.local.value.taken)} />
+              <SummaryRow label="Cash refunded" value={-round(totals.refunded.cash - totals.local.value.refunded)} />
               <SummaryRow label="Cash expected" value={expected} total />
               <label className="desk__field">
                 <span>Cash counted</span>
@@ -734,6 +872,62 @@ function CashUpView() {
                   </span>
                 )}
               </label>
+              {local && (
+                <InCurrency currency={local}>
+                  <h3 className="desk__drawer-title">{local.symbol} drawer</h3>
+                  <label className="desk__field">
+                    <span>Opening float</span>
+                    <span className="desk__money">
+                      <span className="mono" aria-hidden="true">
+                        {local.symbol}
+                      </span>
+                      <input
+                        className="mono"
+                        type="text"
+                        inputMode={local.decimals === 0 ? 'numeric' : 'decimal'}
+                        value={localFloatText}
+                        onChange={(e) => {
+                          setLocalFloatText(e.target.value);
+                          setConfirming(false);
+                        }}
+                      />
+                    </span>
+                  </label>
+                  <SummaryRow label="Cash taken" value={totals.local.taken} />
+                  <SummaryRow label="Cash refunded" value={-totals.local.refunded} />
+                  <SummaryRow label="Cash expected" value={localExpected} total />
+                  <label className="desk__field">
+                    <span>Cash counted</span>
+                    <span className="desk__money">
+                      <span className="mono" aria-hidden="true">
+                        {local.symbol}
+                      </span>
+                      <input
+                        className="mono"
+                        type="text"
+                        inputMode={local.decimals === 0 ? 'numeric' : 'decimal'}
+                        value={localCountedText}
+                        placeholder="Count the drawer"
+                        onChange={(e) => {
+                          setLocalCountedText(e.target.value);
+                          setConfirming(false);
+                        }}
+                      />
+                    </span>
+                    {localVariance !== null && (
+                      <span className={localVariance < 0 ? 'desk__change desk__change--short' : 'desk__change'}>
+                        {localVariance === 0 ? (
+                          'Balanced'
+                        ) : (
+                          <>
+                            {localVariance < 0 ? 'Short by' : 'Over by'} <Money value={Math.abs(localVariance)} />
+                          </>
+                        )}
+                      </span>
+                    )}
+                  </label>
+                </InCurrency>
+              )}
               <label className="desk__field">
                 <span>Note</span>
                 <input

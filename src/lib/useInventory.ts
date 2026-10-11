@@ -15,6 +15,8 @@ import {
 } from '../data/inventory';
 import type { StaffMember } from '../data/staff';
 import { round } from './cart';
+import type { Currency } from './currency';
+import { convertCounts, convertMovements, stampRate } from './currencySwitch';
 import type { PosRepository, Snapshot } from './persist';
 import { nextSeq, restored, useNextId, usePersist, useRemote } from './usePersist';
 import {
@@ -67,9 +69,10 @@ export type InventoryStore = {
   cancelPurchaseOrder: (id: string) => boolean;
   /**
    * Takes a delivery: stock in, item costs re-averaged, and a bill for what
-   * arrived, due on the supplier's terms. Returns the bill.
+   * arrived, due on the supplier's terms. Returns the bill. `rate` converts
+   * the delivery's costs into item costs, when the shop buys in another currency.
    */
-  receiveDelivery: (poId: string, receipts: Receipt[], invoiceRef: string) => SupplierBill | null;
+  receiveDelivery: (poId: string, receipts: Receipt[], invoiceRef: string, rate?: number) => SupplierBill | null;
   /** Records a payment against a bill; capped at what's still owed. */
   recordBillPayment: (billId: string, amount: number, method: PaymentMethod) => void;
   /** The count in progress, if one's been started. Survives leaving the page. */
@@ -85,6 +88,12 @@ export type InventoryStore = {
    */
   postCount: () => StockCount | null;
   discardCount: () => void;
+  /**
+   * The shop now sells in `to`, at `rate` old units to one: the stock ledger
+   * and counts are revalued in it, and bills keep their amounts in what's now
+   * the cost currency, stamped with the rate. Called only by the switch.
+   */
+  convertForSwitch: (rate: number, to: Currency) => void;
 };
 
 /**
@@ -258,10 +267,10 @@ export function useInventory(
   );
 
   const receiveDelivery = useCallback(
-    (poId: string, receipts: Receipt[], invoiceRef: string) => {
+    (poId: string, receipts: Receipt[], invoiceRef: string, rate?: number) => {
       const order = purchaseOrders.find((p) => p.id === poId);
       if (!order || order.status === 'cancelled' || order.status === 'draft') return null;
-      const result = receiveAgainst(order, catalog, receipts);
+      const result = receiveAgainst(order, catalog, receipts, rate);
       if (result.entries.length === 0) return null;
 
       // Costs first, then stock through the ledger — both from the same snapshot.
@@ -279,6 +288,7 @@ export function useInventory(
         result.amount,
         terms,
         billNo,
+        rate,
       );
       setBills((prev) => [bill, ...prev]);
       return bill;
@@ -382,6 +392,12 @@ export function useInventory(
     [me],
   );
 
+  const convertForSwitch = useCallback((rate: number, to: Currency) => {
+    setMovements((prev) => convertMovements(prev, rate, to));
+    setStockCounts((prev) => convertCounts(prev, rate, to));
+    setBills((prev) => stampRate(prev, rate));
+  }, []);
+
   return useMemo(
     () => ({
       movements,
@@ -404,6 +420,7 @@ export function useInventory(
       setCounted,
       postCount,
       discardCount,
+      convertForSwitch,
     }),
     [
       movements,
@@ -426,6 +443,7 @@ export function useInventory(
       setCounted,
       postCount,
       discardCount,
+      convertForSwitch,
     ],
   );
 }

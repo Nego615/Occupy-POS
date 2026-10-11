@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import './AdminSettings.css';
 import { BrandMark } from '../components/BrandMark';
 import { Button } from '../components/Button';
@@ -6,6 +6,7 @@ import { FilterSelect } from '../components/FilterSelect';
 import { Mono } from '../components/Mono';
 import { Switch } from '../components/Switch';
 import { type CategoryId } from '../data/catalog';
+import { formatDay, todayIso } from '../data/inventory';
 import {
   AUTO_LOCK_OPTIONS,
   DEFAULT_SETTINGS,
@@ -19,7 +20,9 @@ import {
   formatCurrency,
   type CurrencyCode,
 } from '../lib/currency';
+import { BRAND_PRESETS, brandTokens, parseHex, tooLight } from '../lib/brand';
 import { signOutDevice, unsyncedCount } from '../lib/cloud';
+import { convertPrice, switchBlockers } from '../lib/currencySwitch';
 import { LOGO_TYPES, readLogo } from '../lib/logo';
 import { usePos } from '../lib/store';
 import { supabase } from '../lib/supabase';
@@ -28,11 +31,17 @@ import { supabase } from '../lib/supabase';
 type Draft = {
   businessName: string;
   logo: string | null;
+  /** Hex as typed; empty is the stock color. */
+  brandColor: string;
+  accentColor: string;
   locationName: string;
   registerName: string;
   receiptFooter: string;
   autoPrintReceipt: boolean;
   currency: CurrencyCode;
+  /** '' buys in what the shop sells in. */
+  costCurrency: CurrencyCode | '';
+  exchangeRate: string;
   taxPct: string;
   tipsEnabled: boolean;
   tipPcts: [string, string, string];
@@ -42,6 +51,8 @@ type Draft = {
   lowStockDefault: string;
   kitchenCategories: CategoryId[];
   kitchenLateMinutes: string;
+  kitchenMenu: boolean;
+  kitchenMenuCategories: CategoryId[];
   autoLock: string;
   maxPinTries: string;
 };
@@ -55,11 +66,15 @@ function toDraft(s: Settings): Draft {
   return {
     businessName: s.businessName,
     logo: s.logo,
+    brandColor: s.brandColor ?? '',
+    accentColor: s.accentColor ?? '',
     locationName: s.locationName,
     registerName: s.registerName,
     receiptFooter: s.receiptFooter,
     autoPrintReceipt: s.autoPrintReceipt,
     currency: s.currency,
+    costCurrency: s.costCurrency && s.costCurrency !== s.currency ? s.costCurrency : '',
+    exchangeRate: s.exchangeRate ? String(s.exchangeRate) : '',
     taxPct: pct(s.taxRate),
     tipsEnabled: s.tipsEnabled,
     tipPcts: s.tipPresets.map(pct) as [string, string, string],
@@ -69,6 +84,8 @@ function toDraft(s: Settings): Draft {
     lowStockDefault: String(s.lowStockDefault),
     kitchenCategories: [...s.kitchenCategories],
     kitchenLateMinutes: String(s.kitchenLateMinutes),
+    kitchenMenu: s.kitchenMenu,
+    kitchenMenuCategories: [...s.kitchenMenuCategories],
     autoLock: s.autoLockMinutes === null ? 'never' : String(s.autoLockMinutes),
     maxPinTries: String(s.maxPinTries),
   };
@@ -95,8 +112,25 @@ function fromDraft(d: Draft, current: Settings): { settings: Settings } | { erro
   const businessName = name(d.businessName, 'businessName', 'Business name');
   const locationName = name(d.locationName, 'locationName', 'Location name');
   const registerName = name(d.registerName, 'registerName', 'Register name');
+  const color = (text: string, key: 'brandColor' | 'accentColor') => {
+    if (!text.trim()) return null;
+    const hex = parseHex(text);
+    if (!hex) errors[key] = 'Enter a hex color, like #1d5fa8.';
+    return hex;
+  };
+  const brandColor = color(d.brandColor, 'brandColor');
+  const accentColor = color(d.accentColor, 'accentColor');
+
   const receiptFooter = d.receiptFooter.trim();
   if (receiptFooter.length > 120) errors.receiptFooter = 'Keep it to 120 characters.';
+
+  const dual = d.costCurrency !== '' && d.costCurrency !== d.currency;
+  const rate = dual ? parseNumber(d.exchangeRate.replace(/,/g, ''), 0.000001, 1_000_000_000) : null;
+  if (dual && rate === null) {
+    errors.exchangeRate = `Enter how many ${currencyOf(d.costCurrency as CurrencyCode).symbol} make ${
+      currencyOf(d.currency).symbol
+    }1, like 2650.`;
+  }
 
   const tax = parseNumber(d.taxPct, 0, 25);
   if (tax === null) errors.taxPct = 'Enter a percentage from 0 to 25, like 18.';
@@ -121,6 +155,10 @@ function fromDraft(d: Draft, current: Settings): { settings: Settings } | { erro
   const late = parseNumber(d.kitchenLateMinutes, 1, 60, true);
   if (late === null) errors.kitchenLateMinutes = 'Whole minutes from 1 to 60.';
 
+  if (d.kitchenMenu && d.kitchenMenuCategories.length === 0) {
+    errors.kitchenMenuCategories = 'Pick at least one category the kitchen can edit.';
+  }
+
   const tries = parseNumber(d.maxPinTries, 3, 10, true);
   if (tries === null) errors.maxPinTries = 'A whole number from 3 to 10.';
 
@@ -130,11 +168,21 @@ function fromDraft(d: Draft, current: Settings): { settings: Settings } | { erro
     settings: {
       businessName,
       logo: d.logo,
+      brandColor,
+      accentColor,
       locationName,
       registerName,
       receiptFooter,
       autoPrintReceipt: d.autoPrintReceipt,
       currency: d.currency,
+      ...(dual
+        ? {
+            costCurrency: d.costCurrency as CurrencyCode,
+            exchangeRate: rate!,
+            rateUpdatedAt: rate === current.exchangeRate ? current.rateUpdatedAt : todayIso(),
+          }
+        : {}),
+      ...(current.currencySwitch ? { currencySwitch: current.currencySwitch } : {}),
       taxRate: tax! / 100,
       tipsEnabled: d.tipsEnabled,
       tipPresets: tips.map((t) => t! / 100) as [number, number, number],
@@ -151,6 +199,8 @@ function fromDraft(d: Draft, current: Settings): { settings: Settings } | { erro
       lowStockDefault: lowStock!,
       kitchenCategories: [...d.kitchenCategories],
       kitchenLateMinutes: late!,
+      kitchenMenu: d.kitchenMenu,
+      kitchenMenuCategories: [...d.kitchenMenuCategories],
       autoLockMinutes: d.autoLock === 'never' ? null : Number(d.autoLock),
       maxPinTries: tries!,
     },
@@ -163,7 +213,15 @@ function fromDraft(d: Draft, current: Settings): { settings: Settings } | { erro
  * open tabs. Everything takes effect across the app as soon as it's saved.
  */
 export function AdminSettings() {
-  const { settings, updateSettings, resetAllData, categories } = usePos();
+  const { settings, updateSettings, resetAllData, categories, orders, expenses, payrollRuns, bills, purchaseOrders } =
+    usePos();
+  // Once anything's been bought, paid out, or sold, the currencies it was kept in are fixed.
+  const hasHistory =
+    orders.some((o) => o.status !== 'occupied') ||
+    expenses.length > 0 ||
+    payrollRuns.length > 0 ||
+    bills.length > 0 ||
+    purchaseOrders.length > 0;
   const [confirmingReset, setConfirmingReset] = useState(false);
   const [confirmingUnlink, setConfirmingUnlink] = useState(false);
   const [shopEmail, setShopEmail] = useState<string | null>(null);
@@ -232,10 +290,17 @@ export function AdminSettings() {
   const cur = currencyOf(draft.currency);
   const savedCur = currencyOf(settings.currency);
   const fmt = (n: number) => formatCurrency(n, cur);
+  const dualSaved = !!settings.costCurrency && settings.costCurrency !== settings.currency;
+  const dualDraft = draft.costCurrency !== '' && draft.costCurrency !== draft.currency;
+  const costCur = currencyOf(draft.costCurrency || draft.currency);
+  const ratePreview = parseNumber(draft.exchangeRate.replace(/,/g, ''), 0.000001, 1_000_000_000);
   // Whole-unit or cent rounding, matching the currency being previewed.
   const inCur = (n: number) => Math.round(n * 10 ** cur.decimals) / 10 ** cur.decimals;
   const taxPreview = parseNumber(draft.taxPct, 0, 25);
   const tipValues = draft.tipPcts.map((t) => parseNumber(t, 1, 100));
+  const brandPreview = parseHex(draft.brandColor);
+  const accentPreview = parseHex(draft.accentColor);
+  const lightColors = [brandPreview, accentPreview].some((hex) => hex && tooLight(hex));
 
   return (
     <div className="settings">
@@ -305,16 +370,69 @@ export function AdminSettings() {
         </Row>
       </Section>
 
+      <Section
+        title="Brand colors"
+        note="On every register and screen. Paid, open, and refunded keep their own colors."
+      >
+        <Row
+          id="brandColor"
+          label="Brand color"
+          hint="Primary buttons, selected options, the active menu item, and the brand mark."
+          error={errors.brandColor}
+        >
+          <ColorPicker
+            id="brandColor"
+            value={draft.brandColor}
+            onChange={(v) => set('brandColor', v)}
+            unsetLabel="Default (ink)"
+            unsetSwatch="var(--ink)"
+            invalid={!!errors.brandColor}
+          />
+        </Row>
+        <Row
+          id="accentColor"
+          label="Chart color"
+          hint="Columns and bars on the overview and reports."
+          error={errors.accentColor}
+        >
+          <ColorPicker
+            id="accentColor"
+            value={draft.accentColor}
+            onChange={(v) => set('accentColor', v)}
+            unsetLabel="Same as brand color"
+            unsetSwatch={brandPreview ?? 'var(--ink)'}
+            invalid={!!errors.accentColor}
+          />
+        </Row>
+        {lightColors && (
+          <p className="settings-warning" role="status">
+            That color is light against the white page, so buttons and bars in it will be hard to
+            see. A darker shade reads better.
+          </p>
+        )}
+        <BrandPreview
+          brand={brandPreview}
+          accent={accentPreview}
+          name={draft.businessName}
+          logo={draft.logo}
+        />
+      </Section>
+
       <Section title="Currency">
         <Row
           id="currency"
-          label="Currency"
-          hint="Used for every price, total, tip, wage, receipt, and report."
+          label={dualDraft ? 'Sell in' : 'Currency'}
+          hint={
+            dualDraft
+              ? 'Prices, orders, tips, item costs, receipts, and every report.'
+              : 'Used for every price, total, tip, wage, receipt, and report.'
+          }
         >
           <FilterSelect
             value={draft.currency}
             onChange={(v) => set('currency', v as CurrencyCode)}
             label="Currency"
+            disabled={dualSaved && hasHistory}
           >
             {CURRENCIES.map((c) => (
               <option key={c.code} value={c.code}>
@@ -329,6 +447,66 @@ export function AdminSettings() {
             <Mono>{fmt(6500)}</Mono>. Update item prices and pay rates after switching.
             {cur.decimals === 0 && savedCur.decimals > 0 && ' Cents are rounded to whole units.'}
           </p>
+        )}
+        <Row
+          id="costCurrency"
+          label="Buy in"
+          hint={
+            hasHistory
+              ? dualSaved
+                ? 'Purchases, supplier bills, expenses, and wages. Fixed now that records are kept in it.'
+                : 'Purchases, supplier bills, expenses, and wages. Fixed once any are recorded.'
+              : 'Purchases, supplier bills, expenses, and wages — when they’re paid in another currency than you sell in.'
+          }
+        >
+          <FilterSelect
+            value={draft.costCurrency}
+            onChange={(v) => set('costCurrency', v as CurrencyCode | '')}
+            label="Buy in"
+            disabled={hasHistory}
+          >
+            <option value="">Same as sales ({cur.symbol})</option>
+            {CURRENCIES.filter((c) => c.code !== draft.currency).map((c) => (
+              <option key={c.code} value={c.code}>
+                {c.name} ({c.symbol})
+              </option>
+            ))}
+          </FilterSelect>
+        </Row>
+        {dualDraft && (
+          <Row
+            id="exchangeRate"
+            forInput
+            label="Exchange rate"
+            hint={
+              <>
+                {ratePreview !== null && (
+                  <>
+                    <Mono>{formatCurrency(cur.example * ratePreview, costCur)}</Mono> is{' '}
+                    <Mono>{fmt(cur.example)}</Mono>.{' '}
+                  </>
+                )}
+                {settings.rateUpdatedAt && <>Updated {formatDay(settings.rateUpdatedAt)}. </>}
+                New deliveries, expenses, and wages convert at it; what’s already recorded keeps its
+                own rate.
+              </>
+            }
+            error={errors.exchangeRate}
+          >
+            <Affix after={`${costCur.symbol} per ${cur.symbol}1`}>
+              <input
+                id="setting-exchangeRate"
+                className="settings-input settings-input--num mono"
+                inputMode="decimal"
+                value={draft.exchangeRate}
+                onChange={(e) => set('exchangeRate', e.target.value)}
+                aria-invalid={!!errors.exchangeRate}
+              />
+            </Affix>
+          </Row>
+        )}
+        {hasHistory && !dualSaved && !settings.currencySwitch && (
+          <CurrencySwitchPanel onSwitched={(next) => setDraft(toDraft(next))} />
         )}
       </Section>
 
@@ -570,6 +748,50 @@ export function AdminSettings() {
         </Row>
       </Section>
 
+      <Section title="Kitchen menu" note="What cooks can change from the kitchen.">
+        <Row
+          id="kitchenMenu"
+          label="Let the kitchen manage items"
+          hint="Cooks can add, edit, and delete items in the categories below, and build set meals. Categories and promotions stay with managers."
+          error={errors.kitchenMenuCategories}
+        >
+          <Switch
+            checked={draft.kitchenMenu}
+            onChange={(on) => {
+              set('kitchenMenu', on);
+              // Starting out, the kitchen gets what it already cooks.
+              if (on && draft.kitchenMenuCategories.length === 0) {
+                set(
+                  'kitchenMenuCategories',
+                  draft.kitchenCategories.filter((id) => categories.some((c) => c.id === id)),
+                );
+              }
+            }}
+            label="Let the kitchen manage items"
+          />
+        </Row>
+        {draft.kitchenMenu && categories.length === 0 && (
+          <p className="settings-empty">No categories yet — create them under Categories.</p>
+        )}
+        {draft.kitchenMenu &&
+          categories.map((c) => (
+            <Row key={c.id} id={`kitchen-menu-${c.id}`} label={c.label} hint="The kitchen can add and edit these.">
+              <Switch
+                checked={draft.kitchenMenuCategories.includes(c.id)}
+                onChange={(on) =>
+                  set(
+                    'kitchenMenuCategories',
+                    on
+                      ? [...draft.kitchenMenuCategories, c.id]
+                      : draft.kitchenMenuCategories.filter((id) => id !== c.id),
+                  )
+                }
+                label={`Let the kitchen edit ${c.label.toLowerCase()}`}
+              />
+            </Row>
+          ))}
+      </Section>
+
       <Section title="Security">
         <Row
           id="autoLock"
@@ -671,6 +893,133 @@ export function AdminSettings() {
 
 /* ---------- Building blocks ---------- */
 
+/** Price rounding offered when switching, by how many decimals the new currency has. */
+const SWITCH_STEPS: Record<number, number[]> = { 0: [50, 100, 500], 2: [0.1, 0.5, 1] };
+
+/**
+ * Moves a shop that's been selling in one currency to selling in another,
+ * while it keeps buying in the first: converts the menu at a rate, once.
+ * Acts straight away, apart from the Settings draft.
+ */
+function CurrencySwitchPanel({ onSwitched }: { onSwitched: (next: Settings) => void }) {
+  const { settings, catalog, tabs, orders, cashUps, switchSalesCurrency } = usePos();
+  const from = currencyOf(settings.currency);
+  const [to, setTo] = useState<CurrencyCode>(settings.currency === 'USD' ? 'EUR' : 'USD');
+  const [rateText, setRateText] = useState('');
+  const [step, setStep] = useState('');
+  const [confirming, setConfirming] = useState(false);
+  const [refused, setRefused] = useState<string[]>([]);
+
+  const target = currencyOf(to);
+  const rate = parseNumber(rateText.replace(/,/g, ''), 0.000001, 1_000_000_000);
+  const steps = SWITCH_STEPS[target.decimals] ?? [];
+  const stepValue = step ? Number(step) : undefined;
+  const blockers = switchBlockers({ tabs, orders: orders.filter((o) => o.status !== 'occupied'), cashUps });
+  const sample = catalog.filter((i) => i.available).slice(0, 4);
+
+  function run() {
+    if (rate === null || blockers.length > 0) return;
+    if (!confirming) return setConfirming(true);
+    const result = switchSalesCurrency(to, rate, stepValue);
+    setConfirming(false);
+    if ('blockers' in result) setRefused(result.blockers);
+    else onSwitched(result.settings);
+  }
+
+  return (
+    <div className="currency-switch">
+      <div className="settings-row__label">Start selling in another currency</div>
+      <p className="settings-row__hint">
+        For a shop that’s been selling in {from.symbol} and now prices its menu in another currency,
+        while it keeps buying in {from.symbol}. Item, portion, and set-meal prices, item costs, and
+        amount-off promotions are converted at your rate. Purchases, bills, expenses, and wages stay in{' '}
+        {from.symbol}. Past orders keep what they were taken in; reports show them converted.
+      </p>
+      <Row id="switchTo" label="Sell in">
+        <FilterSelect
+          value={to}
+          onChange={(v) => {
+            setTo(v as CurrencyCode);
+            setStep('');
+            setConfirming(false);
+          }}
+          label="Sell in"
+        >
+          {CURRENCIES.filter((c) => c.code !== settings.currency).map((c) => (
+            <option key={c.code} value={c.code}>
+              {c.name} ({c.symbol})
+            </option>
+          ))}
+        </FilterSelect>
+      </Row>
+      <Row
+        id="switchRate"
+        forInput
+        label="Exchange rate"
+        hint={`How many ${from.symbol} make ${target.symbol}1 today.`}
+      >
+        <Affix after={`${from.symbol} per ${target.symbol}1`}>
+          <input
+            id="setting-switchRate"
+            className="settings-input settings-input--num mono"
+            inputMode="decimal"
+            value={rateText}
+            onChange={(e) => {
+              setRateText(e.target.value);
+              setConfirming(false);
+            }}
+            aria-invalid={rateText.trim() !== '' && rate === null}
+          />
+        </Affix>
+      </Row>
+      <Row id="switchStep" label="Round prices" hint="Item, portion, and set-meal prices. Costs are kept exact.">
+        <FilterSelect
+          value={step}
+          onChange={(v) => {
+            setStep(v);
+            setConfirming(false);
+          }}
+          label="Round prices"
+        >
+          <option value="">Exactly</option>
+          {steps.map((n) => (
+            <option key={n} value={n}>
+              To the nearest {formatCurrency(n, target)}
+            </option>
+          ))}
+        </FilterSelect>
+      </Row>
+      {rate !== null && sample.length > 0 && (
+        <ul className="currency-switch__preview" aria-label="Price preview">
+          {sample.map((item) => (
+            <li key={item.id}>
+              <span>{item.name}</span>
+              <Mono>{formatCurrency(item.price, from)}</Mono>
+              <span aria-hidden="true">→</span>
+              <Mono>{formatCurrency(convertPrice(item.price, rate, target, stepValue), target)}</Mono>
+            </li>
+          ))}
+        </ul>
+      )}
+      {[...blockers, ...refused.filter((r) => !blockers.includes(r))].map((b) => (
+        <p key={b} className="settings-warning" role="status">
+          {b}
+        </p>
+      ))}
+      <Button
+        size="sm"
+        onClick={run}
+        onBlur={() => setConfirming(false)}
+        disabled={rate === null || blockers.length > 0}
+      >
+        {confirming
+          ? `Confirm — convert ${catalog.length} ${catalog.length === 1 ? 'item' : 'items'} to ${target.code}`
+          : `Switch to selling in ${target.code}`}
+      </Button>
+    </div>
+  );
+}
+
 function Section({ title, note, children }: { title: string; note?: string; children: ReactNode }) {
   const id = `section-${title.toLowerCase().replace(/[^a-z]+/g, '-')}`;
   return (
@@ -770,6 +1119,124 @@ function LogoPicker({
           Remove
         </Button>
       )}
+    </div>
+  );
+}
+
+/**
+ * Preset swatches, the browser's own picker for anything else, and the hex as
+ * text. An empty value is the unset swatch — the stock color.
+ */
+function ColorPicker({
+  id,
+  value,
+  onChange,
+  unsetLabel,
+  unsetSwatch,
+  invalid,
+}: {
+  id: string;
+  value: string;
+  onChange: (value: string) => void;
+  unsetLabel: string;
+  /** What the unset swatch shows — a CSS color. */
+  unsetSwatch: string;
+  invalid: boolean;
+}) {
+  const hex = parseHex(value);
+  const custom = !!hex && !BRAND_PRESETS.some((p) => p.hex === hex);
+  const swatches = [
+    { name: unsetLabel, hex: '', fill: unsetSwatch },
+    ...BRAND_PRESETS.map((p) => ({ ...p, fill: p.hex })),
+  ];
+
+  return (
+    <div className="color-picker" id={`setting-${id}`}>
+      <div className="color-picker__swatches" role="radiogroup" aria-label="Preset colors">
+        {swatches.map((sw) => {
+          const on = sw.hex ? hex === sw.hex : !value.trim();
+          return (
+            <button
+              key={sw.name}
+              type="button"
+              role="radio"
+              aria-checked={on}
+              aria-label={sw.name}
+              title={sw.name}
+              className={on ? 'color-swatch color-swatch--on' : 'color-swatch'}
+              style={{ background: sw.fill }}
+              onClick={() => onChange(sw.hex)}
+            />
+          );
+        })}
+      </div>
+      <div className="color-picker__custom">
+        <label
+          className={custom ? 'color-swatch color-swatch--custom color-swatch--on' : 'color-swatch color-swatch--custom'}
+          title="Pick any color"
+          style={custom ? { background: hex } : undefined}
+        >
+          <span className="sr-only">Pick any color</span>
+          <input type="color" value={hex ?? '#121212'} onChange={(e) => onChange(e.target.value)} />
+        </label>
+        <input
+          className="settings-input settings-input--hex mono"
+          value={value}
+          placeholder="#rrggbb"
+          spellCheck={false}
+          onChange={(e) => onChange(e.target.value)}
+          aria-invalid={invalid}
+          aria-label="Hex color"
+        />
+      </div>
+    </div>
+  );
+}
+
+/** A slice of the register in the draft colors, before they're saved. */
+function BrandPreview({
+  brand,
+  accent,
+  name,
+  logo,
+}: {
+  brand: string | null;
+  accent: string | null;
+  name: string;
+  logo: string | null;
+}) {
+  // Every token is set here, so the preview shows the draft rather than
+  // whatever is saved on the page around it.
+  const tokens = brandTokens(brand, accent);
+  const style = {
+    '--brand': tokens['--brand'] ?? 'var(--ink)',
+    '--on-brand': tokens['--on-brand'] ?? 'var(--paper)',
+    '--on-brand-soft': tokens['--on-brand-soft'] ?? 'var(--line)',
+    '--accent': accent ?? brand ?? 'var(--ink)',
+  } as CSSProperties;
+
+  return (
+    <div className="brand-preview" style={style} role="img" aria-label="Preview of the brand colors">
+      <div className="brand-preview__top">
+        <BrandMark logo={logo} />
+        <span className="brand-preview__name">{name || '—'}</span>
+      </div>
+      <div className="brand-preview__body">
+        <div className="brand-preview__controls">
+          <span className="brand-preview__chip brand-preview__chip--on">Card</span>
+          <span className="brand-preview__chip">Cash</span>
+          <span className="btn btn--primary btn--sm brand-preview__cta">Charge</span>
+        </div>
+        <div className="brand-preview__chart">
+          {[38, 62, 45, 80, 54, 100, 70].map((h, i) => (
+            <span
+              key={i}
+              className={h === 100 ? 'brand-preview__col brand-preview__col--peak' : 'brand-preview__col'}
+              style={{ height: `${h}%` }}
+            />
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

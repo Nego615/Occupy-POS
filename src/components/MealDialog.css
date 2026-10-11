@@ -106,9 +106,9 @@
 
 .meal-option--selected,
 .meal-option--selected:hover {
-  border-color: var(--ink);
-  background: var(--ink);
-  color: var(--paper);
+  border-color: var(--brand);
+  background: var(--brand);
+  color: var(--on-brand);
 }
 
 .meal-option:disabled {
@@ -132,7 +132,7 @@
 }
 
 .meal-option--selected .meal-option__note {
-  color: var(--line);
+  color: var(--on-brand-soft);
 }
 
 .meal-dialog__error {

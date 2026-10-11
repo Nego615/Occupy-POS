@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
-import { expectedCash, shiftStart, shiftTotals, type CashUp } from './cashup';
+import { afterEach, describe, expect, it } from 'vitest';
+import { setActiveCurrency, setCostCurrency } from '../lib/currency';
+import { expectedCash, expectedLocalCash, shiftStart, shiftTotals, type CashUp } from './cashup';
 import type { OrderRecord } from './orders';
 
 const order = (patch: Partial<OrderRecord>): OrderRecord => ({
@@ -76,8 +77,47 @@ describe('shiftTotals', () => {
 
 describe('expectedCash', () => {
   it('is the float plus cash taken, less cash refunded', () => {
-    const totals = { taken: { cash: 50_000, card: 0, mobile: 0 }, refunded: { cash: 5_000, card: 0, mobile: 0 }, payments: 3 };
+    const totals = {
+      taken: { cash: 50_000, card: 0, mobile: 0 },
+      refunded: { cash: 5_000, card: 0, mobile: 0 },
+      payments: 3,
+      local: { taken: 0, refunded: 0, value: { taken: 0, refunded: 0 } },
+    };
     expect(expectedCash(20_000, totals)).toBe(65_000);
+  });
+});
+
+describe('cash in the cost currency', () => {
+  afterEach(() => {
+    setActiveCurrency('TZS');
+    setCostCurrency(null);
+  });
+
+  it('keeps shillings taken against dollar bills in their own drawer, and refunds them in shillings', () => {
+    setActiveCurrency('USD');
+    setCostCurrency('TZS');
+    const orders = [
+      order({
+        id: 1,
+        lines: [{ name: 'Dinner', qty: 1, unitPrice: 40 }],
+        payments: [
+          {
+            method: 'cash',
+            amount: 40,
+            at: '2026-10-07T09:00:00.000Z',
+            local: { currency: 'TZS', rate: 2_650, amount: 106_000, tendered: 110_000 },
+          },
+        ],
+        refunds: [{ id: 'r', at: '2026-10-07T10:00:00.000Z', lines: [], subtotal: 10, tax: 0, amount: 10, reason: 'Other', by: 'j', restocked: false }],
+      }),
+      order({ id: 2, lines: [{ name: 'Tea', qty: 1, unitPrice: 5 }], payments: [{ method: 'cash', amount: 5, tendered: 10, at: '2026-10-07T11:00:00.000Z' }] }),
+    ];
+    const totals = shiftTotals(orders, [], FROM, TO);
+    expect(totals.taken.cash).toBe(45);
+    expect(totals.local).toEqual({ taken: 106_000, refunded: 26_500, value: { taken: 40, refunded: 10 } });
+    // The dollar drawer only holds the $5 tea; the shilling drawer, what the dinner left behind.
+    expect(expectedCash(20, totals)).toBe(25);
+    expect(expectedLocalCash(50_000, totals)).toBe(129_500);
   });
 });
 

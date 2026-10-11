@@ -36,8 +36,8 @@
 /* ---- Variants ---- */
 
 .btn--primary {
-  background: var(--ink);
-  color: var(--paper);
+  background: var(--brand);
+  color: var(--on-brand);
   border: none;
 }
 

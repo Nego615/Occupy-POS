@@ -34,6 +34,8 @@ export function currencyOf(code: CurrencyCode): Currency {
  * Settings on every render — before any child renders — and they read it.
  */
 let active: Currency = currencyOf(DEFAULT_CURRENCY);
+// What stock, suppliers, expenses, and wages are paid in — null while that's the active currency.
+let cost: Currency | null = null;
 
 export function setActiveCurrency(code: CurrencyCode): void {
   active = currencyOf(code);
@@ -41,6 +43,39 @@ export function setActiveCurrency(code: CurrencyCode): void {
 
 export function activeCurrency(): Currency {
   return active;
+}
+
+/** Set alongside the active currency; null, or the active currency's own code, buys in what it sells in. */
+export function setCostCurrency(code: CurrencyCode | null): void {
+  cost = code && code !== active.code ? currencyOf(code) : null;
+}
+
+/** The currency purchases, supplier bills, expenses, and wages are in. */
+export function costCurrency(): Currency {
+  return cost ?? active;
+}
+
+/**
+ * A cost-currency amount in the sales currency, at `rate` cost units to one
+ * sales unit. No rate means the shop buys in what it sells in.
+ */
+export function toSales(amount: number, rate?: number): number {
+  return rate ? roundMoney(amount / rate) : amount;
+}
+
+/** A sales-currency amount in the cost currency — the other way from toSales. */
+export function toCost(amount: number, rate?: number): number {
+  return rate ? roundMoney(amount * rate, costCurrency()) : amount;
+}
+
+/**
+ * What a sales-currency bill comes to in cost-currency cash: rounded up, so
+ * paying it always covers the bill.
+ */
+export function costDue(amount: number, rate: number): number {
+  const f = 10 ** costCurrency().decimals;
+  // Rounding off float noise first, so 40 × 2650 is 106,000 and not 106,001.
+  return Math.ceil(Number((amount * rate * f).toFixed(6))) / f;
 }
 
 /**
@@ -66,13 +101,13 @@ export function formatAmount(value: number, currency: Currency = active): string
 }
 
 /** Rounds to the currency's smallest unit — cents, or whole shillings. */
-export function roundMoney(n: number): number {
-  const f = 10 ** active.decimals;
+export function roundMoney(n: number, currency: Currency = active): number {
+  const f = 10 ** currency.decimals;
   return Math.round(n * f) / f;
 }
 
 /** Whether typed text is a plain amount with no more decimals than the currency allows. */
-export function isAmountText(text: string): boolean {
-  const d = active.decimals;
+export function isAmountText(text: string, currency: Currency = active): boolean {
+  const d = currency.decimals;
   return (d === 0 ? /^\d+$/ : new RegExp(`^\\d*\\.?\\d{0,${d}}$`)).test(text);
 }

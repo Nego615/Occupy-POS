@@ -27,7 +27,7 @@
   max-width: 24px;
   /* 2px surface gap between neighbours when columns get dense. */
   margin: 0 1px;
-  background: var(--ink);
+  background: var(--accent);
   opacity: 0.16;
   border-radius: 4px 4px 0 0;
 }

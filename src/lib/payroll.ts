@@ -1,7 +1,6 @@
 import { type StaffMember } from '../data/staff';
-import { money } from './analytics';
 import { round } from './cart';
-import { roundMoney } from './currency';
+import { costCurrency, formatCurrency, roundMoney } from './currency';
 import { dateOfDaysAgo, daysAgoOf } from '../data/history';
 
 /**
@@ -179,7 +178,10 @@ export type PayrollRun = {
   /** When it was marked paid, for display. */
   paidAt: string;
   paidBy: string;
+  /** In the cost currency — what wages are paid in. */
   gross: number;
+  /** Cost-currency units to one sales unit when it was paid, when the shop buys in another currency. */
+  rate?: number;
   /** `hours` is only on runs from before staff were all salaried. */
   lines: { staffId: string; name: string; hours?: number; gross: number }[];
 };
@@ -202,6 +204,6 @@ export function salaried(staff: StaffMember[]): StaffMember[] {
 
 /** "TSh 2,000,000/mo", or "Not set". */
 export function payLabel(member: StaffMember): string {
-  if (member.monthlySalary) return `${money(member.monthlySalary)}/mo`;
+  if (member.monthlySalary) return `${formatCurrency(member.monthlySalary, costCurrency())}/mo`;
   return 'Not set';
 }

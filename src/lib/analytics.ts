@@ -13,12 +13,14 @@ import { round } from './cart';
 import { formatCurrency } from './currency';
 import { toCsv } from './reports';
 
-export type RangeId = 'today' | 'week' | 'month';
+export type RangeId = 'today' | 'week' | 'month' | 'all';
 
-export const RANGES: { id: RangeId; label: string; days: number }[] = [
-  { id: 'today', label: 'Today', days: 1 },
-  { id: 'week', label: 'Week', days: 7 },
-  { id: 'month', label: 'Month', days: 30 },
+/** `days` is Infinity for All time, which has no prior period to compare with. */
+export const RANGES: { id: RangeId; label: string; days: number; phrase: string }[] = [
+  { id: 'today', label: 'Today', days: 1, phrase: 'today' },
+  { id: 'week', label: 'Week', days: 7, phrase: 'this week' },
+  { id: 'month', label: 'Month', days: 30, phrase: 'this month' },
+  { id: 'all', label: 'All time', days: Infinity, phrase: 'of all time' },
 ];
 
 export type Totals = {
@@ -30,6 +32,8 @@ export type Totals = {
 
 /** Orders inside a window of `days`, offset by `days` for the prior period. */
 function inWindow(orders: Order[], days: number, offset = 0): Order[] {
+  // All time is everything, and nothing comes before it.
+  if (!Number.isFinite(days)) return offset ? [] : orders;
   const from = offset * days;
   const to = from + days;
   return orders.filter((o) => o.daysAgo >= from && o.daysAgo < to);

@@ -7,10 +7,26 @@ import { Money, Mono } from '../components/Mono';
 import { PrintableReceipt } from '../components/PrintableReceipt';
 import { ReceiptEdge } from '../components/Receipt';
 import { StatusChip } from '../components/StatusChip';
-import { TENDER_LABEL, changeGiven, paidAmount, type Payment, type TenderMethod } from '../data/orders';
-import { PAYMENT_METHODS } from '../data/settings';
+import {
+  TENDER_LABEL,
+  changeGiven,
+  localChange,
+  paidAmount,
+  tenderLabel,
+  type Payment,
+  type TenderMethod,
+} from '../data/orders';
+import { PAYMENT_METHODS, exchangeRate } from '../data/settings';
 import { round } from '../lib/cart';
-import { activeCurrency, formatAmount, isAmountText } from '../lib/currency';
+import {
+  activeCurrency,
+  costCurrency,
+  costDue,
+  formatAmount,
+  formatCurrency,
+  isAmountText,
+  type Currency,
+} from '../lib/currency';
 import { usePos } from '../lib/store';
 import { quickCash } from '../lib/tender';
 import { formatTime } from '../lib/useClock';
@@ -25,6 +41,8 @@ type Charged = {
   method: string;
   /** Cash to hand back. */
   change: number;
+  /** Cash to hand back in the cost currency, from cash taken in it. */
+  localChange: number;
   at: string;
 };
 
@@ -33,10 +51,10 @@ const TENDER_ICON: Record<TenderMethod, IconName> = Object.fromEntries(
 ) as Record<TenderMethod, IconName>;
 
 /** Parses typed money, or null when it isn't a valid amount. Blank is null too. */
-function parseAmount(text: string): number | null {
+function parseAmount(text: string, currency?: Currency): number | null {
   const t = text.trim().replace(/,/g, '');
-  if (!t || !isAmountText(t)) return null;
-  return round(Number.parseFloat(t));
+  if (!t || !isAmountText(t, currency)) return null;
+  return currency ? Number.parseFloat(t) : round(Number.parseFloat(t));
 }
 
 export function Tender() {
@@ -66,6 +84,10 @@ export function Tender() {
   const [ref, setRef] = useState('');
   const [byItem, setByItem] = useState<Set<string> | null>(null);
   const [charged, setCharged] = useState<Charged | null>(null);
+  // Cash in what the shop buys in — shillings against a dollar bill — when it buys in another currency.
+  const rate = exchangeRate(settings);
+  const local = rate ? costCurrency() : null;
+  const [cashIn, setCashIn] = useState<'sales' | 'local'>('sales');
 
   const amountDue = totals.total;
   const customValid = customTip === '' || isAmountText(customTip);
@@ -101,12 +123,16 @@ export function Tender() {
       : typedAmount !== null
         ? Math.min(typedAmount, remaining)
         : remaining;
-  const tendered = method === 'cash' ? (parseAmount(tenderedText) ?? amount) : amount;
-  const change = round(tendered - amount);
+  // Paying in the cost currency, the cash side is all in it: what's due, what's handed over, the change.
+  const paysLocal = method === 'cash' && local !== null && cashIn === 'local';
+  const cashCurrency = paysLocal ? local! : undefined;
+  const cashDue = paysLocal ? costDue(amount, rate!) : amount;
+  const tendered = method === 'cash' ? (parseAmount(tenderedText, cashCurrency) ?? cashDue) : amount;
+  const change = paysLocal ? tendered - cashDue : round(tendered - amount);
   const amountValid =
     amount > 0 &&
     (amountText === '' || typedAmount !== null) &&
-    (method !== 'cash' || (tenderedText === '' ? true : parseAmount(tenderedText) !== null)) &&
+    (method !== 'cash' || (tenderedText === '' ? true : parseAmount(tenderedText, cashCurrency) !== null)) &&
     change >= 0;
   const finishes = amount >= remaining;
 
@@ -123,7 +149,11 @@ export function Tender() {
     const payment: Payment = {
       method,
       amount,
-      ...(method === 'cash' ? { tendered } : {}),
+      ...(paysLocal
+        ? { local: { currency: local!.code, rate: rate!, amount: cashDue, tendered } }
+        : method === 'cash'
+          ? { tendered }
+          : {}),
       ...(ref.trim() ? { ref: ref.trim() } : {}),
     };
     const all = [...tab.payments, payment];
@@ -133,9 +163,10 @@ export function Tender() {
       total,
       method:
         all.length === 1
-          ? TENDER_LABEL[method]
-          : `Split · ${[...new Set(all.map((p) => TENDER_LABEL[p.method]))].join(' + ')}`,
+          ? tenderLabel(payment)
+          : `Split · ${[...new Set(all.map(tenderLabel))].join(' + ')}`,
       change: changeGiven(all),
+      localChange: localChange(all),
       at: formatTime(new Date()),
     };
     const closed = takePayment(payment, chosenTip);
@@ -214,6 +245,12 @@ export function Tender() {
           <div className="tender__bill">
             <span className="tender__total-label">{paid > 0 ? 'Left to pay' : 'Amount due'}</span>
             <Money value={paid > 0 ? remaining : amountDue} className="tender__total-amount" />
+            {local && (
+              <span className="tender__total-alt">
+                <Money value={costDue(paid > 0 ? remaining : amountDue, rate!)} currency={local} /> in cash at{' '}
+                <Mono>{formatCurrency(rate!, local)}</Mono> to <Mono>{`${activeCurrency().symbol}1`}</Mono>
+              </span>
+            )}
 
             {tipsEnabled && !tipLocked && (
               <div className="tip-row" role="group" aria-label="Tip">
@@ -286,7 +323,7 @@ export function Tender() {
                 {tab.payments.map((p, i) => (
                   <li key={i} className="tender__paid-row">
                     <span>
-                      {TENDER_LABEL[p.method]}
+                      {tenderLabel(p)}
                       {p.ref && <Mono className="tender__paid-ref"> ·{p.ref}</Mono>}
                     </span>
                     <Money value={p.amount} />
@@ -393,26 +430,45 @@ export function Tender() {
 
             {method === 'cash' && (
               <div className="tender__cash">
+                {local && (
+                  <div className="tender__split-row" role="group" aria-label="Cash in">
+                    {(['sales', 'local'] as const).map((c) => (
+                      <button
+                        key={c}
+                        type="button"
+                        className={cashIn === c ? 'tender__chip tender__chip--active' : 'tender__chip'}
+                        aria-pressed={cashIn === c}
+                        onClick={() => {
+                          setCashIn(c);
+                          setTenderedText('');
+                        }}
+                      >
+                        Cash in {(c === 'local' ? local : currency).symbol}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <AmountInput
                   id="cash-tendered"
                   label="Cash received"
                   value={tenderedText}
                   onChange={setTenderedText}
-                  placeholder={formatAmount(amount)}
+                  placeholder={formatAmount(cashDue, cashCurrency)}
+                  currency={cashCurrency}
                 />
                 <div className="tender__split-row tender__quick" role="group" aria-label="Quick cash">
-                  <button type="button" className="tender__chip" onClick={() => setTenderedText(String(amount))}>
+                  <button type="button" className="tender__chip" onClick={() => setTenderedText(String(cashDue))}>
                     Exact
                   </button>
-                  {quickCash(amount, currency.decimals).map((v) => (
+                  {quickCash(cashDue, (cashCurrency ?? currency).decimals).map((v) => (
                     <button key={v} type="button" className="tender__chip" onClick={() => setTenderedText(String(v))}>
-                      <Money value={v} />
+                      <Money value={v} currency={cashCurrency} />
                     </button>
                   ))}
                 </div>
                 <div className={change < 0 ? 'tender__change tender__change--short' : 'tender__change'}>
                   <span>{change < 0 ? 'Short by' : 'Change due'}</span>
-                  <Money value={Math.abs(change)} />
+                  <Money value={Math.abs(change)} currency={cashCurrency} />
                 </div>
               </div>
             )}
@@ -462,14 +518,16 @@ function AmountInput({
   value,
   onChange,
   placeholder,
+  currency = activeCurrency(),
 }: {
   id: string;
   label: string;
   value: string;
   onChange: (value: string) => void;
   placeholder: string;
+  /** What's typed is in; the business currency unless told otherwise. */
+  currency?: Currency;
 }) {
-  const currency = activeCurrency();
   return (
     <div className="tender__custom">
       <label htmlFor={id}>{label}</label>
@@ -502,6 +560,9 @@ function ChargedConfirmation({
 }) {
   const { orders, settings } = usePos();
   const order = orders.find((o) => o.id === charged.orderId && o.status !== 'occupied');
+  // Change in the cost currency, from cash handed over in it, comes first: it's what's in hand.
+  const changeDue = charged.localChange > 0 ? charged.localChange : charged.change;
+  const changeCurrency = charged.localChange > 0 ? costCurrency() : undefined;
 
   // Once per payment — the ref keeps StrictMode's double effect from printing twice.
   const autoPrinted = useRef(false);
@@ -525,10 +586,10 @@ function ChargedConfirmation({
       <div className="tender__center">
         <ReceiptEdge inverted className="tender__edge" />
         <div className="tender__card tender__done">
-          {charged.change > 0 ? (
+          {changeDue > 0 ? (
             <>
               <span className="tender__total-label">Change due</span>
-              <Money value={charged.change} className="tender__done-amount" />
+              <Money value={changeDue} currency={changeCurrency} className="tender__done-amount" />
               <p className="tender__done-sub">
                 Charged <Money value={charged.total} /> · {charged.method} · closed at{' '}
                 <Mono>{charged.at}</Mono>

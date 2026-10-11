@@ -78,19 +78,19 @@
   position: relative;
 }
 
-/* The active item's ink is .nav-item__fill, which slides between items
+/* The active item's brand fill is .nav-item__fill, which slides between items
    (AdminLayout); the link itself stays clear so the slide shows. */
 .nav-item--active,
 .nav-item--active:hover {
   background: none;
-  color: var(--paper);
+  color: var(--on-brand);
 }
 
 .nav-item__fill {
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background: var(--ink);
+  background: var(--brand);
   pointer-events: none;
 }
 
@@ -148,6 +148,10 @@
   overflow-y: auto;
   padding: 26px 32px 40px;
   min-width: 0;
+  /* Holds absolutely positioned content — screen-reader labels — inside the
+     scroll area. Placed against the viewport instead, ones far down a long page
+     made the whole window scroll once this reached its end. */
+  position: relative;
 }
 
 .page-head {

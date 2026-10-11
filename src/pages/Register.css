@@ -304,6 +304,29 @@
   margin-top: 10px;
 }
 
+/* Print docket sits just above the charge button, in the button's colour. */
+.cart__docket {
+  display: block;
+  margin: 12px 0 0 auto;
+  padding: 6px 0;
+  border: none;
+  background: none;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--brand);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.cart__docket:hover {
+  opacity: 0.88;
+}
+
+.cart__docket + .cart__charge {
+  margin-top: 6px;
+}
+
 .cart__charge-sub {
   text-align: center;
   font-size: 11.5px;
@@ -331,13 +354,13 @@
   color: var(--ink-soft);
 }
 
-.cart__discount:focus-visible,
+.cart__docket:focus-visible,
 button.cart-line__info:focus-visible {
   outline: var(--focus-width) solid var(--focus-color);
   outline-offset: var(--focus-offset);
 }
 
-/* The line's text opens its note and discount — looks like text, acts like a button. */
+/* The line's text opens its note — looks like text, acts like a button. */
 button.cart-line__info {
   border: none;
   background: none;
@@ -359,35 +382,6 @@ button.cart-line__info:hover .cart-line__name {
   font-weight: 600;
   color: var(--occupied);
   margin-top: 2px;
-}
-
-.cart__discount {
-  display: block;
-  margin: 4px 0 10px auto;
-  padding: 6px 0;
-  border: none;
-  background: none;
-  font-family: inherit;
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--ink-soft);
-  text-decoration: underline;
-  cursor: pointer;
-}
-
-.cart__discount:hover {
-  color: var(--ink);
-}
-
-/* Print docket and the tab discount, side by side under the totals. */
-.cart__links {
-  display: flex;
-  justify-content: flex-end;
-  gap: 18px;
-}
-
-.cart__links .cart__discount {
-  margin: 4px 0 10px;
 }
 
 /* ---------- Narrow screens ---------- */

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import './Inventory.css';
 import { Button } from '../components/Button';
-import { Money, Mono, formatMoney } from '../components/Mono';
+import { CostMoney, Mono, formatCost } from '../components/Mono';
 import { Pill, PillRow } from '../components/Pill';
 import { StatusChip } from '../components/StatusChip';
 import {
@@ -11,8 +11,9 @@ import {
   type PurchaseOrder,
   type PurchaseStatus,
 } from '../data/inventory';
-import { isAmountText } from '../lib/currency';
-import { purchaseTotal } from '../lib/inventory';
+import { exchangeRate } from '../data/settings';
+import { activeCurrency, costCurrency, isAmountText, toCost } from '../lib/currency';
+import { lastPaid, purchaseTotal } from '../lib/inventory';
 import { usePos } from '../lib/store';
 import { useRevealPanel } from '../lib/useRevealPanel';
 
@@ -135,7 +136,7 @@ export function AdminPurchases() {
                     <td className="inv-soft">{po.orderedAt ? formatDay(po.orderedAt) : '—'}</td>
                     <td className="inv-soft">{po.expectedAt ? formatDay(po.expectedAt) : '—'}</td>
                     <td className="num">
-                      <Money value={purchaseTotal(po)} className="inv-strong" />
+                      <CostMoney value={purchaseTotal(po)} className="inv-strong" />
                     </td>
                   </tr>
                 ))}
@@ -173,7 +174,9 @@ function PurchaseEditor({
   order?: PurchaseOrder;
   onSaved: (id: string) => void;
 }) {
-  const { catalog, suppliers, savePurchaseOrder, placePurchaseOrder, cancelPurchaseOrder } = usePos();
+  const { catalog, suppliers, purchaseOrders, settings, savePurchaseOrder, placePurchaseOrder, cancelPurchaseOrder } =
+    usePos();
+  const rate = exchangeRate(settings);
   const activeSuppliers = suppliers.filter((s) => s.active);
   const [supplierId, setSupplierId] = useState(order?.supplierId ?? activeSuppliers[0]?.id ?? '');
   const [lines, setLines] = useState<DraftLine[]>(
@@ -193,7 +196,11 @@ function PurchaseEditor({
     const item = catalog.find((i) => i.id === itemId);
     if (!item) return;
     const suggested = item.parLevel !== undefined ? Math.max(item.parLevel - item.stock, 1) : 1;
-    setLines((prev) => [...prev, { itemId, qty: String(suggested), unitCost: String(item.cost ?? '') }]);
+    // Buying in another currency, the item's cost is in the wrong one — start from what it last cost instead.
+    const unitCost = rate
+      ? (lastPaid(purchaseOrders, itemId) ?? (item.cost === undefined ? undefined : toCost(item.cost, rate)))
+      : item.cost;
+    setLines((prev) => [...prev, { itemId, qty: String(suggested), unitCost: String(unitCost ?? '') }]);
     setError(null);
   }
 
@@ -208,7 +215,7 @@ function PurchaseEditor({
     for (const l of lines) {
       const name = catalog.find((i) => i.id === l.itemId)?.name ?? 'an item';
       if (!/^\d+$/.test(l.qty) || Number(l.qty) === 0) return fail(`Enter a quantity for ${name}.`);
-      if (!isAmountText(l.unitCost) || l.unitCost === '') return fail(`Enter a unit cost for ${name}.`);
+      if (!isAmountText(l.unitCost, costCurrency()) || l.unitCost === '') return fail(`Enter a unit cost for ${name}.`);
     }
     return true;
   }
@@ -259,7 +266,7 @@ function PurchaseEditor({
               <tr>
                 <th>Item</th>
                 <th className="num">Qty</th>
-                <th className="num">Unit cost</th>
+                <th className="num">Unit cost{rate && ` (${costCurrency().symbol})`}</th>
                 <th>
                   <span className="sr-only">Remove</span>
                 </th>
@@ -307,7 +314,7 @@ function PurchaseEditor({
               <tr>
                 <td colSpan={2}>Total</td>
                 <td className="num">
-                  <Mono>{formatMoney(total)}</Mono>
+                  <Mono>{formatCost(total)}</Mono>
                 </td>
                 <td />
               </tr>
@@ -379,7 +386,9 @@ function PurchaseEditor({
 /* ---------- Placed orders: receive, or read ---------- */
 
 function OrderPanel({ order }: { order: PurchaseOrder }) {
-  const { suppliers, bills, receiveDelivery, cancelPurchaseOrder } = usePos();
+  const { suppliers, bills, settings, receiveDelivery, cancelPurchaseOrder } = usePos();
+  const settingsRate = exchangeRate(settings);
+  const [rateText, setRateText] = useState(settingsRate ? String(settingsRate) : '');
   const supplier = suppliers.find((s) => s.id === order.supplierId);
   const open = order.status === 'ordered' || order.status === 'partial';
   const [qty, setQty] = useState<Record<string, string>>(() =>
@@ -404,12 +413,14 @@ function OrderPanel({ order }: { order: PurchaseOrder }) {
       const q = qty[l.itemId]?.trim() ?? '0';
       const c = cost[l.itemId]?.trim() ?? '';
       if (!/^\d+$/.test(q)) return setError(`Enter how many ${l.name} arrived (0 if none).`);
-      if (Number(q) > 0 && (!isAmountText(c) || c === '')) return setError(`Enter a unit cost for ${l.name}.`);
+      if (Number(q) > 0 && (!isAmountText(c, costCurrency()) || c === '')) return setError(`Enter a unit cost for ${l.name}.`);
       receipts.push({ itemId: l.itemId, qty: Number(q), unitCost: Number(c) });
     }
     if (receipts.every((r) => r.qty === 0)) return setError('Nothing entered as arrived.');
     if (!invoice.trim()) return setError('Enter the supplier’s invoice or delivery note number.');
-    receiveDelivery(order.id, receipts, invoice);
+    const rate = settingsRate ? Number(rateText.trim().replace(/,/g, '')) : undefined;
+    if (rate !== undefined && !(rate > 0)) return setError('Enter the exchange rate for this delivery.');
+    receiveDelivery(order.id, receipts, invoice, rate);
     setInvoice('');
     setError(null);
   }
@@ -438,7 +449,7 @@ function OrderPanel({ order }: { order: PurchaseOrder }) {
             <th className="num">Ordered</th>
             <th className="num">In</th>
             {open && <th className="num">Arrived now</th>}
-            {open && <th className="num">Unit cost</th>}
+            {open && <th className="num">Unit cost{settingsRate && ` (${costCurrency().symbol})`}</th>}
           </tr>
         </thead>
         <tbody>
@@ -500,9 +511,28 @@ function OrderPanel({ order }: { order: PurchaseOrder }) {
                 placeholder="e.g. KCT-0461"
               />
             </label>
+            {settingsRate && (
+              <label className="inv-field">
+                Exchange rate · {costCurrency().symbol} per {activeCurrency().symbol}1
+                <span className="inv-field__hint">
+                  Turns these costs into item costs. Today’s rate from Settings, unless this delivery
+                  was priced at another.
+                </span>
+                <input
+                  className="inv-input inv-input--num"
+                  inputMode="decimal"
+                  value={rateText}
+                  onChange={(e) => {
+                    setRateText(e.target.value);
+                    setError(null);
+                  }}
+                  aria-label={`Exchange rate, ${costCurrency().symbol} per ${activeCurrency().symbol}1`}
+                />
+              </label>
+            )}
             <p className="inv-note">
               Adds what arrived to stock, updates each item’s average cost, and raises a bill for{' '}
-              <Mono>{formatMoney(receiving)}</Mono>
+              <Mono>{formatCost(receiving)}</Mono>
               {supplier && <> due in {supplier.paymentTermsDays} days</>}. Anything short stays
               open for the next delivery.
             </p>
@@ -528,7 +558,7 @@ function OrderPanel({ order }: { order: PurchaseOrder }) {
         </div>
       ) : (
         <p className="inv-note">
-          Total <Mono>{formatMoney(purchaseTotal(order))}</Mono>
+          Total <Mono>{formatCost(purchaseTotal(order))}</Mono>
           {order.status === 'cancelled' && ' — cancelled, nothing was received.'}
         </p>
       )}
@@ -543,7 +573,7 @@ function OrderPanel({ order }: { order: PurchaseOrder }) {
                   <Link to={`/admin/bills?bill=${b.id}`}>{b.reference}</Link>
                 </span>
                 <span className="inv-history__change">
-                  <Money value={b.amount} />
+                  <CostMoney value={b.amount} />
                 </span>
                 <span className="inv-history__meta">
                   Received {formatDay(b.issuedAt)} · due {formatDay(b.dueAt)}

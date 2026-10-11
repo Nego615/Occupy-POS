@@ -1,3 +1,5 @@
+import type { Settings } from './settings';
+
 export type RoleId = 'owner' | 'manager' | 'frontdesk' | 'barista' | 'server' | 'cook';
 
 export type Permission =
@@ -6,6 +8,8 @@ export type Permission =
   | 'kitchen'
   | 'refunds'
   | 'catalog'
+  | 'menu'
+  | 'promotions'
   | 'locations'
   | 'reports'
   | 'staff'
@@ -13,6 +17,7 @@ export type Permission =
   | 'settings'
   | 'inventory'
   | 'payables'
+  | 'expenses'
   | 'discounts'
   | 'editTabs';
 
@@ -21,7 +26,9 @@ export const PERMISSIONS: { id: Permission; label: string }[] = [
   { id: 'payments', label: 'Take payment at the front desk' },
   { id: 'kitchen', label: 'Work the kitchen screen' },
   { id: 'refunds', label: 'Refund orders' },
-  { id: 'catalog', label: 'Edit items & prices' },
+  { id: 'catalog', label: 'Edit every item & category' },
+  { id: 'menu', label: 'Add & edit items and set meals' },
+  { id: 'promotions', label: 'Run promotions' },
   { id: 'locations', label: 'Edit tables & rooms' },
   { id: 'reports', label: 'View reports' },
   { id: 'staff', label: 'Manage staff' },
@@ -29,6 +36,7 @@ export const PERMISSIONS: { id: Permission; label: string }[] = [
   { id: 'settings', label: 'Change business settings' },
   { id: 'inventory', label: 'Stock, deliveries & purchasing' },
   { id: 'payables', label: 'Pay suppliers' },
+  { id: 'expenses', label: 'Record expenses' },
   { id: 'discounts', label: 'Give discounts' },
   { id: 'editTabs', label: 'Remove items & clear tabs' },
 ];
@@ -43,6 +51,8 @@ export const ROLES: { id: RoleId; label: string; can: Permission[] }[] = [
       'kitchen',
       'refunds',
       'catalog',
+      'menu',
+      'promotions',
       'locations',
       'reports',
       'staff',
@@ -50,6 +60,7 @@ export const ROLES: { id: RoleId; label: string; can: Permission[] }[] = [
       'settings',
       'inventory',
       'payables',
+      'expenses',
       'discounts',
       'editTabs',
     ],
@@ -58,49 +69,70 @@ export const ROLES: { id: RoleId; label: string; can: Permission[] }[] = [
     id: 'manager',
     label: 'Manager',
     // Managers receive deliveries and run purchasing; paying suppliers stays with owners.
+    // They log day-to-day running costs, often paid from the till.
     can: [
       'register',
       'payments',
       'kitchen',
       'refunds',
       'catalog',
+      'menu',
+      'promotions',
       'locations',
       'reports',
       'inventory',
+      'expenses',
       'discounts',
       'editTabs',
     ],
   },
-  // Every bill is paid at the front desk — servers and baristas ring up and send bills there.
-  { id: 'frontdesk', label: 'Front desk', can: ['payments'] },
+  // Every bill is paid, and every discount given, at the front desk — the register only
+  // charges tabs to tables and rooms and sends the bills there.
+  { id: 'frontdesk', label: 'Front desk', can: ['payments', 'discounts'] },
   { id: 'barista', label: 'Barista', can: ['register', 'kitchen', 'editTabs'] },
   // Servers only add to tabs; taking anything off needs a manager's PIN.
   { id: 'server', label: 'Server', can: ['register', 'kitchen'] },
+  // Cooks can also be let manage items and set meals — see KITCHEN_MENU_ROLES.
   { id: 'cook', label: 'Cook', can: ['kitchen'] },
 ];
+
+/**
+ * Roles given `menu` while Settings lets the kitchen manage items — for the
+ * kitchen's categories only. Categories and promotions stay with managers.
+ */
+export const KITCHEN_MENU_ROLES: RoleId[] = ['cook'];
 
 export function roleLabel(role: RoleId): string {
   return ROLES.find((r) => r.id === role)!.label;
 }
 
-/** What a role grants. Deactivated staff get nothing, whatever their role. */
+/**
+ * What a role grants — and with `settings`, what Settings adds: the kitchen's
+ * `menu`, while it's let manage items. Deactivated staff get nothing,
+ * whatever their role.
+ */
 export function hasPermission(
   member: Pick<StaffMember, 'role' | 'active'> | null,
   permission: Permission,
+  settings?: Pick<Settings, 'kitchenMenu'>,
 ): boolean {
   if (!member?.active) return false;
-  return ROLES.find((r) => r.id === member.role)!.can.includes(permission);
+  if (ROLES.find((r) => r.id === member.role)!.can.includes(permission)) return true;
+  return permission === 'menu' && !!settings?.kitchenMenu && KITCHEN_MENU_ROLES.includes(member.role);
 }
 
 /** Permissions that open some part of the admin — holding any one shows the Admin link. */
 export const ADMIN_PERMISSIONS: Permission[] = [
   'reports',
   'catalog',
+  'menu',
+  'promotions',
   'locations',
   'staff',
   'payroll',
   'settings',
   'inventory',
+  'expenses',
 ];
 
 /** Where someone lands after signing in with nowhere else to go — a cook goes straight to the kitchen. */

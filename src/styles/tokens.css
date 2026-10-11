@@ -14,6 +14,13 @@
   --surface-hover:  #eeece6; /* hover state for surface elements */
   --line:           #e4e2dc; /* all hairline borders/dividers */
 
+  /* Brand — a shop's own colors, set in Admin → Settings (lib/brand.ts
+     overrides these on :root). Unset, they're ink, so the stock look holds. */
+  --brand:          var(--ink);   /* primary buttons, selected chips, active nav, brand mark */
+  --on-brand:       var(--paper); /* text and icons on --brand */
+  --on-brand-soft:  var(--line);  /* secondary text on --brand */
+  --accent:         var(--brand); /* chart columns and share bars */
+
   /* Signal (state only — never decorative) */
   --occupied:       #ff4b2e; /* tab/table occupied, pending payment */
   --occupied-soft:  #fff0ec; /* occupied chip background */

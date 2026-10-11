@@ -39,6 +39,7 @@ export const SLICES: Record<string, SliceSpec> = {
   setMeals: list('last'),
   staff: list('last'),
   payrollRuns: list('first'),
+  expenses: list('first'),
   kitchenTickets: list('last'),
   cashUps: list('first'),
   movements: list('first'),

@@ -79,14 +79,14 @@
 
 .assign__walk-in--current,
 .assign__walk-in--current:hover {
-  border-color: var(--ink);
-  background: var(--ink);
-  color: var(--paper);
+  border-color: var(--brand);
+  background: var(--brand);
+  color: var(--on-brand);
   cursor: default;
 }
 
 .assign__walk-in--current .assign__walk-in-sub {
-  color: var(--line);
+  color: var(--on-brand-soft);
 }
 
 .assign__walk-in-name {

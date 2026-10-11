@@ -2,8 +2,10 @@ import { dateOfDaysAgo, isoDate } from './history';
 
 /* -------------------------------------------------------------------------
    Inventory: suppliers, purchase orders, supplier bills, and the stock
-   ledger. Dates are ISO calendar days ("2026-09-29"). Amounts are in the
-   business currency, like everything else.
+   ledger. Dates are ISO calendar days ("2026-09-29"). Purchase costs, bills,
+   and their payments are in the cost currency — what the shop buys in, the
+   business currency unless Settings names another. Stock movements are
+   valued in the business currency, like item costs.
    ------------------------------------------------------------------------- */
 
 export type Supplier = {
@@ -126,6 +128,8 @@ export type SupplierBill = {
   issuedAt: string;
   dueAt: string;
   amount: number;
+  /** Cost-currency units to one sales unit when the delivery came in, when the shop buys in another currency. */
+  rate?: number;
   payments: BillPayment[];
 };
 

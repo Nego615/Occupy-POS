@@ -35,9 +35,9 @@
 }
 
 .deal-chip[aria-pressed='true'] {
-  border-color: var(--ink);
-  background: var(--ink);
-  color: var(--paper);
+  border-color: var(--brand);
+  background: var(--brand);
+  color: var(--on-brand);
 }
 
 .deal-chip:focus-visible {
@@ -102,7 +102,7 @@
 }
 
 .deal-course .deal-chip[aria-pressed='true'] {
-  background: var(--ink);
+  background: var(--brand);
 }
 
 .deal-preview {
@@ -122,4 +122,75 @@
 .deal-delete--confirm {
   border-color: var(--occupied) !important;
   color: var(--occupied) !important;
+}
+
+/* A text button beside a group's label — "Add all" on a course's category. */
+.deal-link {
+  position: relative;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+/* Small text, full-size touch target. */
+.deal-link::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: calc(100% + 16px);
+  height: var(--hit-area);
+}
+
+.deal-link:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
+}
+
+/* A course's category heading: opens and closes its items. */
+.deal-group__toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--hit-area);
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  text-align: left;
+  cursor: pointer;
+}
+
+.deal-group__toggle:hover,
+.deal-group__toggle[aria-expanded='true'] {
+  color: var(--ink);
+}
+
+.deal-group__toggle:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
+}
+
+.deal-group__caret {
+  display: inline-block;
+  font-size: 13px;
+  line-height: 1;
+  transition: transform 0.15s ease;
+}
+
+.deal-group__toggle[aria-expanded='true'] .deal-group__caret {
+  transform: rotate(90deg);
 }

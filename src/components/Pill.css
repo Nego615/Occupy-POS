@@ -34,12 +34,12 @@
 }
 
 .pill--active {
-  background: var(--ink);
-  border-color: var(--ink);
-  color: var(--paper);
+  background: var(--brand);
+  border-color: var(--brand);
+  color: var(--on-brand);
 }
 
-/* In a group, the ink comes from .pill__fill, which slides between pills
+/* In a group, the brand fill comes from .pill__fill, which slides between pills
    (Pill.tsx). The button itself only keeps the matching border. */
 .pill--grouped.pill--active {
   background: var(--paper);
@@ -50,7 +50,7 @@
   position: absolute;
   inset: -1px;
   border-radius: inherit;
-  background: var(--ink);
+  background: var(--brand);
   pointer-events: none;
 }
 

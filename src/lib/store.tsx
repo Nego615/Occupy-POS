@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import type { ReactNode, SetStateAction } from 'react';
 import {
   CATALOG,
@@ -9,10 +9,12 @@ import {
   withUsedCategories,
   type CatalogItem,
   type Category,
+  type CategoryId,
   type Portion,
 } from '../data/catalog';
-import { DEFAULT_SETTINGS, type Settings } from '../data/settings';
-import { expectedCash, shiftStart, shiftTotals, type CashUp } from '../data/cashup';
+import { DEFAULT_SETTINGS, exchangeRate, type Settings } from '../data/settings';
+import type { Expense } from '../data/expenses';
+import { expectedCash, expectedLocalCash, shiftStart, shiftTotals, type CashUp } from '../data/cashup';
 import {
   PROMOTIONS,
   SET_MEALS,
@@ -46,6 +48,7 @@ import {
   refundedQty,
   type Order,
   type OrderLine,
+  type LocalCash,
   type OrderRecord,
   type Payment,
   type Refund,
@@ -61,6 +64,7 @@ import {
   type StaffMember,
 } from '../data/staff';
 import { isoDate } from '../data/history';
+import { todayIso } from '../data/inventory';
 import {
   addLine,
   computeTotals,
@@ -81,7 +85,9 @@ import {
   type ManualDiscount,
 } from './cart';
 import { salaried, type PayrollRun } from './payroll';
-import { setActiveCurrency } from './currency';
+import { applyBrand } from './brand';
+import { costDue, currencyOf, setActiveCurrency, setCostCurrency, type CurrencyCode } from './currency';
+import { convertMenu, readOrder, stampRate, switchBlockers } from './currencySwitch';
 import type { PosRepository, Snapshot } from './persist';
 import { useInventory, type InventoryStore } from './useInventory';
 import { restored, useNextId, usePersist, useRemote } from './usePersist';
@@ -264,13 +270,24 @@ type PosStore = {
   chargeToRoom: (orderId: number, roomId: string) => boolean;
   /**
    * Pays off everything charged to a room in one payment (`amount` is worked
-   * out per bill). Returns how much was settled; 0 if nothing was owed.
+   * out per bill). Cash in the cost currency gives `local` its currency and
+   * rate; each bill's share is worked out in it too. Returns how much was
+   * settled; 0 if nothing was owed.
    */
-  settleRoom: (roomId: string, payment: Omit<Payment, 'amount' | 'at' | 'by'>) => number;
+  settleRoom: (
+    roomId: string,
+    payment: Pick<Payment, 'method' | 'ref'> & { local?: Pick<LocalCash, 'currency' | 'rate'> },
+  ) => number;
   /** Closed front-desk shifts, newest first. */
   cashUps: CashUp[];
   /** Closes the current shift with the drawer count, and starts the next. */
-  closeShift: (count: { float: number; countedCash: number; note?: string }) => CashUp;
+  /** `local` counts the drawer of cash taken in the cost currency, when the shop takes it. */
+  closeShift: (count: {
+    float: number;
+    countedCash: number;
+    note?: string;
+    local?: { float: number; counted: number };
+  }) => CashUp;
   /** Whether `itemId` is made in the kitchen, per Settings' kitchen categories. */
   isKitchenItem: (itemId: string) => boolean;
   /** Kitchen items on the register's tab the kitchen hasn't been sent yet. */
@@ -301,6 +318,11 @@ type PosStore = {
   /** Whether the signed-in person's role grants `permission`. */
   can: (permission: Permission) => boolean;
   /**
+   * Whether the signed-in person can add and edit items in `category`: any,
+   * for the whole menu; the kitchen's categories, for the kitchen.
+   */
+  canEditCategory: (category: CategoryId) => boolean;
+  /**
    * Checks someone else's PIN for a one-off approval — a manager okaying a
    * refund. Returns them if they're active and hold `permission`.
    */
@@ -309,9 +331,21 @@ type PosStore = {
   payrollRuns: PayrollRun[];
   /** Records a paid month. Refused if that month was already recorded. */
   recordPayrollRun: (run: Omit<PayrollRun, 'id'>) => boolean;
+  /** Running costs that aren't stock or wages, newest first. */
+  expenses: Expense[];
+  addExpense: (expense: Omit<Expense, 'id'>) => Expense;
+  updateExpense: (id: string, patch: Partial<Omit<Expense, 'id'>>) => void;
+  deleteExpense: (id: string) => void;
   /** Business-wide settings. */
   settings: Settings;
   updateSettings: (next: Settings) => void;
+  /**
+   * Starts selling in `to` at `rate` of today's currency to one of it, and
+   * buying in today's: menu prices and item costs are converted (prices to
+   * `step`), and everything bought or paid out stays as it was. Refused —
+   * with what's in the way — while anything is open; else the new settings.
+   */
+  switchSalesCurrency: (to: CurrencyCode, rate: number, step?: number) => { blockers: string[] } | { settings: Settings };
   /** Everyone on the team, active or not. Deleted people are left out. */
   staff: StaffMember[];
   /** Everyone ever on the team, deleted people included — for names on old orders. */
@@ -364,6 +398,7 @@ export function newShopSnapshot(
     setMeals: [],
     staff: [member],
     payrollRuns: [],
+    expenses: [],
     settings,
     kitchenTickets: [],
     cashUps: [],
@@ -432,6 +467,12 @@ function slugId(name: string, fallback: string, taken: Set<string>): string {
   let id = base;
   for (let n = 2; taken.has(id); n++) id = `${base}-${n}`;
   return id;
+}
+
+/** One bill's share of cash taken in the cost currency, with its change already handed back. */
+function localShare(local: Pick<LocalCash, 'currency' | 'rate'>, amount: number): LocalCash {
+  const due = costDue(amount, local.rate);
+  return { ...local, amount: due, tendered: due };
 }
 
 function tabAsOrder(tab: OpenTab, taxRate: number): Order {
@@ -513,12 +554,22 @@ export function PosProvider({
   const [payrollRuns, setPayrollRuns] = useState<PayrollRun[]>(() =>
     restored(snapshot, 'payrollRuns', []),
   );
+  // Never seeded: a shop saved before expenses existed has none, not the demo's.
+  const [expenses, setExpenses] = useState<Expense[]>(() => restored(snapshot, 'expenses', []));
   const [settings, setSettings] = useState<Settings>(() => ({
     ...DEFAULT_SETTINGS,
     ...restored<Partial<Settings>>(snapshot, 'settings', {}),
   }));
   // Set during render, ahead of every child, so formatters never lag a switch.
   setActiveCurrency(settings.currency);
+  setCostCurrency(exchangeRate(settings) ? settings.costCurrency! : null);
+  // Today's rate, stamped on whatever's bought or paid out in the cost currency.
+  const rate = exchangeRate(settings);
+  // Before paint, so a branded shop never flashes the stock ink.
+  useLayoutEffect(() => {
+    applyBrand(settings.brandColor, settings.accentColor);
+    return () => applyBrand(null, null);
+  }, [settings.brandColor, settings.accentColor]);
   const [cashUps, setCashUps] = useState<CashUp[]>(() => restored(snapshot, 'cashUps', []));
   const [kitchenTickets, setKitchenTickets] = useState<KitchenTicket[]>(() =>
     restored(snapshot, 'kitchenTickets', () => seedTickets().sort((a, b) => a.sentAt - b.sentAt)),
@@ -542,6 +593,7 @@ export function PosProvider({
   usePersist(repo, 'setMeals', setMeals);
   usePersist(repo, 'staff', staff);
   usePersist(repo, 'payrollRuns', payrollRuns);
+  usePersist(repo, 'expenses', expenses);
   usePersist(repo, 'settings', settings);
   usePersist(repo, 'kitchenTickets', kitchenTickets);
   usePersist(repo, 'cashUps', cashUps);
@@ -556,6 +608,7 @@ export function PosProvider({
   useRemote(repo, 'setMeals', setSetMeals);
   useRemote(repo, 'staff', setStaff);
   useRemote(repo, 'payrollRuns', setPayrollRuns);
+  useRemote(repo, 'expenses', setExpenses);
   useRemote(repo, 'settings', setSettings);
   useRemote(repo, 'kitchenTickets', setKitchenTickets);
   useRemote(repo, 'cashUps', setCashUps);
@@ -572,10 +625,11 @@ export function PosProvider({
   // Day counts ("today", "3 days ago") are worked out from saved dates, and
   // re-worked when the date rolls over.
   const today = useToday();
+  // Orders from before a switch of sales currency are read back converted.
   const closedOrders = useMemo(
-    () => closedRecords.map(hydrateOrder),
+    () => closedRecords.map((r) => readOrder(r, settings.currencySwitch, currencyOf(settings.currency))),
     // `today` is a dependency so day counts are redone at midnight.
-    [closedRecords, today],
+    [closedRecords, today, settings.currencySwitch, settings.currency],
   );
 
   // Derived each render, so a role change or deactivation applies at once —
@@ -934,7 +988,7 @@ export function PosProvider({
   );
 
   const settleRoom = useCallback(
-    (roomId: string, payment: Omit<Payment, 'amount' | 'at' | 'by'>) => {
+    (roomId: string, payment: Pick<Payment, 'method' | 'ref'> & { local?: Pick<LocalCash, 'currency' | 'rate'> }) => {
       const owing = closedRecords.filter((o) => o.status === 'charged' && o.roomId === roomId);
       if (owing.length === 0) return 0;
       const at = new Date().toISOString();
@@ -946,7 +1000,16 @@ export function PosProvider({
                 ...o,
                 status: 'paid',
                 settledAt: at,
-                payments: [{ ...payment, amount: orderTotal(o), at, ...(me ? { by: me.id } : {}) }],
+                payments: [
+                  {
+                    method: payment.method,
+                    ...(payment.ref ? { ref: payment.ref } : {}),
+                    amount: orderTotal(o),
+                    at,
+                    ...(me ? { by: me.id } : {}),
+                    ...(payment.local ? { local: localShare(payment.local, orderTotal(o)) } : {}),
+                  },
+                ],
               }
             : o,
         ),
@@ -957,7 +1020,7 @@ export function PosProvider({
   );
 
   const closeShift = useCallback(
-    (count: { float: number; countedCash: number; note?: string }) => {
+    (count: { float: number; countedCash: number; note?: string; local?: { float: number; counted: number } }) => {
       const openedAt = shiftStart(cashUps);
       const closedAt = new Date().toISOString();
       const totals = shiftTotals(
@@ -977,12 +1040,24 @@ export function PosProvider({
         payments: totals.payments,
         expectedCash: expectedCash(count.float, totals),
         countedCash: count.countedCash,
+        ...(count.local && rate
+          ? {
+              local: {
+                currency: settings.costCurrency!,
+                float: count.local.float,
+                taken: totals.local.taken,
+                refunded: totals.local.refunded,
+                expected: expectedLocalCash(count.local.float, totals),
+                counted: count.local.counted,
+              },
+            }
+          : {}),
         ...(count.note?.trim() ? { note: count.note.trim() } : {}),
       };
       setCashUps((prev) => [cashUp, ...prev]);
       return cashUp;
     },
-    [cashUps, closedRecords, storedTabs, me],
+    [cashUps, closedRecords, storedTabs, me, rate, settings.costCurrency],
   );
 
   const removePayment = useCallback(
@@ -1215,14 +1290,23 @@ export function PosProvider({
 
   const signOut = useCallback(() => setSignedInId(null), []);
 
-  const can = useCallback((permission: Permission) => hasPermission(me, permission), [me]);
+  const can = useCallback(
+    (permission: Permission) => hasPermission(me, permission, settings),
+    [me, settings],
+  );
+
+  const canEditCategory = useCallback(
+    (category: CategoryId) =>
+      can('catalog') || (can('menu') && settings.kitchenMenuCategories.includes(category)),
+    [can, settings.kitchenMenuCategories],
+  );
 
   const approve = useCallback(
     (pin: string, permission: Permission) => {
       const member = staff.find((m) => m.active && pinMatches(m, pin)) ?? null;
-      return hasPermission(member, permission) ? member : null;
+      return hasPermission(member, permission, settings) ? member : null;
     },
-    [staff],
+    [staff, settings],
   );
 
   const addStaff = useCallback(
@@ -1275,10 +1359,60 @@ export function PosProvider({
   const recordPayrollRun = useCallback(
     (run: Omit<PayrollRun, 'id'>) => {
       if (payrollRuns.some((r) => r.key === run.key)) return false;
-      setPayrollRuns((prev) => [{ ...run, id: `run-${run.key}` }, ...prev]);
+      setPayrollRuns((prev) => [{ ...run, id: `run-${run.key}`, ...(rate ? { rate } : {}) }, ...prev]);
       return true;
     },
-    [payrollRuns],
+    [payrollRuns, rate],
+  );
+
+  const addExpense = useCallback((data: Omit<Expense, 'id'>) => {
+    // Time plus a random tail, so two devices logging at once never collide.
+    const expense = {
+      ...data,
+      id: `exp-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+      ...(rate ? { rate } : {}),
+    };
+    // Newest day first; same-day entries keep the latest on top.
+    setExpenses((prev) => [expense, ...prev].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0)));
+    return expense;
+  }, [rate]);
+
+  const updateExpense = useCallback((id: string, patch: Partial<Omit<Expense, 'id'>>) => {
+    setExpenses((prev) => prev.map((e) => (e.id === id ? { ...e, ...patch } : e)));
+  }, []);
+
+  const deleteExpense = useCallback((id: string) => {
+    setExpenses((prev) => prev.filter((e) => e.id !== id));
+  }, []);
+
+  const { convertForSwitch } = inventory;
+  const switchSalesCurrency = useCallback(
+    (to: CurrencyCode, rate: number, step?: number) => {
+      const blockers = switchBlockers({ tabs, orders: closedRecords, cashUps });
+      if (settings.costCurrency || settings.currencySwitch) blockers.push('This shop has already switched currencies.');
+      if (to === settings.currency || !(rate > 0)) blockers.push('Pick another currency and a rate above zero.');
+      if (blockers.length > 0) return { blockers };
+
+      const target = currencyOf(to);
+      const menu = convertMenu({ catalog, setMeals, promotions }, rate, target, step);
+      setSyncedCatalog(menu.catalog);
+      setSetMeals(menu.setMeals);
+      setPromotions(menu.promotions);
+      convertForSwitch(rate, target);
+      setExpenses((prev) => stampRate(prev, rate));
+      setPayrollRuns((prev) => stampRate(prev, rate));
+      const next: Settings = {
+        ...settings,
+        currency: to,
+        costCurrency: settings.currency,
+        exchangeRate: rate,
+        rateUpdatedAt: todayIso(),
+        currencySwitch: { from: settings.currency, rate, at: new Date().toISOString() },
+      };
+      setSettings(next);
+      return { settings: next };
+    },
+    [tabs, closedRecords, cashUps, settings, catalog, setMeals, promotions, setSyncedCatalog, convertForSwitch],
   );
 
   const resetAllData = useCallback(async () => {
@@ -1356,11 +1490,17 @@ export function PosProvider({
       signIn,
       signOut,
       can,
+      canEditCategory,
       approve,
       payrollRuns,
       recordPayrollRun,
+      expenses,
+      addExpense,
+      updateExpense,
+      deleteExpense,
       settings,
       updateSettings: setSettings,
+      switchSalesCurrency,
       resetAllData,
       ...inventory,
     }),
@@ -1427,10 +1567,16 @@ export function PosProvider({
       signIn,
       signOut,
       can,
+      canEditCategory,
       approve,
       payrollRuns,
       recordPayrollRun,
+      expenses,
+      addExpense,
+      updateExpense,
+      deleteExpense,
       settings,
+      switchSalesCurrency,
       resetAllData,
       inventory,
     ],

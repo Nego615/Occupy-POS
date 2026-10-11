@@ -1,12 +1,13 @@
 import type { ReactNode } from 'react';
 import { MotionConfig } from 'motion/react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router';
-import { RequirePermission, RequireSignIn } from './components/Guards';
+import { NoAccess, RequirePermission, RequireSignIn } from './components/Guards';
 import { homePath, type Permission } from './data/staff';
 import { usePos } from './lib/store';
-import { AdminLayout } from './layouts/AdminLayout';
+import { ADMIN_NAV, AdminLayout } from './layouts/AdminLayout';
 import { CounterLayout } from './layouts/CounterLayout';
 import { AdminBills } from './pages/AdminBills';
+import { AdminExpenses } from './pages/AdminExpenses';
 import { AdminCategories } from './pages/AdminCategories';
 import { AdminItems } from './pages/AdminItems';
 import { AdminMeals } from './pages/AdminMeals';
@@ -35,6 +36,14 @@ import { Tender } from './pages/Tender';
 function Home() {
   const { me } = usePos();
   return <Navigate to={me ? homePath(me) : '/sign-in'} replace />;
+}
+
+/** The admin's front page: the overview, or else the first page the role can open — a cook's is the menu. */
+function AdminHome() {
+  const { can } = usePos();
+  if (can('reports')) return <AdminOverview />;
+  const first = ADMIN_NAV.flatMap((g) => g.items).find((item) => can(item.permission));
+  return first ? <Navigate to={first.to} replace /> : <NoAccess permission="reports" />;
 }
 
 /** Shorthand: `element` only for roles holding `permission`. */
@@ -77,20 +86,21 @@ export function App() {
             </Route>
 
             <Route path="/admin" element={<AdminLayout />}>
-              <Route index element={guard('reports', <AdminOverview />)} />
+              <Route index element={<AdminHome />} />
               <Route path="orders" element={guard('reports', <AdminOrders />)} />
               <Route path="reports" element={guard('reports', <AdminReports />)} />
               <Route path="staff" element={guard('staff', <AdminStaff />)} />
               <Route path="salaries" element={guard('payroll', <AdminSalaries />)} />
-              <Route path="items" element={guard('catalog', <AdminItems />)} />
+              <Route path="items" element={guard('menu', <AdminItems />)} />
               <Route path="categories" element={guard('catalog', <AdminCategories />)} />
-              <Route path="meals" element={guard('catalog', <AdminMeals />)} />
-              <Route path="promotions" element={guard('catalog', <AdminPromotions />)} />
+              <Route path="meals" element={guard('menu', <AdminMeals />)} />
+              <Route path="promotions" element={guard('promotions', <AdminPromotions />)} />
               <Route path="stock" element={guard('inventory', <AdminStock />)} />
               <Route path="count" element={guard('inventory', <AdminStockCount />)} />
               <Route path="purchases" element={guard('inventory', <AdminPurchases />)} />
               <Route path="suppliers" element={guard('inventory', <AdminSuppliers />)} />
               <Route path="bills" element={guard('inventory', <AdminBills />)} />
+              <Route path="expenses" element={guard('expenses', <AdminExpenses />)} />
               <Route path="locations" element={guard('locations', <AdminLocations />)} />
               <Route path="settings" element={guard('settings', <AdminSettings />)} />
             </Route>
@@ -102,7 +112,7 @@ export function App() {
             <Route path="/kitchen" element={guard('kitchen', <Kitchen />)} />
 
             {/* `/items/new` opens the same editor in create mode. */}
-            <Route path="/items/:itemId" element={guard('catalog', <ItemEditor />)} />
+            <Route path="/items/:itemId" element={guard('menu', <ItemEditor />)} />
           </Route>
 
           <Route path="*" element={<Home />} />

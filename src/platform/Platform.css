@@ -675,9 +675,9 @@
 
 /* ---------- Inputs ---------- */
 
-.pf-input,
+.pf-input:not(select),
 .pf .counter-field input,
-.pf .counter-field__input {
+.pf .counter-field__input:not(select) {
   min-height: var(--hit-area);
   width: 100%;
   padding: 0 12px;
@@ -688,6 +688,13 @@
   font-size: 14.5px;
   font-weight: 500;
   color: var(--pf-navy);
+}
+
+/* The shared dropdown (global.css), at the dashboard's field size. */
+.pf select {
+  width: 100%;
+  border-radius: 8px;
+  font-size: 14.5px;
 }
 
 .pf .counter-field input:disabled {
