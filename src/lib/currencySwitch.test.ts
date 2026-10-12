@@ -2,8 +2,9 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { CatalogItem } from '../data/catalog';
 import type { Promotion, SetMeal } from '../data/deals';
 import type { OrderRecord } from '../data/orders';
+import { DEFAULT_SETTINGS, withSwitchCurrencies } from '../data/settings';
 import { currencyOf, setActiveCurrency } from './currency';
-import { convertMenu, convertPrice, readOrder, stampRate, switchBlockers } from './currencySwitch';
+import { convertMenu, convertPrice, convertTab, readOrder, stampRate, switchBlockers } from './currencySwitch';
 
 const USD = currencyOf('USD');
 const RATE = 2_650;
@@ -94,7 +95,11 @@ describe('what has to be settled before switching', () => {
     expect(switchBlockers({ tabs: [tab('Walk-in', 0)], orders: [], cashUps: [] })).toEqual([]);
   });
 
-  it('names open tabs, unsettled rooms, and money taken since the cash-up', () => {
+  it('lets open tabs through — they’re converted with the menu', () => {
+    expect(switchBlockers({ tabs: [tab('Table 4', 2)], orders: [], cashUps: [] })).toEqual([]);
+  });
+
+  it('names unsettled rooms and money taken since the cash-up', () => {
     const roomCharge: OrderRecord = {
       id: 3,
       name: 'Room 2',
@@ -107,9 +112,49 @@ describe('what has to be settled before switching', () => {
       payments: [],
     };
     const out = switchBlockers({ tabs: [tab('Table 4', 2, 5_000)], orders: [roomCharge], cashUps: [] });
-    expect(out).toHaveLength(3);
-    expect(out[0]).toMatch(/Table 4 has an open tab/);
-    expect(out[1]).toMatch(/1 room has a bill/);
-    expect(out[2]).toMatch(/1 payment has come in/);
+    expect(out).toHaveLength(2);
+    expect(out[0]).toMatch(/1 room has a bill/);
+    expect(out[1]).toMatch(/1 payment has come in/);
+  });
+});
+
+describe('an open tab across the switch', () => {
+  it('prices lines like the menu and moves discounts and add-ons exactly', () => {
+    const usd = currencyOf('USD');
+    const tab = convertTab(
+      {
+        cart: [
+          { key: 'latte', itemId: 'latte', name: 'Latte', unitPrice: 6_500, qty: 2, addOns: [{ itemId: 'oat', name: 'Oat', price: 1_000 }] },
+          { key: 'cake', itemId: 'cake', name: 'Cake', unitPrice: 8_000, qty: 1, listPrice: 10_000, promo: 'Happy Hour' },
+        ],
+        discount: { kind: 'amount' as const, value: 2_650 },
+        payments: [],
+      },
+      2_650,
+      usd,
+      0.5,
+    );
+    expect(tab.cart[0]).toMatchObject({ unitPrice: 2.5, qty: 2, addOns: [{ price: 0.38 }] });
+    expect(tab.cart[1]).toMatchObject({ unitPrice: 3, listPrice: 4 });
+    expect(tab.discount).toEqual({ kind: 'amount', value: 1 });
+  });
+
+  it('leaves percentage discounts alone', () => {
+    const tab = convertTab({ cart: [], discount: { kind: 'percent' as const, value: 10 }, payments: [] }, 2_650, currencyOf('USD'));
+    expect(tab.discount).toEqual({ kind: 'percent', value: 10 });
+  });
+});
+
+describe('settings after a switch', () => {
+  const sw = { from: 'TZS' as const, rate: 2_650, at: '2026-10-01T00:00:00.000Z' };
+
+  it('puts back a buy-in currency a save dropped', () => {
+    const fixed = withSwitchCurrencies({ ...DEFAULT_SETTINGS, currency: 'USD', currencySwitch: sw });
+    expect(fixed).toMatchObject({ costCurrency: 'TZS', exchangeRate: 2_650 });
+  });
+
+  it('leaves a shop that still buys in it alone', () => {
+    const s = { ...DEFAULT_SETTINGS, currency: 'USD' as const, costCurrency: 'TZS' as const, exchangeRate: 2_700, currencySwitch: sw };
+    expect(withSwitchCurrencies(s)).toBe(s);
   });
 });

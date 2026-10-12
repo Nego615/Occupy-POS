@@ -4,6 +4,7 @@ import type { Promotion, SetMeal } from '../data/deals';
 import type { StockCount, StockMovement } from '../data/inventory';
 import { hydrateOrder, type Order, type OrderRecord, type Payment } from '../data/orders';
 import type { CurrencySwitch } from '../data/settings';
+import type { CartLine, ManualDiscount } from './cart';
 import { currencyOf, roundMoney, type Currency } from './currency';
 
 /*
@@ -44,6 +45,48 @@ export function convertMenu(menu: Menu, rate: number, to: Currency, step?: numbe
     })),
     setMeals: menu.setMeals.map((m) => ({ ...m, price: price(m.price) })),
     promotions: menu.promotions.map((p) => (p.kind === 'amount' ? { ...p, value: exact(p.value) } : p)),
+  };
+}
+
+/** The parts of an open tab that carry money. */
+type TabMoney = { cart: CartLine[]; discount?: ManualDiscount; payments: Payment[]; tip?: number };
+
+/**
+ * An open tab carried across the switch: its lines priced like the converted
+ * menu (to `step`), so a latte on a tab costs what a fresh one would, and
+ * add-ons, amount-off discounts, payments and the tip exactly.
+ */
+export function convertTab<T extends TabMoney>(tab: T, rate: number, to: Currency, step?: number): T {
+  const price = (n: number) => convertPrice(n, rate, to, step);
+  const exact = (n: number) => convertPrice(n, rate, to);
+  const amountOff = <D extends ManualDiscount>(d: D): D => (d.kind === 'amount' ? { ...d, value: exact(d.value) } : d);
+  return {
+    ...tab,
+    cart: tab.cart.map((l) => ({
+      ...l,
+      unitPrice: price(l.unitPrice),
+      ...(l.listPrice !== undefined ? { listPrice: price(l.listPrice) } : {}),
+      ...(l.addOns ? { addOns: l.addOns.map((a) => ({ ...a, price: exact(a.price) })) } : {}),
+      ...(l.manual
+        ? {
+            manual: {
+              ...amountOff(l.manual),
+              base: {
+                ...l.manual.base,
+                unitPrice: price(l.manual.base.unitPrice),
+                ...(l.manual.base.listPrice !== undefined ? { listPrice: price(l.manual.base.listPrice) } : {}),
+              },
+            },
+          }
+        : {}),
+    })),
+    ...(tab.discount ? { discount: amountOff(tab.discount) } : {}),
+    payments: tab.payments.map((p) => ({
+      ...p,
+      amount: exact(p.amount),
+      ...(p.tendered !== undefined ? { tendered: exact(p.tendered) } : {}),
+    })),
+    ...(tab.tip !== undefined ? { tip: exact(tab.tip) } : {}),
   };
 }
 
@@ -93,22 +136,19 @@ export function orderInCurrency(record: OrderRecord, rate: number, to: Currency)
 }
 
 /**
- * What has to be settled before switching, so nothing open straddles both
- * currencies: tabs with items on, room bills not paid, and money taken since
- * the last cash-up. Empty when the shop can switch.
+ * What has to be settled before switching, so nothing closed straddles both
+ * currencies: room bills not paid, and money taken since the last cash-up.
+ * Open tabs don't block it — they're converted along with the menu
+ * (convertTab). Empty when the shop can switch.
  */
 export function switchBlockers(input: {
-  tabs: { name: string; cart: unknown[]; payments: Payment[] }[];
+  tabs: { payments: Payment[] }[];
   orders: OrderRecord[];
   cashUps: CashUp[];
   now?: Date;
 }): string[] {
   const { tabs, orders, cashUps, now = new Date() } = input;
   const out: string[] = [];
-  const open = tabs.filter((t) => t.cart.length > 0).map((t) => t.name);
-  if (open.length > 0) {
-    out.push(`${listNames(open)} ${open.length === 1 ? 'has an open tab' : 'have open tabs'} — clear or pay ${open.length === 1 ? 'it' : 'them'} first.`);
-  }
   const rooms = new Set(orders.filter((o) => o.status === 'charged').map((o) => o.roomId)).size;
   if (rooms > 0) {
     out.push(`${rooms} ${rooms === 1 ? 'room has a bill' : 'rooms have bills'} not yet settled — settle at the counter first.`);
@@ -120,11 +160,6 @@ export function switchBlockers(input: {
   return out;
 }
 
-/** "Table 4", "Table 4 and Room 2", "Table 4, Room 2 and 3 more". */
-function listNames(names: string[]): string {
-  if (names.length <= 2) return names.join(' and ');
-  return `${names.slice(0, 2).join(', ')} and ${names.length - 2} more`;
-}
 
 /** Whether something stamped `iso` happened before the shop switched what it sells in. */
 export function beforeSwitch(iso: string, sw: CurrencySwitch | undefined): sw is CurrencySwitch {

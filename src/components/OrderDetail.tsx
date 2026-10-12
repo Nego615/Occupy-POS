@@ -22,7 +22,7 @@ import {
   type OrderStatus,
 } from '../data/orders';
 import { lineContents } from '../data/catalog';
-import { receiptCurrency } from '../lib/currencySwitch';
+import { convertPrice, receiptCurrency } from '../lib/currencySwitch';
 import { activeCurrency, currencyOf, formatCurrency } from '../lib/currency';
 import { usePos } from '../lib/store';
 
@@ -99,6 +99,11 @@ export function OrderDetail({
     refunding !== null && order.lines.every((_, i) => (refunding.get(i) ?? 0) === remaining(i));
   // The tip goes back only when the last of the order does.
   const refundTotal = isFull ? preview.amount + order.tip : preview.amount;
+  // A bill from before the shop switched currencies goes back in today's
+  // currency, at the switch's rate — the same figure its reports count.
+  const today = activeCurrency();
+  const payBack = given.recordedIn ? convertPrice(refundTotal, given.recordedIn.rate, today) : refundTotal;
+  const payBackCurrency = given.recordedIn ? today : currency;
   const restockable = orderItems(order, (i) => refunding?.get(i) ?? 0).filter((l) =>
     catalog.some((c) => (l.itemId ? c.id === l.itemId : c.name === l.name)),
   );
@@ -239,6 +244,12 @@ export function OrderDetail({
               ))}
             </select>
           </label>
+          {given.recordedIn && (
+            <p className="detail__restock-sub">
+              Paid in {currency!.symbol}. Refunded in {today.symbol} at the switch rate:{' '}
+              <Money value={refundTotal} /> → <Money value={payBack} currency={today} />.
+            </p>
+          )}
           {restockable.length > 0 && (
             <label className="detail__restock">
               <input type="checkbox" checked={restock} onChange={(e) => setRestock(e.target.checked)} />
@@ -271,7 +282,7 @@ export function OrderDetail({
               Cancel
             </Button>
             <Button onClick={onConfirm} disabled={picked.length === 0}>
-              {canRefund ? 'Refund' : 'Approve'} <Money value={refundTotal} />
+              {canRefund ? 'Refund' : 'Approve'} <Money value={payBack} currency={payBackCurrency} />
             </Button>
           </>
         ) : (
@@ -279,8 +290,7 @@ export function OrderDetail({
             <Button variant="secondary" onClick={() => window.print()}>
               Reprint receipt
             </Button>
-            {/* Refunds go back in today's currency; one taken in another is refunded by hand. */}
-            <Button variant="secondary" onClick={startRefund} disabled={order.status !== 'paid' || !!given.recordedIn}>
+            <Button variant="secondary" onClick={startRefund} disabled={order.status !== 'paid'}>
               {canRefund ? 'Refund…' : 'Refund · needs approval'}
             </Button>
           </>
@@ -290,7 +300,7 @@ export function OrderDetail({
       <ApprovalDialog
         open={approving}
         permission="refunds"
-        action={`Refund #${order.id} · ${formatMoney(refundTotal, currency)} · ${reason}`}
+        action={`Refund #${order.id} · ${formatMoney(payBack, payBackCurrency)} · ${reason}`}
         onApproved={(approver) => {
           issue(approver.id);
           setApproving(false);

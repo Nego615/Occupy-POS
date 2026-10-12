@@ -309,7 +309,17 @@ export function AdminSettings() {
             variant="secondary"
             size="sm"
             onClick={() => {
-              setDraft(toDraft(DEFAULT_SETTINGS));
+              // Currencies stay as saved once there are records kept in them.
+              const keep = hasHistory
+                ? {
+                    currency: settings.currency,
+                    costCurrency: settings.costCurrency,
+                    exchangeRate: settings.exchangeRate,
+                    rateUpdatedAt: settings.rateUpdatedAt,
+                    currencySwitch: settings.currencySwitch,
+                  }
+                : {};
+              setDraft(toDraft({ ...DEFAULT_SETTINGS, ...keep }));
               setErrors({});
             }}
           >
@@ -894,8 +904,8 @@ function CurrencySwitchPanel({ onSwitched }: { onSwitched: (next: Settings) => v
       <div className="settings-row__label">Start selling in another currency</div>
       <p className="settings-row__hint">
         For a shop that’s been selling in {from.symbol} and now prices its menu in another currency,
-        while it keeps buying in {from.symbol}. Item, portion, and set-meal prices, item costs, and
-        amount-off promotions are converted at your rate. Purchases, bills, expenses, and wages stay in{' '}
+        while it keeps buying in {from.symbol}. Item, portion, and set-meal prices, item costs,
+        amount-off promotions, and whatever’s on open tabs are converted at your rate. Purchases, bills, expenses, and wages stay in{' '}
         {from.symbol}. Past orders keep what they were taken in; reports show them converted.
       </p>
       <Row id="switchTo" label="Sell in">

@@ -138,14 +138,14 @@
 }
 
 /* On the dark sidebar: clear, with a faint ring, in the sidebar's own text colour. */
-.admin__theme {
+.theme-toggle.admin__theme {
   margin-left: auto;
   border-color: rgba(255, 249, 238, 0.2);
   background: none;
   color: inherit;
 }
 
-.admin__theme:hover {
+.theme-toggle.admin__theme:hover {
   border-color: rgba(255, 249, 238, 0.5);
 }
 

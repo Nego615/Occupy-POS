@@ -16,7 +16,7 @@ import {
   type CategoryId,
   type Portion,
 } from '../data/catalog';
-import { DEFAULT_SETTINGS, exchangeRate, type Settings } from '../data/settings';
+import { DEFAULT_SETTINGS, exchangeRate, withSwitchCurrencies, type Settings } from '../data/settings';
 import type { Expense } from '../data/expenses';
 import { expectedCash, expectedLocalCash, shiftStart, shiftTotals, type CashUp } from '../data/cashup';
 import {
@@ -95,7 +95,7 @@ import {
 } from './cart';
 import { salaried, type PayrollRun } from './payroll';
 import { costDue, currencyOf, setActiveCurrency, setCostCurrency, type CurrencyCode } from './currency';
-import { convertMenu, readOrder, stampRate, switchBlockers } from './currencySwitch';
+import { convertMenu, convertTab, readOrder, stampRate, switchBlockers } from './currencySwitch';
 import type { PosRepository, Snapshot } from './persist';
 import { useInventory, type InventoryStore } from './useInventory';
 import { restored, useNextId, usePersist, useRemote } from './usePersist';
@@ -576,10 +576,12 @@ export function PosProvider({
   );
   // Never seeded: a shop saved before expenses existed has none, not the demo's.
   const [expenses, setExpenses] = useState<Expense[]>(() => restored(snapshot, 'expenses', []));
-  const [settings, setSettings] = useState<Settings>(() => ({
-    ...DEFAULT_SETTINGS,
-    ...restored<Partial<Settings>>(snapshot, 'settings', {}),
-  }));
+  const [settings, setSettings] = useState<Settings>(() =>
+    withSwitchCurrencies({
+      ...DEFAULT_SETTINGS,
+      ...restored<Partial<Settings>>(snapshot, 'settings', {}),
+    }),
+  );
   // Set during render, ahead of every child, so formatters never lag a switch.
   setActiveCurrency(settings.currency);
   setCostCurrency(exchangeRate(settings) ? settings.costCurrency! : null);
@@ -624,7 +626,13 @@ export function PosProvider({
   useRemote(repo, 'staff', setStaff);
   useRemote(repo, 'payrollRuns', setPayrollRuns);
   useRemote(repo, 'expenses', setExpenses);
-  useRemote(repo, 'settings', setSettings);
+  // Settings from another device get the same repair as saved ones.
+  const setRemoteSettings = useCallback(
+    (action: SetStateAction<Settings>) =>
+      setSettings((prev) => withSwitchCurrencies(typeof action === 'function' ? action(prev) : action)),
+    [],
+  );
+  useRemote(repo, 'settings', setRemoteSettings);
   useRemote(repo, 'kitchenTickets', setKitchenTickets);
   useRemote(repo, 'cashUps', setCashUps);
 
@@ -1457,6 +1465,7 @@ export function PosProvider({
       setSyncedCatalog(menu.catalog);
       setSetMeals(menu.setMeals);
       setPromotions(menu.promotions);
+      setTabs((prev) => prev.map((t) => convertTab(t, rate, target, step)));
       convertForSwitch(rate, target);
       setExpenses((prev) => stampRate(prev, rate));
       setPayrollRuns((prev) => stampRate(prev, rate));

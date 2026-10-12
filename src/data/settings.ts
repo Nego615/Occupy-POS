@@ -28,6 +28,18 @@ export function exchangeRate(s: Pick<Settings, 'currency' | 'costCurrency' | 'ex
   return s.costCurrency && s.costCurrency !== s.currency && s.exchangeRate ? s.exchangeRate : undefined;
 }
 
+/**
+ * A shop that switched what it sells in keeps buying in what it used to sell
+ * in. Settings saved without that — a reset to defaults after the switch —
+ * lost the buy-in currency, which hid the exchange rate with no way back.
+ * This puts it back, at the last rate or the switch's.
+ */
+export function withSwitchCurrencies(s: Settings): Settings {
+  const sw = s.currencySwitch;
+  if (!sw || sw.from === s.currency || (s.costCurrency && s.costCurrency !== s.currency)) return s;
+  return { ...s, costCurrency: sw.from, exchangeRate: s.exchangeRate ?? sw.rate };
+}
+
 /** Business-wide settings, edited from Admin → Settings. */
 export type Settings = {
   /** The brand shown in the top bar, on sign-in, and on receipts. */
