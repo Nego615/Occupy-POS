@@ -3,10 +3,6 @@
    so the shared admin styles (panel, range-pill…) stay as they are.
    =================================================================== */
 
-.admin__main:has(.ov) {
-  background: var(--sand);
-}
-
 .ov {
   display: grid;
   gap: 16px;

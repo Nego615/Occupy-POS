@@ -1,6 +1,6 @@
 import { Fragment, type ReactNode } from 'react';
 import './ItemTile.css';
-import { Money } from './Mono';
+import { BigMoney, Money } from './Mono';
 
 export type ItemTileProps = {
   name: string;
@@ -79,7 +79,7 @@ export function ItemTile({
       <span className="item-tile__dot" style={{ background: color }} aria-hidden="true" />
       <span className="item-tile__name">{breakable(name)}</span>
       <span className="item-tile__price">
-        <Money value={price} />
+        <BigMoney value={price} />
         {wasPrice !== undefined && wasPrice > price && (
           <>
             {' '}

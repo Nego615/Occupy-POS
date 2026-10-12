@@ -59,6 +59,9 @@ export const ADMIN_NAV: { section: string; items: NavEntry[] }[] = [
   },
 ];
 
+/** Pages already in the Pocket layout: sand ground, paper panels. */
+const POCKET_PAGES = ['/admin', '/admin/items', '/admin/categories', '/admin/meals'];
+
 export function AdminLayout() {
   const { me, can, settings } = usePos();
   // Narrow screens fold the nav behind a Menu button; picking a page folds it away again.
@@ -149,7 +152,7 @@ export function AdminLayout() {
         </div>
       </nav>
 
-      <main className="admin__main">
+      <main className={POCKET_PAGES.includes(pathname) ? 'admin__main admin__main--pocket' : 'admin__main'}>
         <SubscriptionBanner />
         {/* Keyed by page, so opening another page fades it in. */}
         <motion.div key={pathname} variants={swapIn} initial="hidden" animate="shown">

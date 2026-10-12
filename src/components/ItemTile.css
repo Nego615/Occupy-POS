@@ -4,8 +4,8 @@
   background: var(--surface);
   border: 1px solid transparent;
   border-radius: var(--radius-md);
-  padding: 16px 14px;
-  min-height: 104px;
+  padding: 16px;
+  min-height: 120px;
   width: 100%;
   /* A grid cell, so a long name mustn't widen it past its column. */
   min-width: 0;
@@ -39,10 +39,11 @@
   outline-offset: var(--focus-offset);
 }
 
+/* The item's colour, as a small round mark above the name. */
 .item-tile__dot {
-  width: 26px;
-  height: 26px;
-  border-radius: 8px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
   margin-bottom: 10px;
   flex-shrink: 0;
 }
@@ -58,10 +59,11 @@
 }
 
 .item-tile__price {
-  font-size: 17px;
+  margin-top: auto;
+  padding-top: 10px;
+  font-size: 21px;
   font-weight: 700;
   letter-spacing: -0.02em;
-  margin-top: 8px;
 }
 
 /* On the open tab: a marigold ring and a count badge. */

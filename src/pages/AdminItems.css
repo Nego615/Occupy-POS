@@ -11,9 +11,9 @@
 }
 
 .item-row__dot {
-  width: 22px;
-  height: 22px;
-  border-radius: 7px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
   flex-shrink: 0;
 }
 
@@ -29,8 +29,8 @@
 }
 
 .item-row__name {
-  font-size: 13.5px;
-  font-weight: 600;
+  font-size: 15px;
+  font-weight: 650;
 }
 
 .item-row__meta {
@@ -40,9 +40,9 @@
 }
 
 .item-row__price {
-  font-size: 13.5px;
+  font-size: 15px;
   font-weight: 700;
-  width: 72px;
+  width: 96px;
   text-align: right;
   flex-shrink: 0;
 }
