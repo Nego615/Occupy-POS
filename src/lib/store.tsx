@@ -3,6 +3,8 @@ import type { ReactNode, SetStateAction } from 'react';
 import {
   CATALOG,
   CATEGORIES,
+  categoryLineage,
+  inAnyCategory,
   stockFits,
   titleCase,
   withTitleCaseNames,
@@ -181,14 +183,19 @@ type PosStore = {
   createItem: (item: Omit<CatalogItem, 'id'>) => CatalogItem;
   /** The categories items are sorted into, in the order the register shows them. */
   categories: Category[];
-  /** Adds a category at the end of the list and returns it. */
-  createCategory: (label: string) => Category;
+  /** Adds a category at the end of the list — inside `parentId` when given — and returns it. */
+  createCategory: (label: string, parentId?: CategoryId) => Category;
   renameCategory: (id: string, label: string) => void;
+  /**
+   * Moves a category inside `parentId`, or to the top level for null.
+   * Refused (false) when that would put it inside itself.
+   */
+  moveCategory: (id: string, parentId: CategoryId | null) => boolean;
   /** Sets the sides and extras offered with every item in a category. */
   setCategoryAddOns: (id: string, addOns: AddOn[]) => void;
   /**
    * Removes a category, and drops it from promotions and kitchen routing.
-   * Refused (false) while any item is still in it.
+   * Refused (false) while any item or category is still in it.
    */
   deleteCategory: (id: string) => boolean;
   /** Removes an item from the catalog. Tabs already holding it keep their lines. */
@@ -704,12 +711,13 @@ export function PosProvider({
   // portions by their share, and add-ons, which draw down stock of their own.
   const addItem = useCallback(
     (item: CatalogItem, portion?: Portion, addOns: AddOnPick[] = []) => {
-      const line = withAddOns(portionLine(item, portion ?? null, bestPromo(promotions, item, new Date())), addOns);
+      const promo = bestPromo(promotions, item, new Date(), categories);
+      const line = withAddOns(portionLine(item, portion ?? null, promo), addOns);
       if (!lineFits(cart, line, catalog)) return false;
       updateActiveCart((lines) => (lineFits(lines, line, catalog) ? addLine(lines, line) : lines));
       return true;
     },
-    [updateActiveCart, promotions, cart, catalog],
+    [updateActiveCart, promotions, categories, cart, catalog],
   );
 
   const addOpenPriceItem = useCallback(
@@ -745,9 +753,9 @@ export function PosProvider({
   const isKitchenItem = useCallback(
     (itemId: string) => {
       const item = catalog.find((i) => i.id === itemId);
-      return !!item && settings.kitchenCategories.includes(item.category);
+      return !!item && inAnyCategory(categories, item.category, settings.kitchenCategories);
     },
-    [catalog, settings.kitchenCategories],
+    [catalog, categories, settings.kitchenCategories],
   );
 
   const unsent = useMemo(
@@ -1175,10 +1183,11 @@ export function PosProvider({
   }, []);
 
   const createCategory = useCallback(
-    (label: string) => {
+    (label: string, parentId?: CategoryId) => {
       // 'meals', 'all' and 'restock' are shelves and filters of their own, so no category takes them.
       const taken = new Set(['meals', 'all', 'restock', ...categories.map((c) => c.id)]);
-      const category: Category = { id: slugId(label, 'category', taken), label };
+      const id = slugId(label, 'category', taken);
+      const category: Category = parentId ? { id, label, parentId } : { id, label };
       setCategories((prev) => [...prev, category]);
       return category;
     },
@@ -1188,6 +1197,21 @@ export function PosProvider({
   const renameCategory = useCallback((id: string, label: string) => {
     setCategories((prev) => prev.map((c) => (c.id === id ? { ...c, label } : c)));
   }, []);
+
+  const moveCategory = useCallback(
+    (id: string, parentId: CategoryId | null) => {
+      if (parentId !== null && categoryLineage(categories, parentId).includes(id)) return false;
+      setCategories((prev) =>
+        prev.map((c) => {
+          if (c.id !== id) return c;
+          const { parentId: _old, ...rest } = c;
+          return parentId ? { ...rest, parentId } : rest;
+        }),
+      );
+      return true;
+    },
+    [categories],
+  );
 
   const setCategoryAddOns = useCallback((id: string, addOns: AddOn[]) => {
     setCategories((prev) =>
@@ -1201,19 +1225,23 @@ export function PosProvider({
 
   const deleteCategory = useCallback(
     (id: string) => {
-      if (catalog.some((i) => i.category === id)) return false;
+      if (catalog.some((i) => i.category === id) || categories.some((c) => c.parentId === id)) return false;
       setCategories((prev) => prev.filter((c) => c.id !== id));
       setPromotions((prev) =>
         prev.map((p) => (p.categories.includes(id) ? { ...p, categories: p.categories.filter((c) => c !== id) } : p)),
       );
       setSettings((prev) =>
-        prev.kitchenCategories.includes(id)
-          ? { ...prev, kitchenCategories: prev.kitchenCategories.filter((c) => c !== id) }
+        prev.kitchenCategories.includes(id) || prev.kitchenMenuCategories.includes(id)
+          ? {
+              ...prev,
+              kitchenCategories: prev.kitchenCategories.filter((c) => c !== id),
+              kitchenMenuCategories: prev.kitchenMenuCategories.filter((c) => c !== id),
+            }
           : prev,
       );
       return true;
     },
-    [catalog],
+    [catalog, categories],
   );
 
   const savePromotion = useCallback((promo: Promotion) => {
@@ -1334,8 +1362,8 @@ export function PosProvider({
 
   const canEditCategory = useCallback(
     (category: CategoryId) =>
-      can('catalog') || (can('menu') && settings.kitchenMenuCategories.includes(category)),
-    [can, settings.kitchenMenuCategories],
+      can('catalog') || (can('menu') && inAnyCategory(categories, category, settings.kitchenMenuCategories)),
+    [can, categories, settings.kitchenMenuCategories],
   );
 
   const approve = useCallback(
@@ -1514,6 +1542,7 @@ export function PosProvider({
       categories,
       createCategory,
       renameCategory,
+      moveCategory,
       setCategoryAddOns,
       deleteCategory,
       addLocation,
@@ -1593,6 +1622,7 @@ export function PosProvider({
       categories,
       createCategory,
       renameCategory,
+      moveCategory,
       setCategoryAddOns,
       deleteCategory,
       addLocation,

@@ -1,4 +1,4 @@
-import { NO_CATEGORY, type CatalogItem, type Category } from '../data/catalog';
+import { NO_CATEGORY, categoryPath, categoryTree, type CatalogItem, type Category } from '../data/catalog';
 import {
   daysBetween,
   todayIso,
@@ -108,7 +108,11 @@ export function valuation(catalog: CatalogItem[], categories: Category[]): Valua
   // Items whose category has gone still count, under their own heading.
   const known = new Set(categories.map((c) => c.id));
   const stray = catalog.some((i) => !known.has(i.category));
-  const groups = stray ? [...categories, { id: '', label: NO_CATEGORY }] : categories;
+  const tree = categoryTree(categories).map(({ category: c }) => ({
+    id: c.id,
+    label: categoryPath(categories, c.id),
+  }));
+  const groups = stray ? [...tree, { id: '', label: NO_CATEGORY }] : tree;
   return groups.map((c) => {
     const items = catalog.filter((i) => (c.id ? i.category === c.id : !known.has(i.category)));
     return {
