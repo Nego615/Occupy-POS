@@ -12,8 +12,8 @@
   display: flex;
   flex-direction: column;
   padding: 20px 14px;
-  background: var(--ink);
-  color: var(--paper);
+  background: var(--panel);
+  color: var(--on-panel);
   overflow-y: auto;
   /* Held to the screen even when a short window scrolls the whole page past
      the layout's minimum height. */
@@ -76,7 +76,7 @@
 
 .nav-item:hover {
   background: rgba(255, 249, 238, 0.08);
-  color: var(--paper);
+  color: var(--on-panel);
 }
 
 .nav-item {
@@ -135,6 +135,18 @@
   font-size: 11.5px;
   font-weight: 700;
   flex-shrink: 0;
+}
+
+/* On the dark sidebar: clear, with a faint ring, in the sidebar's own text colour. */
+.admin__theme {
+  margin-left: auto;
+  border-color: rgba(255, 249, 238, 0.2);
+  background: none;
+  color: inherit;
+}
+
+.admin__theme:hover {
+  border-color: rgba(255, 249, 238, 0.5);
 }
 
 .admin__footer-name {
@@ -298,7 +310,7 @@
     max-height: calc(100vh - 72px);
     overflow-y: auto;
     padding: 4px 16px 16px;
-    background: var(--ink);
+    background: var(--panel);
     box-shadow: var(--shadow);
   }
 

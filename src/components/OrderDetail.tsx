@@ -42,7 +42,7 @@ export type OrderDetailProps = {
   onOpenTab: () => void;
   /** `h1` where the receipt is the page's main heading (the counter). */
   headingLevel?: 'h1' | 'h2';
-  /** Replaces the open-tab actions — the front desk takes payment instead of opening the register. */
+  /** Replaces the open-tab actions — the counter takes payment instead of opening the register. */
   openActions?: ReactNode;
 };
 

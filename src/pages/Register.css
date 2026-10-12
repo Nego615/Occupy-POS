@@ -241,7 +241,7 @@
 }
 
 .tab-card__assign:hover .tab-card__caret {
-  background: var(--ink);
+  background: var(--panel);
   color: var(--marigold);
 }
 
@@ -259,7 +259,7 @@
 }
 
 .tab-chip--dark {
-  background: var(--ink);
+  background: var(--panel);
   color: var(--marigold);
 }
 

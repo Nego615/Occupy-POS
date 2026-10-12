@@ -7,6 +7,7 @@ import { BrandMark } from '../components/BrandMark';
 import { Icon, type IconName } from '../components/Icon';
 import { NoAccess } from '../components/Guards';
 import { SubscriptionBanner } from '../components/SubscriptionBanner';
+import { ThemeToggle } from '../components/ThemeToggle';
 import { ADMIN_PERMISSIONS, homePath, roleLabel, type Permission } from '../data/staff';
 import { snap, swapIn } from '../lib/motion';
 import { usePos } from '../lib/store';
@@ -134,10 +135,10 @@ export function AdminLayout() {
           );
         })}
 
-        {/* The one link out of the admin branch, back to the counter flow (or the front desk, or the kitchen). */}
+        {/* The one link out of the admin branch, back to the register (or the counter, or the kitchen). */}
         <NavLink to={home} className="nav-item admin__exit">
           <Icon name="back" className="nav-icon" />
-          {home === '/desk' ? 'Back to front desk' : home === '/kitchen' ? 'Back to kitchen' : 'Back to register'}
+          {home === '/desk' ? 'Back to counter' : home === '/kitchen' ? 'Back to kitchen' : 'Back to register'}
         </NavLink>
 
         {me && (
@@ -147,6 +148,7 @@ export function AdminLayout() {
               <div className="admin__footer-name">{me.name}</div>
               <div className="admin__footer-role">{roleLabel(me.role)} · {settings.locationName}</div>
             </div>
+            <ThemeToggle className="admin__theme" />
           </div>
         )}
         </div>

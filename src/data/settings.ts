@@ -34,10 +34,6 @@ export type Settings = {
   businessName: string;
   /** Uploaded logo as a data URL, shown beside the name and atop receipts; null uses the built-in mark. */
   logo: string | null;
-  /** Primary buttons, selected chips, active nav, and the brand mark, as "#1d5fa8"; null is the stock ink. */
-  brandColor: string | null;
-  /** Chart columns and share bars; null follows the brand color. */
-  accentColor: string | null;
   /** This location — "Front Counter". */
   locationName: string;
   /** This register — "Register 1". */
@@ -106,8 +102,6 @@ export type Settings = {
 export const DEFAULT_SETTINGS: Settings = {
   businessName: 'Occupy',
   logo: null,
-  brandColor: null,
-  accentColor: null,
   locationName: 'Front Counter',
   registerName: 'Register 1',
   receiptFooter: 'Thanks for stopping in.',

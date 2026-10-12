@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import './AdminSettings.css';
 import { BrandMark } from '../components/BrandMark';
 import { Button } from '../components/Button';
@@ -27,7 +27,6 @@ import {
   formatCurrency,
   type CurrencyCode,
 } from '../lib/currency';
-import { BRAND_PRESETS, brandTokens, parseHex, tooLight } from '../lib/brand';
 import { signOutDevice, unsyncedCount } from '../lib/cloud';
 import { convertPrice, switchBlockers } from '../lib/currencySwitch';
 import { LOGO_TYPES, readLogo } from '../lib/logo';
@@ -38,9 +37,6 @@ import { supabase } from '../lib/supabase';
 type Draft = {
   businessName: string;
   logo: string | null;
-  /** Hex as typed; empty is the stock color. */
-  brandColor: string;
-  accentColor: string;
   locationName: string;
   registerName: string;
   receiptFooter: string;
@@ -73,8 +69,6 @@ function toDraft(s: Settings): Draft {
   return {
     businessName: s.businessName,
     logo: s.logo,
-    brandColor: s.brandColor ?? '',
-    accentColor: s.accentColor ?? '',
     locationName: s.locationName,
     registerName: s.registerName,
     receiptFooter: s.receiptFooter,
@@ -124,14 +118,6 @@ function fromDraft(d: Draft, current: Settings): { settings: Settings } | { erro
   const businessName = name(d.businessName, 'businessName', 'Business name');
   const locationName = name(d.locationName, 'locationName', 'Location name');
   const registerName = name(d.registerName, 'registerName', 'Register name');
-  const color = (text: string, key: 'brandColor' | 'accentColor') => {
-    if (!text.trim()) return null;
-    const hex = parseHex(text);
-    if (!hex) errors[key] = 'Enter a hex color, like #1d5fa8.';
-    return hex;
-  };
-  const brandColor = color(d.brandColor, 'brandColor');
-  const accentColor = color(d.accentColor, 'accentColor');
 
   const receiptFooter = d.receiptFooter.trim();
   if (receiptFooter.length > 120) errors.receiptFooter = 'Keep it to 120 characters.';
@@ -180,8 +166,6 @@ function fromDraft(d: Draft, current: Settings): { settings: Settings } | { erro
     settings: {
       businessName,
       logo: d.logo,
-      brandColor,
-      accentColor,
       locationName,
       registerName,
       receiptFooter,
@@ -310,9 +294,6 @@ export function AdminSettings() {
   const inCur = (n: number) => Math.round(n * 10 ** cur.decimals) / 10 ** cur.decimals;
   const taxPreview = parseNumber(draft.taxPct, 0, 25);
   const tipValues = draft.tipPcts.map((t) => parseNumber(t, 1, 100));
-  const brandPreview = parseHex(draft.brandColor);
-  const accentPreview = parseHex(draft.accentColor);
-  const lightColors = [brandPreview, accentPreview].some((hex) => hex && tooLight(hex));
 
   return (
     <div className="settings">
@@ -380,54 +361,6 @@ export function AdminSettings() {
             invalid={!!errors.registerName}
           />
         </Row>
-      </Section>
-
-      <Section
-        title="Brand colors"
-        note="On every register and screen. Paid, open, and refunded keep their own colors."
-      >
-        <Row
-          id="brandColor"
-          label="Brand color"
-          hint="Primary buttons, selected options, the active menu item, and the brand mark."
-          error={errors.brandColor}
-        >
-          <ColorPicker
-            id="brandColor"
-            value={draft.brandColor}
-            onChange={(v) => set('brandColor', v)}
-            unsetLabel="Default (ink)"
-            unsetSwatch="var(--ink)"
-            invalid={!!errors.brandColor}
-          />
-        </Row>
-        <Row
-          id="accentColor"
-          label="Chart color"
-          hint="Columns and bars on the overview and reports."
-          error={errors.accentColor}
-        >
-          <ColorPicker
-            id="accentColor"
-            value={draft.accentColor}
-            onChange={(v) => set('accentColor', v)}
-            unsetLabel="Same as brand color"
-            unsetSwatch={brandPreview ?? 'var(--ink)'}
-            invalid={!!errors.accentColor}
-          />
-        </Row>
-        {lightColors && (
-          <p className="settings-warning" role="status">
-            That color is light against the white page, so buttons and bars in it will be hard to
-            see. A darker shade reads better.
-          </p>
-        )}
-        <BrandPreview
-          brand={brandPreview}
-          accent={accentPreview}
-          name={draft.businessName}
-          logo={draft.logo}
-        />
       </Section>
 
       <Section title="Currency">
@@ -1149,124 +1082,6 @@ function LogoPicker({
           Remove
         </Button>
       )}
-    </div>
-  );
-}
-
-/**
- * Preset swatches, the browser's own picker for anything else, and the hex as
- * text. An empty value is the unset swatch — the stock color.
- */
-function ColorPicker({
-  id,
-  value,
-  onChange,
-  unsetLabel,
-  unsetSwatch,
-  invalid,
-}: {
-  id: string;
-  value: string;
-  onChange: (value: string) => void;
-  unsetLabel: string;
-  /** What the unset swatch shows — a CSS color. */
-  unsetSwatch: string;
-  invalid: boolean;
-}) {
-  const hex = parseHex(value);
-  const custom = !!hex && !BRAND_PRESETS.some((p) => p.hex === hex);
-  const swatches = [
-    { name: unsetLabel, hex: '', fill: unsetSwatch },
-    ...BRAND_PRESETS.map((p) => ({ ...p, fill: p.hex })),
-  ];
-
-  return (
-    <div className="color-picker" id={`setting-${id}`}>
-      <div className="color-picker__swatches" role="radiogroup" aria-label="Preset colors">
-        {swatches.map((sw) => {
-          const on = sw.hex ? hex === sw.hex : !value.trim();
-          return (
-            <button
-              key={sw.name}
-              type="button"
-              role="radio"
-              aria-checked={on}
-              aria-label={sw.name}
-              title={sw.name}
-              className={on ? 'color-swatch color-swatch--on' : 'color-swatch'}
-              style={{ background: sw.fill }}
-              onClick={() => onChange(sw.hex)}
-            />
-          );
-        })}
-      </div>
-      <div className="color-picker__custom">
-        <label
-          className={custom ? 'color-swatch color-swatch--custom color-swatch--on' : 'color-swatch color-swatch--custom'}
-          title="Pick any color"
-          style={custom ? { background: hex } : undefined}
-        >
-          <span className="sr-only">Pick any color</span>
-          <input type="color" value={hex ?? '#121212'} onChange={(e) => onChange(e.target.value)} />
-        </label>
-        <input
-          className="settings-input settings-input--hex mono"
-          value={value}
-          placeholder="#rrggbb"
-          spellCheck={false}
-          onChange={(e) => onChange(e.target.value)}
-          aria-invalid={invalid}
-          aria-label="Hex color"
-        />
-      </div>
-    </div>
-  );
-}
-
-/** A slice of the register in the draft colors, before they're saved. */
-function BrandPreview({
-  brand,
-  accent,
-  name,
-  logo,
-}: {
-  brand: string | null;
-  accent: string | null;
-  name: string;
-  logo: string | null;
-}) {
-  // Every token is set here, so the preview shows the draft rather than
-  // whatever is saved on the page around it.
-  const tokens = brandTokens(brand, accent);
-  const style = {
-    '--brand': tokens['--brand'] ?? 'var(--ink)',
-    '--on-brand': tokens['--on-brand'] ?? 'var(--paper)',
-    '--on-brand-soft': tokens['--on-brand-soft'] ?? 'var(--line)',
-    '--accent': accent ?? brand ?? 'var(--ink)',
-  } as CSSProperties;
-
-  return (
-    <div className="brand-preview" style={style} role="img" aria-label="Preview of the brand colors">
-      <div className="brand-preview__top">
-        <BrandMark logo={logo} />
-        <span className="brand-preview__name">{name || '—'}</span>
-      </div>
-      <div className="brand-preview__body">
-        <div className="brand-preview__controls">
-          <span className="brand-preview__chip brand-preview__chip--on">Card</span>
-          <span className="brand-preview__chip">Cash</span>
-          <span className="btn btn--primary btn--sm brand-preview__cta">Charge</span>
-        </div>
-        <div className="brand-preview__chart">
-          {[38, 62, 45, 80, 54, 100, 70].map((h, i) => (
-            <span
-              key={i}
-              className={h === 100 ? 'brand-preview__col brand-preview__col--peak' : 'brand-preview__col'}
-              style={{ height: `${h}%` }}
-            />
-          ))}
-        </div>
-      </div>
     </div>
   );
 }

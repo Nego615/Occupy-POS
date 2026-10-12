@@ -18,7 +18,7 @@ import { currencyOf, type Currency } from '../lib/currency';
 import { usePos } from '../lib/store';
 
 /**
- * Receipt-tape printouts: the register's dockets, and what the front desk
+ * Receipt-tape printouts: the register's dockets, and what the counter
  * hands over or files — a room's bill and a shift's cash-up. Same portal and print styles as PrintableReceipt, so
  * whichever one is on the page is the only thing that prints.
  */
@@ -67,7 +67,7 @@ export type DocketKind = 'bill' | 'kitchen';
 
 /**
  * A tab printed from the register before it's paid. The `bill` docket has
- * prices and the total, to take to the front desk; the `kitchen` docket has
+ * prices and the total, to take to the counter; the `kitchen` docket has
  * only what to make.
  */
 export function PrintableDocket({ order, kind }: { order: Order; kind: DocketKind }) {
@@ -122,7 +122,7 @@ export function PrintableDocket({ order, kind }: { order: Order; kind: DocketKin
           <Row label="Total" value={orderTotal(order)} total />
           {paid > 0 && <Row label="Paid so far" value={-paid} />}
           {paid > 0 && <Row label="Left to pay" value={orderTotal(order) - paid} total />}
-          <div className="print-receipt__part">Not paid — please pay at the front desk.</div>
+          <div className="print-receipt__part">Not paid — please pay at the counter.</div>
         </div>
       )}
     </Slip>

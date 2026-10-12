@@ -12,9 +12,13 @@ import {
 import { PosProvider, newShopSnapshot } from './lib/store';
 import { SubscriptionGate } from './lib/SubscriptionGate';
 import { supabase } from './lib/supabase';
+import { initTheme } from './lib/theme';
 import { CloudUnreachable } from './pages/CloudUnreachable';
 import { DeviceSignIn } from './pages/DeviceSignIn';
 import { OwnerSetup } from './pages/OwnerSetup';
+
+// Before anything paints, so a dark till never flashes light.
+initTheme();
 
 const root = createRoot(document.getElementById('root')!);
 

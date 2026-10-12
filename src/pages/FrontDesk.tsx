@@ -71,7 +71,7 @@ function shortWhen(iso: string): string {
 }
 
 /**
- * The front desk: where every bill is paid. Open bills from the floor and the
+ * The counter: where every bill is paid. Open bills from the floor and the
  * register, room charges waiting for checkout, receipts, and the shift's
  * cash-up — each a view of one screen, picked in the top bar.
  */
@@ -92,11 +92,11 @@ export function FrontDesk() {
       <TopBar
         brand={settings.businessName}
         logo={settings.logo}
-        station={`Front desk · ${stationLabel(settings)}`}
+        station={`Counter · ${stationLabel(settings)}`}
         account={<AccountMenu />}
         showClock
         nav={
-          <nav className="counter__nav" aria-label="Front desk">
+          <nav className="counter__nav" aria-label="Counter">
             <PillGroup>
               {VIEWS.map((v) => (
                 <Pill key={v.id} active={v.id === view} onClick={() => show(v.id)}>

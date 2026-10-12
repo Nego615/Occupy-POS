@@ -6,7 +6,7 @@ export const TENDER_METHODS: TenderMethod[] = ['cash', 'card', 'mobile'];
 /** Money by how it was taken. */
 export type ByMethod = Record<TenderMethod, number>;
 
-/** A closed front-desk shift: what came in, what went back, and the drawer count. */
+/** A closed counter shift: what came in, what went back, and the drawer count. */
 export type CashUp = {
   id: string;
   /** ISO timestamp the shift began — the previous cash-up's close, or the start of that day. */

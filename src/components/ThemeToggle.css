@@ -1,0 +1,17 @@
+.theme-toggle {
+  display: grid;
+  place-items: center;
+  width: var(--hit-area);
+  height: var(--hit-area);
+  flex-shrink: 0;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.theme-toggle:hover {
+  border-color: var(--ink);
+}

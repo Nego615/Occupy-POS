@@ -34,6 +34,7 @@
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
   background: var(--paper);
+  color: var(--ink);
   box-shadow: var(--shadow);
 }
 

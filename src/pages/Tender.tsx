@@ -60,10 +60,10 @@ function parseAmount(text: string, currency?: Currency): number | null {
 
 export function Tender() {
   const navigate = useNavigate();
-  // Where payment was started from — the front desk or the register — and goes back to.
+  // Where payment was started from — the counter or the register — and goes back to.
   const back = (useLocation().state as { from?: string } | null)?.from ?? '/desk';
   const fromDesk = back.startsWith('/desk');
-  const backLabel = fromDesk ? 'front desk' : 'register';
+  const backLabel = fromDesk ? 'counter' : 'register';
   const { tab, cart, totals, takePayment, removePayment, settings } = usePos();
   const { tipsEnabled, tipPresets, defaultTip } = settings;
   const currency = activeCurrency();
@@ -179,7 +179,7 @@ export function Tender() {
     return (
       <ChargedConfirmation
         charged={charged}
-        nextLabel={fromDesk ? 'Back to front desk' : 'Start next tab'}
+        nextLabel={fromDesk ? 'Back to counter' : 'Start next tab'}
         onNextTab={() => navigate(back)}
         onViewHistory={() => navigate(fromDesk ? '/desk?view=receipts' : '/counter/history')}
       />

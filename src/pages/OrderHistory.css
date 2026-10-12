@@ -165,7 +165,7 @@
   line-height: 1.5;
 }
 
-/* ---------- Narrow screens (order history and the front desk) ---------- */
+/* ---------- Narrow screens (order history and the counter) ---------- */
 
 @media (max-width: 1100px) {
   .history__body {

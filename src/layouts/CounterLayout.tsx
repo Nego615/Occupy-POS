@@ -51,7 +51,7 @@ export function CounterLayout() {
                   {screen.label}
                 </Pill>
               ))}
-              {can('payments') && <Pill onClick={() => navigate('/desk')}>Front desk</Pill>}
+              {can('payments') && <Pill onClick={() => navigate('/desk')}>Counter</Pill>}
               {can('kitchen') && <Pill onClick={() => navigate('/kitchen')}>Kitchen</Pill>}
               {/* Only offered to roles that can open some part of the admin. */}
               {ADMIN_PERMISSIONS.some(can) && (

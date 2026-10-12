@@ -32,7 +32,7 @@ import { SignIn } from './pages/SignIn';
 import { Tables } from './pages/Tables';
 import { Tender } from './pages/Tender';
 
-/** Anywhere unknown lands on the signed-in person's own screen — the front desk can't use the register. */
+/** Anywhere unknown lands on the signed-in person's own screen — the counter can't use the register. */
 function Home() {
   const { me } = usePos();
   return <Navigate to={me ? homePath(me) : '/sign-in'} replace />;

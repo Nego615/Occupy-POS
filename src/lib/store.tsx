@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode, SetStateAction } from 'react';
 import {
   CATALOG,
@@ -94,7 +94,6 @@ import {
   type ManualDiscount,
 } from './cart';
 import { salaried, type PayrollRun } from './payroll';
-import { applyBrand } from './brand';
 import { costDue, currencyOf, setActiveCurrency, setCostCurrency, type CurrencyCode } from './currency';
 import { convertMenu, readOrder, stampRate, switchBlockers } from './currencySwitch';
 import type { PosRepository, Snapshot } from './persist';
@@ -121,7 +120,7 @@ type StoredTab = {
   payments: Payment[];
   /** Fixed once the first payment is in, so later payments split the same total. */
   tip?: number;
-  /** ISO timestamp the bill was sent to the front desk to be paid. */
+  /** ISO timestamp the bill was sent to the counter to be paid. */
   billRequestedAt?: string;
 };
 
@@ -279,7 +278,7 @@ type PosStore = {
   takePayment: (payment: Payment, tip: number) => number | null;
   /** Takes back a payment from a part-paid tab — a mistake, or a card that bounced. */
   removePayment: (index: number) => void;
-  /** Sends the register's tab to the front desk to be paid. */
+  /** Sends the register's tab to the counter to be paid. */
   requestBill: () => void;
   /**
    * Closes an open tab onto a room's bill, to be paid when the room settles
@@ -296,7 +295,7 @@ type PosStore = {
     roomId: string,
     payment: Pick<Payment, 'method' | 'ref'> & { local?: Pick<LocalCash, 'currency' | 'rate'> },
   ) => number;
-  /** Closed front-desk shifts, newest first. */
+  /** Closed counter shifts, newest first. */
   cashUps: CashUp[];
   /** Closes the current shift with the drawer count, and starts the next. */
   /** `local` counts the drawer of cash taken in the cost currency, when the shop takes it. */
@@ -586,11 +585,6 @@ export function PosProvider({
   setCostCurrency(exchangeRate(settings) ? settings.costCurrency! : null);
   // Today's rate, stamped on whatever's bought or paid out in the cost currency.
   const rate = exchangeRate(settings);
-  // Before paint, so a branded shop never flashes the stock ink.
-  useLayoutEffect(() => {
-    applyBrand(settings.brandColor, settings.accentColor);
-    return () => applyBrand(null, null);
-  }, [settings.brandColor, settings.accentColor]);
   const [cashUps, setCashUps] = useState<CashUp[]>(() => restored(snapshot, 'cashUps', []));
   const [kitchenTickets, setKitchenTickets] = useState<KitchenTicket[]>(() =>
     restored(snapshot, 'kitchenTickets', () => seedTickets().sort((a, b) => a.sentAt - b.sentAt)),

@@ -376,7 +376,7 @@ function useApprovedDiscount(action: string, apply: (d: ManualDiscount | null) =
 }
 
 /**
- * A cart line's note. Discounts are the front desk's to give, so a line's
+ * A cart line's note. Discounts are the counter's to give, so a line's
  * discount isn't touched here — one already on it stays as it is.
  */
 export function LineDialog({ lineKey, onClose }: { lineKey: string | null; onClose: () => void }) {
@@ -435,7 +435,7 @@ export function LineDialog({ lineKey, onClose }: { lineKey: string | null; onClo
   );
 }
 
-/** A discount off the whole bill, before tax — given at the front desk. */
+/** A discount off the whole bill, before tax — given at the counter. */
 export function TabDiscountDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { tab, totals, setTabDiscount } = usePos();
   const [discount, setDiscount] = useState<ManualDiscount | null>(null);

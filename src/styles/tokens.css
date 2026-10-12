@@ -28,8 +28,13 @@
   --clay:           #c8693a; /* charts — background work only */
   --hatch:          #c4a385; /* hatched chart marks: what a usual day looks like */
 
-  /* Brand — a shop's own colors, set in Admin → Settings (lib/brand.ts
-     overrides these on :root). Unset, they're ink, so the stock look holds. */
+  /* Panels — the big dark blocks (admin sidebar, the overview balance) and the
+     dark chips that carry marigold text. Ink in light mode; in dark mode they
+     stay dark rather than flip to cream, so marigold still reads on them. */
+  --panel:          var(--ink);
+  --on-panel:       #fff9ee;
+
+  /* Brand — primary fills. Ink, so they follow the theme. */
   --brand:          var(--ink);   /* primary buttons, selected chips, active nav, brand mark */
   --on-brand:       var(--paper); /* text and icons on --brand */
   --on-brand-soft:  var(--line);  /* secondary text on --brand */
@@ -67,4 +72,43 @@
 
   /* Accessibility floor: minimum hit area on any control */
   --hit-area: 44px;
+
+  color-scheme: light;
+}
+
+/* ---------------------------------------------------------------
+   Dark — the same kanga colours on a night-time cocoa ground. Set by
+   lib/theme.ts as data-theme on <html>. Screen only: receipts always
+   print black on white.
+   --------------------------------------------------------------- */
+@media screen {
+  :root[data-theme='dark'] {
+    --ink:            #f5e9d6;
+    --ink-soft:       #bba48f;
+    --paper:          #1d140f;
+    --surface:        #2a1e17;
+    --surface-hover:  #36281f;
+    --line:           #3f2f25;
+
+    --sand:           #150e0a;
+    --tint:           #34261d;
+
+    --vermilion:      #e5533a;
+    --clay:           #d4814f;
+    --hatch:          #6f5747;
+
+    --panel:          #2e2119;
+
+    --occupied:       #ff8a6b;
+    --occupied-soft:  #4a2016;
+    --open:           #72c98f;
+    --open-soft:      #1d3626;
+    --refund:         #c7a2ea;
+    --refund-soft:    #352548;
+
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.35);
+    --lift: 0 18px 30px -22px rgba(0, 0, 0, 0.7);
+
+    color-scheme: dark;
+  }
 }

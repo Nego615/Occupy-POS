@@ -3,6 +3,7 @@ import './TopBar.css';
 import { useClock } from '../lib/useClock';
 import { BrandMark } from './BrandMark';
 import { Mono } from './Mono';
+import { ThemeToggle } from './ThemeToggle';
 
 export type TopBarProps = {
   /** Business name beside the brand mark. */
@@ -50,6 +51,7 @@ export function TopBar({ brand, logo, station, account, showClock = false, nav }
       <div className="topbar__right">
         {nav}
         {showClock && <Clock />}
+        <ThemeToggle />
         {account}
       </div>
     </header>

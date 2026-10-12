@@ -78,9 +78,9 @@ export function Register() {
   const [editingLine, setEditingLine] = useState<string | null>(null);
   const [choosingDocket, setChoosingDocket] = useState(false);
   // The docket being printed — on the page only while the print dialog is up. It keeps
-  // its own copy of the tab, so a bill sent to the front desk still prints once it's gone.
+  // its own copy of the tab, so a bill sent to the counter still prints once it's gone.
   const [docket, setDocket] = useState<{ order: Order; kind: DocketKind } | null>(null);
-  // The tab whose bill was just sent to the front desk, for the note on the empty register.
+  // The tab whose bill was just sent to the counter, for the note on the empty register.
   const [billSent, setBillSent] = useState<string | null>(null);
   const {
     tab,
@@ -210,7 +210,7 @@ export function Register() {
     takeOff({ action, key: line.key, qty });
   }
 
-  // The register never takes payment or gives discounts — that's the front desk's job.
+  // The register never takes payment or gives discounts — that's the counter's job.
   // It charges each tab to its table or room — a required pick, unless the shop
   // has none to pick from.
   const placed = tab.locationId !== null || locations.length === 0;
@@ -248,7 +248,7 @@ export function Register() {
     if (hasItems) setBillSent(null);
   }, [hasItems]);
 
-  /** Charges the open tab to its table or room, which sends its bill to the front desk to be paid. */
+  /** Charges the open tab to its table or room, which sends its bill to the counter to be paid. */
   function charge() {
     if (!placed) {
       setAssigning(true);
@@ -258,7 +258,7 @@ export function Register() {
     setBillSent(tab.name);
     // The order docket goes with the bill — up for printing straight away.
     if (tabOrder) setDocket({ order: tabOrder, kind: 'bill' });
-    // The bill waits at the front desk; the register moves on to the next customer.
+    // The bill waits at the counter; the register moves on to the next customer.
     openTab(null);
   }
 
@@ -455,7 +455,7 @@ export function Register() {
               </button>
               <span className="tab-chip tab-chip--dark">
                 {tab.billRequestedAt ? (
-                  'Bill at front desk'
+                  'Bill at counter'
                 ) : (
                   <>
                     <Mono>{totals.itemCount}</Mono> {totals.itemCount === 1 ? 'item' : 'items'}
@@ -552,7 +552,7 @@ export function Register() {
           {!hasItems && (
             <p className="cart__empty" role="status">
               {billSent
-                ? `${billSent}’s bill is at the front desk. Tap a category to start the next tab.`
+                ? `${billSent}’s bill is at the counter. Tap a category to start the next tab.`
                 : 'No items yet — tap a category to start a tab.'}
             </p>
           )}
@@ -599,7 +599,7 @@ export function Register() {
             {tab.locationId !== null
               ? `Charge to ${tab.name}`
               : placed
-                ? 'Send bill to front desk'
+                ? 'Send bill to counter'
                 : 'Charge to a table or room'}{' '}
             <Money value={partPaid ? dueNow : totals.total} />
           </Button>
@@ -609,7 +609,7 @@ export function Register() {
               ? 'Add an item to start charging'
               : !placed
                 ? 'Assign a table or room to charge or send to the kitchen'
-                : 'Paid and discounted at the front desk · or press Enter'}
+                : 'Paid and discounted at the counter · or press Enter'}
           </p>
         </div>
       </aside>

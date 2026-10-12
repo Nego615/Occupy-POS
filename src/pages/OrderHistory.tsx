@@ -37,7 +37,7 @@ const RANGES: { id: RangeId; label: string; maxDaysAgo: number }[] = [
 type PlaceFilter = string;
 
 /**
- * `onOpenTab` replaces putting an open tab on the register — the front desk
+ * `onOpenTab` replaces putting an open tab on the register — the counter
  * opens it as a bill to collect instead.
  */
 export function OrderHistory({ onOpenTab }: { onOpenTab?: (orderId: number) => void } = {}) {

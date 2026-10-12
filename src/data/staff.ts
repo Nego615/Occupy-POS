@@ -23,7 +23,7 @@ export type Permission =
 
 export const PERMISSIONS: { id: Permission; label: string }[] = [
   { id: 'register', label: 'Ring up orders' },
-  { id: 'payments', label: 'Take payment at the front desk' },
+  { id: 'payments', label: 'Take payment at the counter' },
   { id: 'kitchen', label: 'Work the kitchen screen' },
   { id: 'refunds', label: 'Refund orders' },
   { id: 'catalog', label: 'Edit every item & category' },
@@ -86,9 +86,9 @@ export const ROLES: { id: RoleId; label: string; can: Permission[] }[] = [
       'editTabs',
     ],
   },
-  // Every bill is paid, and every discount given, at the front desk — the register only
+  // Every bill is paid, and every discount given, at the counter — the register only
   // charges tabs to tables and rooms and sends the bills there.
-  { id: 'frontdesk', label: 'Front desk', can: ['payments', 'discounts'] },
+  { id: 'frontdesk', label: 'Counter', can: ['payments', 'discounts'] },
   { id: 'barista', label: 'Barista', can: ['register', 'kitchen', 'editTabs'] },
   // Servers only add to tabs; taking anything off needs a manager's PIN.
   { id: 'server', label: 'Server', can: ['register', 'kitchen'] },

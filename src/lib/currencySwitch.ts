@@ -111,11 +111,11 @@ export function switchBlockers(input: {
   }
   const rooms = new Set(orders.filter((o) => o.status === 'charged').map((o) => o.roomId)).size;
   if (rooms > 0) {
-    out.push(`${rooms} ${rooms === 1 ? 'room has a bill' : 'rooms have bills'} not yet settled — settle at the front desk first.`);
+    out.push(`${rooms} ${rooms === 1 ? 'room has a bill' : 'rooms have bills'} not yet settled — settle at the counter first.`);
   }
   const taken = shiftTotals(orders, tabs.flatMap((t) => t.payments), shiftStart(cashUps, now), now.toISOString()).payments;
   if (taken > 0) {
-    out.push(`${taken} ${taken === 1 ? 'payment has' : 'payments have'} come in since the last cash-up — close the shift at the front desk first.`);
+    out.push(`${taken} ${taken === 1 ? 'payment has' : 'payments have'} come in since the last cash-up — close the shift at the counter first.`);
   }
   return out;
 }

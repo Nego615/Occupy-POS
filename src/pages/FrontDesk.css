@@ -1,4 +1,4 @@
-/* The front desk reuses the order history's list + detail columns; these are
+/* The counter reuses the order history's list + detail columns; these are
    its own pieces — headings, the payment actions, and the cash-up table. */
 
 .desk__heading {
