@@ -453,7 +453,7 @@ export function Register() {
                 </button>
               )}
             </div>
-            {/* A kanga carries a saying in its border; so does every tab card. */}
+            {/* A short saying along the bottom edge, as on a kanga. */}
             <span className="tab-card__saying" aria-hidden="true">
               {SAYINGS[tab.orderId % SAYINGS.length]}
             </span>
@@ -589,7 +589,7 @@ export function Register() {
 }
 
 /**
- * The saying in each tab card's border, as on a kanga. Decorative only —
+ * The saying along the bottom of each tab card, as on a kanga. Decorative only —
  * never an instruction — and picked by order number so a tab keeps its own.
  */
 const SAYINGS = ['Karibu tena', 'Tuko pamoja', 'Pole pole ndio mwendo', 'Asante kwa kuja'];

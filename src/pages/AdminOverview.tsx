@@ -164,7 +164,7 @@ export function AdminOverview() {
           </nav>
         </section>
 
-        {/* The open tabs, as one card printed like a kanga. */}
+        {/* The open tabs, as one marigold card. */}
         <Link to="/counter/tables" className="ov-tabs">
           <span className="ov-tabs__head">
             <span>On open tabs</span>

@@ -126,8 +126,7 @@
 }
 
 /* ---------- Tab cards ----------
-   Printed like a kanga: a dotted border, the amount in the middle, and a
-   saying set into the bottom border. */
+   The amount in the middle and a short saying along the bottom edge. */
 
 .tab-stack {
   position: relative;
@@ -146,7 +145,6 @@
   --card-bg: var(--paper);
   --card-ink: var(--ink);
   --card-ink-soft: var(--ink-soft);
-  --kb: rgba(207, 55, 32, 0.55);
   position: relative;
   display: flex;
   flex-direction: column;
@@ -159,27 +157,17 @@
   text-align: left;
 }
 
-.tab-card::before {
-  content: '';
-  position: absolute;
-  inset: 7px;
-  border: 2.5px dotted var(--kb);
-  border-radius: 15px;
-  pointer-events: none;
-}
 
 .tab-card--gold {
   --card-bg: var(--marigold);
   --card-ink: var(--on-marigold);
   --card-ink-soft: rgba(43, 24, 16, 0.72);
-  --kb: rgba(43, 24, 16, 0.42);
 }
 
 .tab-card--cocoa {
   --card-bg: var(--ink);
   --card-ink: var(--paper);
   --card-ink-soft: rgba(255, 249, 238, 0.7);
-  --kb: rgba(244, 177, 46, 0.7);
 }
 
 .tab-card--paper {
@@ -368,7 +356,7 @@
   text-decoration: none;
 }
 
-/* The saying interrupts the dots of the bottom border. Decorative only. */
+/* The saying along the bottom edge. Decorative only. */
 .tab-card__saying {
   position: absolute;
   left: 50%;

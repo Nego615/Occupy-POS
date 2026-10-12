@@ -163,7 +163,7 @@
   border-radius: 12px;
 }
 
-/* ---------- Open tabs, printed like a kanga ---------- */
+/* ---------- Open tabs ---------- */
 
 .ov-tabs {
   position: relative;
@@ -177,14 +177,6 @@
   text-decoration: none;
 }
 
-.ov-tabs::before {
-  content: '';
-  position: absolute;
-  inset: 8px;
-  border: 2.5px dotted rgba(43, 24, 16, 0.42);
-  border-radius: 18px;
-  pointer-events: none;
-}
 
 .ov-tabs:hover {
   filter: brightness(1.03);
