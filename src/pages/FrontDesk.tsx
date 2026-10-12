@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { motion } from 'motion/react';
 import { useNavigate, useSearchParams } from 'react-router';
 import '../layouts/CounterLayout.css';
 import './OrderHistory.css';
@@ -39,6 +40,7 @@ import {
   type Currency,
 } from '../lib/currency';
 import { beforeSwitch } from '../lib/currencySwitch';
+import { swapIn } from '../lib/motion';
 import { usePos } from '../lib/store';
 import { formatTime, useNow } from '../lib/useClock';
 import { OrderHistory } from './OrderHistory';
@@ -110,10 +112,13 @@ export function FrontDesk() {
           </nav>
         }
       />
-      {view === 'bills' && <BillsView selectedParam={Number(params.get('bill')) || null} />}
-      {view === 'rooms' && <RoomsView onShowBill={(id) => show('bills', { bill: String(id) })} />}
-      {view === 'receipts' && <OrderHistory onOpenTab={(id) => show('bills', { bill: String(id) })} />}
-      {view === 'cashup' && <CashUpView />}
+      {/* Keyed by view, so switching views fades the new one in, like the register's pages. */}
+      <motion.div key={view} className="counter__page" variants={swapIn} initial="hidden" animate="shown">
+        {view === 'bills' && <BillsView selectedParam={Number(params.get('bill')) || null} />}
+        {view === 'rooms' && <RoomsView onShowBill={(id) => show('bills', { bill: String(id) })} />}
+        {view === 'receipts' && <OrderHistory onOpenTab={(id) => show('bills', { bill: String(id) })} />}
+        {view === 'cashup' && <CashUpView />}
+      </motion.div>
     </div>
   );
 }

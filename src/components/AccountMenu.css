@@ -8,6 +8,7 @@
   height: var(--hit-area);
   border-radius: 50%;
   background: var(--surface);
+  color: var(--ink);
   border: 1px solid var(--line);
   display: flex;
   align-items: center;

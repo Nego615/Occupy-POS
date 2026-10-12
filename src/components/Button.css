@@ -10,7 +10,7 @@
   line-height: 1.2;
   cursor: pointer;
   /* No box-shadow: buttons are flat. Borders do the separating. */
-  transition: opacity 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+  transition: opacity 0.15s ease, background 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
 }
 
 /* Guarantees the 44px hit area even when the visual button is shorter. */

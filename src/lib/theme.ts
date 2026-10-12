@@ -36,8 +36,17 @@ export function setTheme(theme: Theme): void {
   } catch {
     // Storage blocked: the switch still holds for this visit.
   }
-  document.documentElement.dataset.theme = theme;
-  listeners.forEach((l) => l());
+  const swap = () => {
+    document.documentElement.dataset.theme = theme;
+    listeners.forEach((l) => l());
+  };
+  // Crossfade the whole screen where the browser can (timing in global.css).
+  const doc = document as Document & { startViewTransition?: (update: () => void) => unknown };
+  if (doc.startViewTransition && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    doc.startViewTransition(swap);
+  } else {
+    swap();
+  }
 }
 
 /** Sets data-theme before the first render, and follows the device while nothing's been picked. */

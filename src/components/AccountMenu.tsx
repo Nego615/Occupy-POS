@@ -1,8 +1,10 @@
 import { useEffect, useId, useRef, useState } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 import { useNavigate } from 'react-router';
 import './AccountMenu.css';
 import { Button } from './Button';
 import { initials, roleLabel } from '../data/staff';
+import { quick } from '../lib/motion';
 import { usePos } from '../lib/store';
 
 /** The signed-in person's avatar, opening to the way to hand the register to someone else. */
@@ -57,8 +59,17 @@ export function AccountMenu({ align = 'right' }: { align?: 'right' | 'left-up' }
         {initials(me.name)}
       </button>
 
+      <AnimatePresence>
       {open && (
-        <div className="account__menu" id={menuId}>
+        <motion.div
+          className="account__menu"
+          id={menuId}
+          // Grows out of the avatar it belongs to.
+          style={{ transformOrigin: align === 'right' ? 'top right' : 'bottom left' }}
+          initial={{ opacity: 0, scale: 0.96, y: align === 'right' ? -4 : 4 }}
+          animate={{ opacity: 1, scale: 1, y: 0, transition: quick }}
+          exit={{ opacity: 0, scale: 0.98, transition: { duration: 0.1 } }}
+        >
           <div className="account__who">
             <div className="account__name">{me.name}</div>
             <div className="account__role">{roleLabel(me.role)}</div>
@@ -68,8 +79,9 @@ export function AccountMenu({ align = 'right' }: { align?: 'right' | 'left-up' }
               Switch user
             </Button>
           </div>
-        </div>
+        </motion.div>
       )}
+      </AnimatePresence>
     </div>
   );
 }
