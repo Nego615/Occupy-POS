@@ -3,6 +3,7 @@ import './Inventory.css';
 import { Button } from '../components/Button';
 import { Money, Mono, formatMoney } from '../components/Mono';
 import { SearchField } from '../components/SearchField';
+import { categoryPath, categoryTree, inCategory } from '../data/catalog';
 import { formatDay, type StockCount } from '../data/inventory';
 import { round } from '../lib/cart';
 import { usePos } from '../lib/store';
@@ -144,10 +145,10 @@ function StartCount() {
   const options = useMemo(
     () => [
       { id: 'all', label: 'All items', ids: catalog.map((i) => i.id) },
-      ...categories.map((c) => ({
+      ...categoryTree(categories).map(({ category: c }) => ({
         id: `cat:${c.id}`,
-        label: c.label,
-        ids: catalog.filter((i) => i.category === c.id).map((i) => i.id),
+        label: categoryPath(categories, c.id),
+        ids: catalog.filter((i) => inCategory(categories, i.category, c.id)).map((i) => i.id),
       })),
       ...suppliers.map((s) => ({
         id: `sup:${s.id}`,
@@ -155,7 +156,7 @@ function StartCount() {
         ids: catalog.filter((i) => i.supplierId === s.id).map((i) => i.id),
       })),
     ].filter((o) => o.ids.length > 0),
-    [catalog, suppliers],
+    [catalog, categories, suppliers],
   );
   const chosen = options.find((o) => o.id === scope) ?? options[0];
 

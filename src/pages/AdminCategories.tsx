@@ -1,10 +1,10 @@
-import { useState, type FormEvent } from 'react';
+import { useState, type CSSProperties, type FormEvent } from 'react';
 import { Link } from 'react-router';
 import './Inventory.css';
 import './AdminCategories.css';
 import { Button } from '../components/Button';
 import { Money, Mono } from '../components/Mono';
-import type { AddOn, Category } from '../data/catalog';
+import { categoryLineage, categoryPath, categoryTree, type AddOn, type Category } from '../data/catalog';
 import { activeCurrency, isAmountText } from '../lib/currency';
 import { usePos } from '../lib/store';
 import { ItemPicker } from './ItemPicker';
@@ -14,30 +14,51 @@ function tidy(name: string): string {
   return name.trim().replace(/\s+/g, ' ');
 }
 
-/** Why `name` can't be used for a category other than `exceptId`, or null if it can. */
-function nameProblem(name: string, categories: Category[], exceptId?: string): string | null {
+/**
+ * Why `name` can't be used for a category inside `parentId` (top level for
+ * none), other than `exceptId`, or null if it can. Names only need to differ
+ * from the categories alongside — Food › Other and Drinks › Other can both be.
+ */
+function nameProblem(
+  name: string,
+  categories: Category[],
+  parentId: string | undefined,
+  exceptId?: string,
+): string | null {
   if (!name) return 'Give the category a name.';
-  const clash = categories.some((c) => c.id !== exceptId && c.label.toLowerCase() === name.toLowerCase());
-  return clash ? `${name} already exists — pick a different name.` : null;
+  const clash = categories.some(
+    (c) =>
+      c.id !== exceptId &&
+      (c.parentId ?? '') === (parentId ?? '') &&
+      c.label.toLowerCase() === name.toLowerCase(),
+  );
+  if (!clash) return null;
+  return parentId
+    ? `${categoryPath(categories, parentId)} already has ${name} — pick a different name.`
+    : `${name} already exists — pick a different name.`;
 }
 
 /**
  * The categories items are sorted into — the shelves along the top of the
  * register, and the headings in reports. Renames apply everywhere at once; a
- * category can only be deleted once no item is in it. Each can offer add-ons:
+ * category can only be deleted once no item or category is in it. Any can sit
+ * inside another — Sodas and Wines inside Drinks. Each can offer add-ons:
  * sides and extras rung up with any of its items.
  */
 export function AdminCategories() {
   const { categories, catalog, createCategory, settings } = usePos();
   const [name, setName] = useState('');
+  const [parent, setParent] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const tree = categoryTree(categories);
 
   function add(e: FormEvent) {
     e.preventDefault();
     const label = tidy(name);
-    const problem = nameProblem(label, categories);
+    const parentId = categories.some((c) => c.id === parent) ? parent : undefined;
+    const problem = nameProblem(label, categories, parentId);
     if (problem) return setError(problem);
-    createCategory(label);
+    createCategory(label, parentId);
     setName('');
     setError(null);
   }
@@ -75,7 +96,16 @@ export function AdminCategories() {
             aria-invalid={error !== null}
             aria-describedby={error ? 'category-new-error' : undefined}
           />
-          <Button type="submit">Add category</Button>
+          {categories.length > 0 && (
+            <ParentSelect
+              id="category-new-parent"
+              label="Inside"
+              value={parent}
+              options={tree}
+              onChange={setParent}
+            />
+          )}
+          <Button type="submit">{parent ? 'Add sub-category' : 'Add category'}</Button>
           {error && (
             <p className="category-error" id="category-new-error" role="alert">
               {error}
@@ -88,10 +118,11 @@ export function AdminCategories() {
             No categories yet. Add one above, then put items in it from the item editor.
           </p>
         ) : (
-          categories.map((category) => (
+          tree.map(({ category, depth }) => (
             <CategoryRow
               key={category.id}
               category={category}
+              depth={depth}
               itemCount={catalog.filter((i) => i.category === category.id).length}
             />
           ))
@@ -101,19 +132,62 @@ export function AdminCategories() {
   );
 }
 
-function CategoryRow({ category, itemCount }: { category: Category; itemCount: number }) {
-  const { categories, renameCategory, deleteCategory } = usePos();
+/**
+ * Picks the category another sits inside — "Top level" or any category,
+ * indented under its own parent. `exceptId` and those inside it are left out,
+ * since a category can't go inside itself.
+ */
+function ParentSelect({
+  id,
+  label,
+  value,
+  options,
+  onChange,
+  exceptId,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  options: { category: Category; depth: number }[];
+  onChange: (parentId: string) => void;
+  exceptId?: string;
+}) {
+  const { categories } = usePos();
+  const allowed = options.filter(
+    ({ category }) => !exceptId || !categoryLineage(categories, category.id).includes(exceptId),
+  );
+  return (
+    <label className="category-parent" htmlFor={id}>
+      <span className="category-parent__label">{label}</span>
+      <select id={id} className="category-select" value={value} onChange={(e) => onChange(e.target.value)}>
+        <option value="">Top level</option>
+        {allowed.map(({ category, depth }) => (
+          <option key={category.id} value={category.id}>
+            {'  '.repeat(depth)}
+            {category.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function CategoryRow({ category, depth, itemCount }: { category: Category; depth: number; itemCount: number }) {
+  const { categories, renameCategory, moveCategory, deleteCategory } = usePos();
   const [draft, setDraft] = useState(category.label);
   const [error, setError] = useState<string | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [editingAddOns, setEditingAddOns] = useState(false);
   const addOnCount = category.addOns?.length ?? 0;
   const errorId = `category-error-${category.id}`;
-  const inUse = itemCount > 0;
+  const subCount = categories.filter((c) => c.parentId === category.id).length;
+  const inUse = itemCount > 0 || subCount > 0;
+  // A parent deleted on another screen leaves it at the top level.
+  const parentId = categories.some((c) => c.id === category.parentId) ? category.parentId : undefined;
 
   function commit() {
     const label = tidy(draft);
-    const problem = nameProblem(label, categories, category.id);
+    const problem = nameProblem(label, categories, parentId, category.id);
     if (problem) {
       setError(problem);
       setDraft(category.label);
@@ -132,8 +206,15 @@ function CategoryRow({ category, itemCount }: { category: Category; itemCount: n
     deleteCategory(category.id);
   }
 
+  function move(to: string) {
+    const problem = nameProblem(category.label, categories, to || undefined, category.id);
+    if (problem) return setError(problem);
+    setError(null);
+    moveCategory(category.id, to || null);
+  }
+
   return (
-    <div className="category-item">
+    <div className="category-item" style={{ '--depth': depth } as CSSProperties}>
       <div className="category-row">
         <div className="category-row__main">
           <label className="sr-only" htmlFor={`category-name-${category.id}`}>
@@ -166,6 +247,15 @@ function CategoryRow({ category, itemCount }: { category: Category; itemCount: n
           )}
         </div>
 
+        <ParentSelect
+          id={`category-parent-${category.id}`}
+          label="Inside"
+          value={parentId ?? ''}
+          options={categoryTree(categories)}
+          onChange={move}
+          exceptId={category.id}
+        />
+
         <Link className="category-row__count" to="/admin/items">
           <Mono>{itemCount}</Mono> {itemCount === 1 ? 'item' : 'items'}
         </Link>
@@ -194,10 +284,16 @@ function CategoryRow({ category, itemCount }: { category: Category; itemCount: n
           onClick={remove}
           onBlur={() => setConfirmingDelete(false)}
           disabled={inUse}
-          title={inUse ? 'Move its items to another category, or delete them, first.' : undefined}
+          title={
+            subCount > 0
+              ? 'Move or delete the categories inside it first.'
+              : inUse
+                ? 'Move its items to another category, or delete them, first.'
+                : undefined
+          }
           aria-label={
             inUse
-              ? `Can’t delete ${category.label} while it has items`
+              ? `Can’t delete ${category.label} while it has ${subCount > 0 ? 'categories inside it' : 'items'}`
               : confirmingDelete
                 ? `Confirm deleting ${category.label}`
                 : `Delete ${category.label}`
@@ -269,8 +365,8 @@ function AddOnEditor({ category }: { category: Category }) {
   return (
     <div className="category-addons" id={`category-addons-${category.id}`}>
       <p className="inv-note">
-        Offered with every item in {category.label}, on the register and in set meals. Each is an item
-        from your catalog, so it comes off stock when it’s sold.
+        Offered with every item in {category.label} and the categories inside it, on the register and in
+        set meals. Each is an item from your catalog, so it comes off stock when it’s sold.
       </p>
       <ItemPicker
         catalog={catalog}

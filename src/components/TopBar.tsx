@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useLayoutEffect, useRef, type ReactNode } from 'react';
 import './TopBar.css';
 import { useClock } from '../lib/useClock';
 import { BrandMark } from './BrandMark';
@@ -20,8 +20,26 @@ export type TopBarProps = {
 };
 
 export function TopBar({ brand, logo, station, account, showClock = false, nav }: TopBarProps) {
+  const ref = useRef<HTMLElement>(null);
+
+  // The bar sticks to the top of the screen; publishing its height lets menus
+  // further down the page (the register's categories) pin just beneath it.
+  useLayoutEffect(() => {
+    const bar = ref.current;
+    if (!bar) return;
+    const root = document.documentElement;
+    const publish = () => root.style.setProperty('--topbar-h', `${bar.offsetHeight}px`);
+    publish();
+    const observer = new ResizeObserver(publish);
+    observer.observe(bar);
+    return () => {
+      observer.disconnect();
+      root.style.removeProperty('--topbar-h');
+    };
+  }, []);
+
   return (
-    <header className="topbar">
+    <header className="topbar" ref={ref}>
       <div className="topbar__brand">
         <BrandMark logo={logo} />
         <div>

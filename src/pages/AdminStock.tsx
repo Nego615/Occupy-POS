@@ -7,7 +7,7 @@ import { Money, Mono } from '../components/Mono';
 import { Pill, PillRow } from '../components/Pill';
 import { SearchField } from '../components/SearchField';
 import { StatusChip } from '../components/StatusChip';
-import { categoryLabel, stockState, type CatalogItem } from '../data/catalog';
+import { categoryPath, stockState, type CatalogItem } from '../data/catalog';
 import { ADJUST_REASONS, MOVEMENT_LABEL, formatDay } from '../data/inventory';
 import { round } from '../lib/cart';
 import { reorderSuggestions } from '../lib/inventory';
@@ -179,7 +179,7 @@ export function AdminStock() {
                           <span>
                             {item.name}
                             <span className="inv-sub">
-                              {categoryLabel(categories, item.category)}
+                              {categoryPath(categories, item.category)}
                             </span>
                           </span>
                         </button>

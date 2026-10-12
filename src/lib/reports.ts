@@ -1,4 +1,4 @@
-import { type CatalogItem, type Category } from '../data/catalog';
+import { categoryPath, type CatalogItem, type Category } from '../data/catalog';
 import {
   TENDER_LABEL,
   orderNetSubtotal,
@@ -154,7 +154,8 @@ export function byItem(orders: Order[], catalog: CatalogItem[], categories: Cate
       const item = byName.get(line.name);
       const row = tally.get(line.name) ?? {
         name: line.name,
-        category: categories.find((c) => c.id === item?.category)?.label ?? 'Other',
+        category:
+          item && categories.some((c) => c.id === item.category) ? categoryPath(categories, item.category) : 'Other',
         color: item?.color,
         qty: 0,
         sales: 0,

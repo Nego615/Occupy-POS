@@ -5,7 +5,7 @@ import { Button } from '../components/Button';
 import { Mono } from '../components/Mono';
 import { StatusChip } from '../components/StatusChip';
 import { Switch } from '../components/Switch';
-import { categoryLabel } from '../data/catalog';
+import { categoryPath, categoryTree, inAnyCategory } from '../data/catalog';
 import {
   WEEKDAYS,
   promoAmountLabel,
@@ -122,7 +122,7 @@ export function AdminPromotions() {
                         </button>
                       </td>
                       <td className="inv-strong">{promoAmountLabel(p)}</td>
-                      <td className="inv-soft">{scopeLabel(p, (id) => categoryLabel(categories, id))}</td>
+                      <td className="inv-soft">{scopeLabel(p, (id) => categoryPath(categories, id))}</td>
                       <td>
                         <PromoStatus promo={p} at={at} />
                       </td>
@@ -230,22 +230,22 @@ function PromotionPanel({
       if (start === null || end === null) return setError('Set a start and end time.');
       if (start === end) return setError('Start and end can’t be the same time.');
     }
-    const categories = draft.everything ? [] : draft.categories;
-    // An item whose whole category is covered doesn't need listing too.
+    const scope = draft.everything ? [] : draft.categories;
+    // An item whose whole category is covered — or one it sits inside — doesn't need listing too.
     const itemIds = draft.everything
       ? []
       : draft.itemIds.filter((id) => {
           const item = catalog.find((i) => i.id === id);
-          return item && !categories.includes(item.category);
+          return item && !inAnyCategory(categories, item.category, scope);
         });
     const days = draft.days.length === 7 ? [] : [...draft.days].sort((a, b) => a - b);
-    savePromotion({ ...promo, name, kind: draft.kind, value, categories, itemIds, days, start, end });
+    savePromotion({ ...promo, name, kind: draft.kind, value, categories: scope, itemIds, days, start, end });
     // Match the draft to what was stored, so it reads as saved.
     setDraft((d) => ({
       ...d,
       name,
       value: valueText,
-      categories,
+      categories: scope,
       itemIds,
       days,
       start: toTimeInput(start, '16:00'),
@@ -350,7 +350,7 @@ function PromotionPanel({
             <div className="deal-group" role="group" aria-label="Categories">
               Categories
               <div className="deal-chips">
-                {categories.map((c) => (
+                {categoryTree(categories).map(({ category: c }) => (
                   <button
                     key={c.id}
                     type="button"
@@ -358,7 +358,7 @@ function PromotionPanel({
                     aria-pressed={draft.categories.includes(c.id)}
                     onClick={() => set('categories', toggle(draft.categories, c.id))}
                   >
-                    {c.label}
+                    {categoryPath(categories, c.id)}
                   </button>
                 ))}
               </div>
@@ -370,7 +370,7 @@ function PromotionPanel({
               </span>
               <div className="deal-chips">
                 {catalog
-                  .filter((i) => !draft.categories.includes(i.category))
+                  .filter((i) => !inAnyCategory(categories, i.category, draft.categories))
                   .map((i) => (
                     <button
                       key={i.id}

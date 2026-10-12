@@ -1,5 +1,5 @@
 import { formatCurrency } from '../lib/currency';
-import type { CatalogItem, CategoryId } from './catalog';
+import { inAnyCategory, type CatalogItem, type Category, type CategoryId } from './catalog';
 
 /**
  * An automatic price cut — happy hour, a weekday breakfast deal. The register
@@ -124,9 +124,14 @@ export function promoRunning(promo: Promotion, at: Date): boolean {
     : t >= promo.start || t < promo.end;
 }
 
-export function promoCovers(promo: Promotion, item: Pick<CatalogItem, 'id' | 'category'>): boolean {
+/** Whether `promo` takes money off `item` — a category it covers takes in the ones inside it. */
+export function promoCovers(
+  promo: Promotion,
+  item: Pick<CatalogItem, 'id' | 'category'>,
+  categories: Category[] = [],
+): boolean {
   if (promo.categories.length === 0 && promo.itemIds.length === 0) return true;
-  return promo.categories.includes(item.category) || promo.itemIds.includes(item.id);
+  return inAnyCategory(categories, item.category, promo.categories) || promo.itemIds.includes(item.id);
 }
 
 /** `price` with `promo` taken off — never below zero. Rounding is the caller's. */
@@ -141,10 +146,11 @@ export function bestPromo(
   promos: Promotion[],
   item: Pick<CatalogItem, 'id' | 'category' | 'price'>,
   at: Date,
+  categories: Category[] = [],
 ): Promotion | null {
   let best: Promotion | null = null;
   for (const p of promos) {
-    if (!promoRunning(p, at) || !promoCovers(p, item)) continue;
+    if (!promoRunning(p, at) || !promoCovers(p, item, categories)) continue;
     if (!best || discounted(p, item.price) < discounted(best, item.price)) best = p;
   }
   return best;

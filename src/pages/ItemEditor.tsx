@@ -8,7 +8,8 @@ import { Pill, PillRow } from '../components/Pill';
 import { StatusChip } from '../components/StatusChip';
 import { Switch } from '../components/Switch';
 import {
-  categoryLabel,
+  categoryPath,
+  categoryTree,
   parseUnits,
   parseVolume,
   stockState,
@@ -151,7 +152,9 @@ export function ItemEditor() {
   const creating = itemId === 'new';
   const item = creating ? undefined : catalog.find((i) => i.id === itemId);
   // The kitchen only files items under the categories it's let edit.
-  const editable = categories.filter((c) => canEditCategory(c.id));
+  const editable = categoryTree(categories)
+    .map(({ category }) => category)
+    .filter((c) => canEditCategory(c.id));
 
   const saved: ItemDraft = useMemo(
     () =>
@@ -255,7 +258,7 @@ export function ItemEditor() {
       }),
     }));
   }
-  const draftCategory = categoryLabel(categories, draft.category);
+  const draftCategory = categoryPath(categories, draft.category);
 
   // A stale link to a deleted item lands here rather than on someone else's item.
   // Every item belongs to a category, so a new shop makes one first.
@@ -304,7 +307,7 @@ export function ItemEditor() {
         <div className="editor__missing">
           <p>
             {outside
-              ? `This item is under ${categoryLabel(categories, item!.category)}, which the kitchen can’t edit. A manager can open it to the kitchen in Settings, under Kitchen menu.`
+              ? `This item is under ${categoryPath(categories, item!.category)}, which the kitchen can’t edit. A manager can open it to the kitchen in Settings, under Kitchen menu.`
               : 'No categories are open to the kitchen yet. A manager can choose them in Settings, under Kitchen menu.'}
           </p>
           <Button onClick={() => navigate('/admin/items')}>Back to items</Button>
@@ -739,7 +742,7 @@ export function ItemEditor() {
                   active={c.id === draft.category}
                   onClick={() => set('category', c.id)}
                 >
-                  {c.label}
+                  {categoryPath(categories, c.id)}
                 </Pill>
               ))}
             </PillRow>

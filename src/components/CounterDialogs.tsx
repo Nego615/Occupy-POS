@@ -162,9 +162,9 @@ export function PriceDialog({
  * or a portion. Servings there isn't enough stock left for are greyed out.
  */
 export function PortionDialog({ item, onClose }: { item: CatalogItem | null; onClose: () => void }) {
-  const { cart, promotions, addItem } = usePos();
+  const { cart, promotions, categories, addItem } = usePos();
   const inCart = item ? (itemQuantities(cart).get(item.id) ?? 0) : 0;
-  const promo = item ? bestPromo(promotions, item, new Date()) : null;
+  const promo = item ? bestPromo(promotions, item, new Date(), categories) : null;
 
   return (
     <Modal open={item !== null} title={item?.name ?? ''} sub="Which serving?" onClose={onClose}>

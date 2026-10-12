@@ -5,7 +5,14 @@ import { Button } from '../components/Button';
 import { FilterSelect } from '../components/FilterSelect';
 import { Mono } from '../components/Mono';
 import { Switch } from '../components/Switch';
-import { type CategoryId } from '../data/catalog';
+import {
+  categoryLabel,
+  categoryLineage,
+  categoryPath,
+  categoryTree,
+  type Category,
+  type CategoryId,
+} from '../data/catalog';
 import { formatDay, todayIso } from '../data/inventory';
 import {
   AUTO_LOCK_OPTIONS,
@@ -92,6 +99,11 @@ function toDraft(s: Settings): Draft {
 }
 
 /** A number in [min, max] from typed text, or null. `whole` rejects decimals. */
+/** The nearest category above `id` switched on in `ids` — which switches `id` on too — if any. */
+function switchedOnAbove(categories: Category[], id: CategoryId, ids: CategoryId[]): CategoryId | undefined {
+  return categoryLineage(categories, id).slice(1).find((c) => ids.includes(c));
+}
+
 function parseNumber(text: string, min: number, max: number, whole = false): number | null {
   const t = text.trim().replace(/%$/, '');
   if (!/^\d+(\.\d+)?$/.test(t)) return null;
@@ -711,22 +723,31 @@ export function AdminSettings() {
         {categories.length === 0 && (
           <p className="settings-empty">No categories yet — create them under Categories.</p>
         )}
-        {categories.map((c) => (
-          <Row key={c.id} id={`kitchen-${c.id}`} label={c.label}>
-            <Switch
-              checked={draft.kitchenCategories.includes(c.id)}
-              onChange={(on) =>
-                set(
-                  'kitchenCategories',
-                  on
-                    ? [...draft.kitchenCategories, c.id]
-                    : draft.kitchenCategories.filter((id) => id !== c.id),
-                )
-              }
-              label={`Send ${c.label.toLowerCase()} to the kitchen`}
-            />
-          </Row>
-        ))}
+        {categoryTree(categories).map(({ category: c }) => {
+          const via = switchedOnAbove(categories, c.id, draft.kitchenCategories);
+          return (
+            <Row
+              key={c.id}
+              id={`kitchen-${c.id}`}
+              label={categoryPath(categories, c.id)}
+              hint={via ? `Goes with ${categoryLabel(categories, via)}.` : undefined}
+            >
+              <Switch
+                checked={!!via || draft.kitchenCategories.includes(c.id)}
+                disabled={!!via}
+                onChange={(on) =>
+                  set(
+                    'kitchenCategories',
+                    on
+                      ? [...draft.kitchenCategories, c.id]
+                      : draft.kitchenCategories.filter((id) => id !== c.id),
+                  )
+                }
+                label={`Send ${c.label.toLowerCase()} to the kitchen`}
+              />
+            </Row>
+          );
+        })}
         <Row
           id="kitchenLateMinutes"
           forInput
@@ -774,22 +795,31 @@ export function AdminSettings() {
           <p className="settings-empty">No categories yet — create them under Categories.</p>
         )}
         {draft.kitchenMenu &&
-          categories.map((c) => (
-            <Row key={c.id} id={`kitchen-menu-${c.id}`} label={c.label} hint="The kitchen can add and edit these.">
-              <Switch
-                checked={draft.kitchenMenuCategories.includes(c.id)}
-                onChange={(on) =>
-                  set(
-                    'kitchenMenuCategories',
-                    on
-                      ? [...draft.kitchenMenuCategories, c.id]
-                      : draft.kitchenMenuCategories.filter((id) => id !== c.id),
-                  )
-                }
-                label={`Let the kitchen edit ${c.label.toLowerCase()}`}
-              />
-            </Row>
-          ))}
+          categoryTree(categories).map(({ category: c }) => {
+            const via = switchedOnAbove(categories, c.id, draft.kitchenMenuCategories);
+            return (
+              <Row
+                key={c.id}
+                id={`kitchen-menu-${c.id}`}
+                label={categoryPath(categories, c.id)}
+                hint={via ? `Goes with ${categoryLabel(categories, via)}.` : 'The kitchen can add and edit these.'}
+              >
+                <Switch
+                  checked={!!via || draft.kitchenMenuCategories.includes(c.id)}
+                  disabled={!!via}
+                  onChange={(on) =>
+                    set(
+                      'kitchenMenuCategories',
+                      on
+                        ? [...draft.kitchenMenuCategories, c.id]
+                        : draft.kitchenMenuCategories.filter((id) => id !== c.id),
+                    )
+                  }
+                  label={`Let the kitchen edit ${c.label.toLowerCase()}`}
+                />
+              </Row>
+            );
+          })}
       </Section>
 
       <Section title="Security">

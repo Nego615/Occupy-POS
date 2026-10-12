@@ -23,13 +23,28 @@
 /* ---------- Catalog ---------- */
 
 .catalog {
-  padding: 20px 28px 28px;
+  padding: 0 28px 28px;
   overflow-y: auto;
   min-width: 0;
 }
 
+/* Search and the category rows, pinned to the top of the scrolling menu. Its
+   sand background, matching the register, hides the tiles passing underneath. */
+.catalog__head {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  padding-top: 20px;
+  background: var(--sand);
+}
+
 .catalog__tabs {
   margin-bottom: 20px;
+}
+
+/* A row narrowing a shelf to one of the categories inside it — Drinks → Sodas. */
+.catalog__tabs--sub {
+  margin-top: -10px;
 }
 
 /* Promotions running right now — so staff know why prices dropped. */
@@ -304,6 +319,22 @@
   text-decoration: none;
 }
 
+/* No table or room yet: a placeholder in place of the name, marked required. */
+.tab-card__placeholder {
+  font-weight: 600;
+  color: var(--card-ink-soft);
+}
+
+.tab-card__required {
+  color: var(--occupied);
+}
+
+/* Items rung up but nowhere to charge them: the pick still owed. */
+.tab-card__assign--invalid .tab-card__caret {
+  background: var(--vermilion);
+  color: var(--on-vermilion);
+}
+
 /* The saying along the bottom edge. Decorative only. */
 .tab-card__saying {
   position: absolute;
@@ -550,7 +581,11 @@ button.cart-line__info:hover .cart-line__name {
   }
 
   .catalog {
-    padding: 16px;
+    padding: 0 16px 16px;
+  }
+
+  .catalog__head {
+    padding-top: 16px;
   }
 
   .cart {
@@ -575,6 +610,11 @@ button.cart-line__info:hover .cart-line__name {
 
   .catalog {
     overflow: visible;
+  }
+
+  /* The page scrolls as a whole here, so the head pins under the sticky top bar. */
+  .catalog__head {
+    top: var(--topbar-h, 0px);
   }
 
   .catalog__toolbar {

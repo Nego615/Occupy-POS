@@ -5,7 +5,7 @@ import { Button } from '../components/Button';
 import { Money, Mono } from '../components/Mono';
 import { Pill, PillRow } from '../components/Pill';
 import { StatusChip } from '../components/StatusChip';
-import { categoryLabel, stockState, type CatalogItem, type CategoryId } from '../data/catalog';
+import { categoryPath, categoryTree, inCategory, stockState, type CatalogItem, type CategoryId } from '../data/catalog';
 import { usePos } from '../lib/store';
 
 /** A category, or `restock`: tracked items that are low or sold out. */
@@ -28,7 +28,9 @@ export function AdminItems() {
   const [filter, setFilter] = useState<Filter>('all');
 
   const wholeMenu = can('catalog');
-  const categories = allCategories.filter((c) => canEditCategory(c.id));
+  const categories = categoryTree(allCategories)
+    .map(({ category }) => category)
+    .filter((c) => canEditCategory(c.id));
   const mine = wholeMenu ? catalog : catalog.filter((i) => canEditCategory(i.category));
   const restockCount = mine.filter(restock).length;
   const items =
@@ -36,7 +38,7 @@ export function AdminItems() {
       ? mine
       : filter === 'restock'
         ? mine.filter(restock)
-        : mine.filter((i) => i.category === filter);
+        : mine.filter((i) => inCategory(allCategories, i.category, filter));
 
   return (
     <>
@@ -47,7 +49,7 @@ export function AdminItems() {
             {settings.locationName} ·{' '}
             {wholeMenu
               ? 'everything the register can ring up'
-              : `the kitchen’s items${categories.length ? ` — ${categories.map((c) => c.label).join(', ')}` : ''}`}
+              : `the kitchen’s items${categories.length ? ` — ${categories.map((c) => categoryPath(allCategories, c.id)).join(', ')}` : ''}`}
           </div>
         </div>
         <div className="head-actions">
@@ -68,7 +70,7 @@ export function AdminItems() {
         </Pill>
         {categories.map((c) => (
           <Pill key={c.id} active={filter === c.id} onClick={() => setFilter(c.id)}>
-            {c.label}
+            {categoryPath(allCategories, c.id)}
           </Pill>
         ))}
         <Pill active={filter === 'restock'} onClick={() => setFilter('restock')}>
@@ -101,7 +103,7 @@ export function AdminItems() {
             <span className="item-row__main">
               <span className="item-row__name">{item.name}</span>
               <span className="item-row__meta">
-                {categoryLabel(categories, item.category)}
+                {categoryPath(allCategories, item.category)}
                 {item.description ? ` · ${item.description}` : ''}
               </span>
             </span>

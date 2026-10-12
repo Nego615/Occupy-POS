@@ -5,6 +5,12 @@
   padding: 16px 28px;
   border-bottom: 1px solid var(--line);
   flex-shrink: 0;
+  /* Stays at the top whenever the whole page scrolls — phones, or a screen
+     shorter than the layout. A solid background so content passes under it. */
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: var(--paper);
 }
 
 .topbar__brand {

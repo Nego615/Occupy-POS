@@ -16,11 +16,15 @@ import { SearchField } from '../components/SearchField';
 import { Stepper } from '../components/Stepper';
 import {
   addOnOptions,
-  categoryLabel,
+  categoryLineage,
+  categoryPath,
+  inCategory,
   lineContents,
   roundStock,
   STOCK_SLACK,
   stockFits,
+  subCategories,
+  topCategories,
   type CatalogItem,
   type CategoryId,
 } from '../data/catalog';
@@ -49,7 +53,10 @@ import { rowInOut, snap } from '../lib/motion';
 import { usePos } from '../lib/store';
 import { useNow } from '../lib/useClock';
 
-/** The register's shelves: a catalog category, or the set meals. */
+/**
+ * The register's shelves: a catalog category, or the set meals. A category
+ * with others inside it shows them all, with a row to narrow to just one.
+ */
 type Shelf = CategoryId | 'meals';
 
 export function Register() {
@@ -108,10 +115,14 @@ export function Register() {
     setDocket(null);
   }, [docket]);
   // A shelf deleted on another screen falls back to the first one.
+  const shelves = topCategories(categories);
   const category: Shelf =
     chosenShelf === 'meals' || categories.some((c) => c.id === chosenShelf)
       ? chosenShelf!
-      : (categories[0]?.id ?? 'meals');
+      : (shelves[0]?.id ?? 'meals');
+  // The shelf picked and those it sits inside, outermost first — each with
+  // categories inside it gets a row of its own to narrow down.
+  const path = category === 'meals' ? [] : categoryLineage(categories, category).reverse();
   // Re-read every 30s so tiles pick up a promotion starting or ending.
   const at = new Date(useNow(30_000));
   const running = promotions.filter((p) => promoRunning(p, at));
@@ -128,9 +139,9 @@ export function Register() {
       catalog.filter(
         (item) =>
           item.available &&
-          (q ? item.name.toLowerCase().includes(q) : item.category === category),
+          (q ? item.name.toLowerCase().includes(q) : inCategory(categories, item.category, category)),
       ),
-    [catalog, category, q],
+    [catalog, categories, category, q],
   );
   const showMeals = searching || category === 'meals';
   const showItems = searching || category !== 'meals';
@@ -200,9 +211,18 @@ export function Register() {
   }
 
   // The register never takes payment or gives discounts — that's the front desk's job.
-  // It charges each tab to its table or room, and a walk-in picks one first, unless
-  // the shop has none to pick.
+  // It charges each tab to its table or room — a required pick, unless the shop
+  // has none to pick from.
   const placed = tab.locationId !== null || locations.length === 0;
+
+  /** Sends the tab's new kitchen items — once it has a table or room to send them for. */
+  function send() {
+    if (!placed) {
+      setAssigning(true);
+      return;
+    }
+    sendToKitchen();
+  }
 
   // "Or press Enter" — wired, not decorative.
   useEffect(() => {
@@ -245,34 +265,59 @@ export function Register() {
   return (
     <div className="register__body">
       <main className="catalog">
-        <div className="catalog__toolbar">
-          <SearchField value={query} onChange={setQuery} placeholder="Search items" label="Search items" />
-          <Button variant="secondary" onClick={() => setPricing('custom')}>
-            Custom amount
-          </Button>
-        </div>
+        {/* Search and the category menus stay in view while the items scroll. */}
+        <div className="catalog__head">
+          <div className="catalog__toolbar">
+            <SearchField value={query} onChange={setQuery} placeholder="Search items" label="Search items" />
+            <Button variant="secondary" onClick={() => setPricing('custom')}>
+              Custom amount
+            </Button>
+          </div>
 
-        {!searching && (
-        <PillRow label="Item categories" className="catalog__tabs">
-          {categories.map((c) => (
-            <Pill key={c.id} active={c.id === category} onClick={() => setCategory(c.id)}>
-              {c.label}
-            </Pill>
-          ))}
-          {meals.length > 0 && (
-            <Pill active={category === 'meals'} onClick={() => setCategory('meals')}>
-              Set meals
-            </Pill>
+          {!searching && (
+          <PillRow label="Item categories" className="catalog__tabs">
+            {shelves.map((c) => (
+              <Pill key={c.id} active={c.id === path[0]} onClick={() => setCategory(c.id)}>
+                {c.label}
+              </Pill>
+            ))}
+            {meals.length > 0 && (
+              <Pill active={category === 'meals'} onClick={() => setCategory('meals')}>
+                Set meals
+              </Pill>
+            )}
+          </PillRow>
           )}
-        </PillRow>
-        )}
+
+          {!searching &&
+            path.map((id, depth) => {
+              const subs = subCategories(categories, id);
+              if (subs.length === 0) return null;
+              return (
+                <PillRow
+                  key={id}
+                  label={`Inside ${categoryPath(categories, id)}`}
+                  className="catalog__tabs catalog__tabs--sub"
+                >
+                  <Pill active={category === id} onClick={() => setCategory(id)}>
+                    All
+                  </Pill>
+                  {subs.map((c) => (
+                    <Pill key={c.id} active={c.id === path[depth + 1]} onClick={() => setCategory(c.id)}>
+                      {c.label}
+                    </Pill>
+                  ))}
+                </PillRow>
+              );
+            })}
+        </div>
 
         {running.length > 0 && (
           <div className="catalog__deals" role="status">
             {running.map((p) => (
               <span key={p.id} className="catalog__deal">
                 <strong>{p.name}</strong> · {promoAmountLabel(p)}{' '}
-                {scopeLabel(p, (id) => categoryLabel(categories, id)).toLowerCase()}
+                {scopeLabel(p, (id) => categoryPath(categories, id)).toLowerCase()}
                 {p.start !== null && p.end !== null && (
                   <>
                     {' '}
@@ -314,7 +359,7 @@ export function Register() {
             visibleItems.map((item) => {
                 const stock = tileStock(item, onTab.get(item.id) ?? 0, settings.lowStockDefault);
                 const openPrice = item.openPrice && settings.openPriceEnabled;
-                const promo = bestPromo(promotions, item, at);
+                const promo = bestPromo(promotions, item, at, categories);
                 const price = promo ? itemPrice(item, promo) : item.price;
                 return (
                   <ItemTile
@@ -383,16 +428,25 @@ export function Register() {
         <div className="tab-stack">
           <div className="tab-card tab-card--gold tab-card--front">
             <div className="tab-card__top">
+              {/* Required: a tab starts with no table or room, and can't be charged
+                  or sent to the kitchen until it has one. */}
               <button
                 type="button"
-                className="tab-card__assign"
+                className={[
+                  'tab-card__assign',
+                  !placed && hasItems ? 'tab-card__assign--invalid' : '',
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
                 onClick={() => setAssigning(true)}
-                aria-label={`${tab.name} — change table or room`}
+                aria-label={placed ? `${tab.name} — change table or room` : 'Assign a table or room (required)'}
+                aria-invalid={!placed && hasItems ? true : undefined}
               >
-                <span className="tab-card__name">{tab.name}</span>
-                {tab.locationId === null && (
-                  <span className="tab-card__hint" aria-hidden="true">
-                    Assign table
+                {placed ? (
+                  <span className="tab-card__name">{tab.name}</span>
+                ) : (
+                  <span className="tab-card__name tab-card__placeholder" aria-hidden="true">
+                    Assign table <span className="tab-card__required">*</span>
                   </span>
                 )}
                 <span className="tab-card__caret" aria-hidden="true">
@@ -522,7 +576,7 @@ export function Register() {
           )}
 
           {unsentCount > 0 && (
-            <Button variant="accent" block className="cart__send" onClick={sendToKitchen}>
+            <Button variant="accent" block className="cart__send" onClick={send}>
               <span>
                 Send <Mono>{unsentCount}</Mono> to kitchen
               </span>
@@ -553,7 +607,9 @@ export function Register() {
           <p className="cart__charge-sub">
             {!hasItems
               ? 'Add an item to start charging'
-              : 'Paid and discounted at the front desk · or press Enter'}
+              : !placed
+                ? 'Assign a table or room to charge or send to the kitchen'
+                : 'Paid and discounted at the front desk · or press Enter'}
           </p>
         </div>
       </aside>

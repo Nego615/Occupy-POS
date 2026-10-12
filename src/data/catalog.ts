@@ -143,6 +143,13 @@ export type CategoryId = string;
 export type Category = {
   id: CategoryId;
   label: string;
+  /**
+   * The category it sits inside — Sodas and Wines under Drinks. Unset for a
+   * top-level shelf. Its items count as the parent's too: they show on the
+   * parent's shelf, and promotions, add-ons and kitchen routing set on the
+   * parent reach them.
+   */
+  parentId?: CategoryId;
   /** Sides and extras offered with every item in it — chips or rice with a main. */
   addOns?: AddOn[];
 };
@@ -167,19 +174,25 @@ export type AddOnPick = {
 };
 
 /**
- * What `item` can be rung up with: its category's add-ons that are still in
- * the catalog and on sale, itself aside, at their add-on prices.
+ * What `item` can be rung up with: its category's add-ons, then those of the
+ * categories above it, that are still in the catalog and on sale, itself
+ * aside, at their add-on prices. A side offered at more than one level goes at
+ * the price set nearest the item.
  */
 export function addOnOptions(
   item: Pick<CatalogItem, 'id' | 'category'>,
   categories: Category[],
   catalog: CatalogItem[],
 ): { item: CatalogItem; price: number }[] {
-  const addOns = categories.find((c) => c.id === item.category)?.addOns ?? [];
-  return addOns.flatMap(({ itemId, price }) => {
-    const side = catalog.find((i) => i.id === itemId);
-    return side && side.available && side.id !== item.id ? [{ item: side, price }] : [];
-  });
+  const seen = new Set<string>();
+  return categoryLineage(categories, item.category).flatMap((id) =>
+    (categories.find((c) => c.id === id)?.addOns ?? []).flatMap(({ itemId, price }) => {
+      if (seen.has(itemId)) return [];
+      seen.add(itemId);
+      const side = catalog.find((i) => i.id === itemId);
+      return side && side.available && side.id !== item.id ? [{ item: side, price }] : [];
+    }),
+  );
 }
 
 /** "Grilled Chicken with Chips, Kachumbari" — a name and the add-ons that go with it. */
@@ -219,6 +232,74 @@ export const NO_CATEGORY = 'Uncategorized';
 
 export function categoryLabel(categories: Category[], id: CategoryId): string {
   return categories.find((c) => c.id === id)?.label ?? NO_CATEGORY;
+}
+
+/**
+ * `id`, then the categories above it, nearest first — Sodas, Drinks. A parent
+ * that's gone, or a loop left by a sync race, ends the climb.
+ */
+export function categoryLineage(categories: Category[], id: CategoryId): CategoryId[] {
+  const lineage: CategoryId[] = [id];
+  let parentId = categories.find((c) => c.id === id)?.parentId;
+  while (parentId && !lineage.includes(parentId)) {
+    const parent = categories.find((c) => c.id === parentId);
+    if (!parent) break;
+    lineage.push(parent.id);
+    parentId = parent.parentId;
+  }
+  return lineage;
+}
+
+/** Whether an item filed under `itemCategory` is in `id` — directly, or in a category inside it. */
+export function inCategory(categories: Category[], itemCategory: CategoryId, id: CategoryId): boolean {
+  return categoryLineage(categories, itemCategory).includes(id);
+}
+
+/** Whether an item filed under `itemCategory` is in any of `ids`, or a category inside one. */
+export function inAnyCategory(categories: Category[], itemCategory: CategoryId, ids: CategoryId[]): boolean {
+  return ids.length > 0 && categoryLineage(categories, itemCategory).some((id) => ids.includes(id));
+}
+
+/** "Drinks › Sodas" — a category's name after those it sits inside. */
+export function categoryPath(categories: Category[], id: CategoryId): string {
+  if (!categories.some((c) => c.id === id)) return NO_CATEGORY;
+  return categoryLineage(categories, id)
+    .reverse()
+    .map((c) => categoryLabel(categories, c))
+    .join(' › ');
+}
+
+/** The categories directly inside `id`, in list order. */
+export function subCategories(categories: Category[], id: CategoryId): Category[] {
+  return categories.filter((c) => c.parentId === id && c.id !== id);
+}
+
+/**
+ * The top-level categories — the register's shelves. One whose parent has
+ * gone counts as top-level, so its items stay reachable.
+ */
+export function topCategories(categories: Category[]): Category[] {
+  const known = new Set(categories.map((c) => c.id));
+  return categories.filter((c) => !c.parentId || !known.has(c.parentId));
+}
+
+/**
+ * Every category with how deep it sits, each followed by those inside it —
+ * the order lists and pickers show them in. Any caught in a loop by a sync
+ * race come last, at the top, so none go missing.
+ */
+export function categoryTree(categories: Category[]): { category: Category; depth: number }[] {
+  const out: { category: Category; depth: number }[] = [];
+  const placed = new Set<CategoryId>();
+  const walk = (category: Category, depth: number) => {
+    if (placed.has(category.id)) return;
+    placed.add(category.id);
+    out.push({ category, depth });
+    for (const sub of subCategories(categories, category.id)) walk(sub, depth + 1);
+  };
+  for (const category of topCategories(categories)) walk(category, 0);
+  for (const category of categories) walk(category, 0);
+  return out;
 }
 
 /**
