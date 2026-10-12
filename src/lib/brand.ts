@@ -14,8 +14,8 @@ export const BRAND_PRESETS: { name: string; hex: string }[] = [
   { name: 'Slate', hex: '#475569' },
 ];
 
-const INK = '#121212';
-const PAPER = '#ffffff';
+const INK = '#2b1810';
+const PAPER = '#fff9ee';
 
 /** "#1D5FA8", "1d5fa8", or "#abc" → "#1d5fa8"; anything else → null. */
 export function parseHex(text: string): string | null {
@@ -62,7 +62,7 @@ export function brandTokens(
   return {
     '--brand': brand ?? null,
     '--on-brand': on,
-    '--on-brand-soft': on && (on === PAPER ? 'rgba(255, 255, 255, 0.72)' : 'rgba(18, 18, 18, 0.64)'),
+    '--on-brand-soft': on && (on === PAPER ? 'rgba(255, 249, 238, 0.72)' : 'rgba(43, 24, 16, 0.64)'),
     '--accent': accent ?? null,
   };
 }

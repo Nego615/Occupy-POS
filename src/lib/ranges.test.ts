@@ -60,10 +60,10 @@ describe('brand colors', () => {
     expect(parseHex('#12345')).toBeNull();
   });
 
-  it('puts white on dark brands and ink on light ones', () => {
-    expect(textOn('#1f3a8a')).toBe('#ffffff');
-    expect(textOn('#f5d90a')).toBe('#121212');
-    expect(contrast('#121212', '#ffffff')).toBeGreaterThan(18);
+  it('puts paper on dark brands and cocoa ink on light ones', () => {
+    expect(textOn('#1f3a8a')).toBe('#fff9ee');
+    expect(textOn('#f5d90a')).toBe('#2b1810');
+    expect(contrast('#2b1810', '#fff9ee')).toBeGreaterThan(15);
   });
 
   it('flags colors too faint against the page', () => {
@@ -80,7 +80,7 @@ describe('brand colors', () => {
     });
     expect(brandTokens('#0f766e', undefined)).toMatchObject({
       '--brand': '#0f766e',
-      '--on-brand': '#ffffff',
+      '--on-brand': '#fff9ee',
       '--accent': null,
     });
   });

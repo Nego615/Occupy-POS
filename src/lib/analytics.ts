@@ -50,6 +50,12 @@ function totalsFor(orders: Order[]): Totals {
   };
 }
 
+/** Net sales over `range`, as a number — the figure behind the "Net sales" card. */
+export function netSalesFor(orders: Order[], range: RangeId): number {
+  const { days } = RANGES.find((r) => r.id === range)!;
+  return totalsFor(inWindow(orders, days)).netSales;
+}
+
 export type StatCard = {
   label: string;
   value: string;

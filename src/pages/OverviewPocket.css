@@ -1,0 +1,538 @@
+/* ===================================================================
+   Pocket overview — a wallet-app layout on sand. Classes are ov-*
+   so the shared admin styles (panel, range-pill…) stay as they are.
+   =================================================================== */
+
+.admin__main:has(.ov) {
+  background: var(--sand);
+}
+
+.ov {
+  display: grid;
+  gap: 16px;
+}
+
+.ov .page-head {
+  margin-bottom: 4px;
+}
+
+.ov__hello {
+  font-size: 28px;
+  font-weight: 750;
+  letter-spacing: -0.035em;
+  line-height: 1.1;
+}
+
+.ov .range-pill {
+  background: var(--paper);
+}
+
+.ov__top {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+}
+
+.ov__mid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr);
+  gap: 16px;
+}
+
+.ov__low {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+}
+
+/* ---------- Chips ---------- */
+
+.ov-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  border-radius: var(--radius-pill);
+  font-size: 12.5px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.ov-chip--gold {
+  background: var(--marigold);
+  color: var(--on-marigold);
+}
+
+.ov-chip--alert {
+  background: var(--occupied-soft);
+  color: var(--occupied);
+}
+
+.ov-chip--quiet {
+  background: rgba(255, 249, 238, 0.12);
+  color: inherit;
+}
+
+.ov-chip--dark {
+  background: var(--ink);
+  color: var(--marigold);
+}
+
+/* ---------- The balance ---------- */
+
+.ov-balance {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 216px;
+  padding: 22px 24px;
+  border-radius: 26px;
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.ov-balance__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  font-size: 14.5px;
+  color: rgba(255, 249, 238, 0.72);
+}
+
+.ov-balance__amount {
+  font-size: clamp(40px, 4.4vw, 58px);
+  font-weight: 700;
+  line-height: 1;
+}
+
+.ov-balance__amount .money__cents {
+  opacity: 0.7;
+}
+
+.ov-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 20px;
+  margin-top: auto;
+}
+
+.ov-action {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  min-width: 56px;
+  color: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.ov-action__circle {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: rgba(255, 249, 238, 0.1);
+  transition: background 0.15s ease;
+}
+
+.ov-action:hover .ov-action__circle {
+  background: rgba(255, 249, 238, 0.2);
+}
+
+.ov-action__circle--lit,
+.ov-action:hover .ov-action__circle--lit {
+  background: var(--marigold);
+  color: var(--on-marigold);
+}
+
+.ov-action svg {
+  width: 21px;
+  height: 21px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.ov-action:focus-visible {
+  outline-color: var(--marigold);
+  border-radius: 12px;
+}
+
+/* ---------- Open tabs, printed like a kanga ---------- */
+
+.ov-tabs {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 216px;
+  padding: 22px 24px 28px;
+  border-radius: 26px;
+  background: var(--marigold);
+  color: var(--on-marigold);
+  text-decoration: none;
+}
+
+.ov-tabs::before {
+  content: '';
+  position: absolute;
+  inset: 8px;
+  border: 2.5px dotted rgba(43, 24, 16, 0.42);
+  border-radius: 18px;
+  pointer-events: none;
+}
+
+.ov-tabs:hover {
+  filter: brightness(1.03);
+}
+
+.ov-tabs__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.ov-tabs__amount {
+  margin-top: 10px;
+  font-size: 42px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.ov-tabs__meta {
+  margin-top: 6px;
+  font-size: 13px;
+  color: rgba(43, 24, 16, 0.72);
+}
+
+.ov-tabs__dots {
+  display: flex;
+  margin-top: auto;
+  padding-top: 12px;
+}
+
+.ov-tabs__dots i {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  margin-right: -8px;
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--marigold);
+  font-size: 11.5px;
+  font-style: normal;
+  font-weight: 700;
+  box-shadow: 0 0 0 3px var(--marigold);
+}
+
+.ov-tabs__saying {
+  position: absolute;
+  left: 50%;
+  bottom: 9px;
+  padding: 0 8px;
+  background: var(--marigold);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.14em;
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+  transform: translate(-50%, 50%);
+}
+
+/* ---------- Profit ---------- */
+
+.ov-profit {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 216px;
+  padding: 22px 24px;
+  border-radius: 26px;
+  background: var(--paper);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.ov-profit:hover {
+  background: var(--surface);
+}
+
+.ov-profit__label {
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.ov-profit__amount {
+  font-size: 40px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--open);
+}
+
+.ov-profit--loss .ov-profit__amount {
+  color: var(--occupied);
+}
+
+.ov-profit__note {
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+.ov-profit__more {
+  margin-top: auto;
+  font-size: 13px;
+  font-weight: 650;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ---------- Panels ---------- */
+
+.ov-panel {
+  min-width: 0;
+  padding: 20px 22px;
+  border-radius: 24px;
+  background: var(--paper);
+}
+
+.ov-panel__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px 12px;
+}
+
+.ov-panel__title {
+  font-size: 17px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.ov-panel__head .ov-panel__title {
+  margin-bottom: 0;
+}
+
+.ov-panel__aside {
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+.ov-panel__empty {
+  margin: 12px 0 4px;
+  font-size: 13.5px;
+  color: var(--ink-soft);
+}
+
+/* Sales by day: cocoa bars, today in marigold. */
+.ov-bars {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 14px;
+  height: 220px;
+  margin-top: 18px;
+}
+
+.ov-bars__col {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: stretch;
+  min-width: 0;
+}
+
+.ov-bars__bar {
+  border-radius: 10px 10px 4px 4px;
+  background: var(--ink);
+}
+
+.ov-bars__bar--today {
+  background: var(--marigold);
+}
+
+.ov-bars__tip {
+  align-self: center;
+  margin-bottom: 6px;
+  padding: 4px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--ink);
+  color: var(--paper);
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.ov-bars__label {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--ink-soft);
+  text-align: center;
+}
+
+.ov-figures {
+  display: grid;
+  margin-top: 6px;
+}
+
+.ov-figure {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 12px;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+
+.ov-figure:first-child {
+  border-top: none;
+}
+
+.ov-figure__label {
+  font-size: 14px;
+  color: var(--ink-soft);
+}
+
+.ov-figure__value {
+  grid-row: span 2;
+  align-self: center;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.035em;
+}
+
+.ov-figure__delta {
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.ov-figure__delta--good {
+  color: var(--open);
+}
+
+.ov-figure__delta--bad {
+  color: var(--occupied);
+}
+
+/* Lists, like a transactions list: badge, who and what, amount on the right edge. */
+.ov-row {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 9px 0;
+  border-top: 1px solid var(--line);
+}
+
+.ov-panel__title + .ov-row {
+  border-top: none;
+}
+
+.ov-row:has(.ov-row__bar) {
+  grid-template-columns: 36px minmax(0, 1fr) 80px auto;
+}
+
+.ov-row__badge {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--tint);
+}
+
+.ov-row__badge--dot {
+  width: 30px;
+  height: 30px;
+  margin: 3px;
+  border-radius: 10px;
+}
+
+.ov-row__badge--paid {
+  background: var(--open);
+  box-shadow: inset 0 0 0 10px var(--open-soft);
+}
+
+.ov-row__badge--occupied {
+  background: var(--marigold);
+}
+
+.ov-row__badge--refunded {
+  background: var(--refund);
+  box-shadow: inset 0 0 0 10px var(--refund-soft);
+}
+
+.ov-row__badge--charged {
+  background: var(--ink);
+}
+
+.ov-row__main {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ov-row__name {
+  overflow: hidden;
+  font-size: 14.5px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ov-row__sub {
+  overflow: hidden;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ov-row__bar {
+  height: 8px;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--tint);
+}
+
+.ov-row__bar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--ink);
+}
+
+.ov-row__amount {
+  font-size: 14.5px;
+  font-weight: 700;
+  text-align: right;
+}
+
+.ov-row__time {
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+
+@media (max-width: 1100px) {
+  .ov__top {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .ov-balance {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 800px) {
+  .ov__top,
+  .ov__mid,
+  .ov__low {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -37,13 +37,9 @@
 .signin__brand .brand-mark {
   width: 96px;
   height: 96px;
-  border-radius: 27px;
+  border-radius: 30%;
 }
 
-.signin__brand .brand-mark::after {
-  inset: 27px;
-  border-radius: 9px;
-}
 
 /* An uploaded logo keeps its own shape rather than being letterboxed into the
    square, so a wide logo has no blank bands above and below it. */

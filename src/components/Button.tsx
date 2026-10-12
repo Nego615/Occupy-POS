@@ -1,11 +1,11 @@
 import type { ButtonHTMLAttributes } from 'react';
 import './Button.css';
 
-export type ButtonVariant = 'primary' | 'secondary';
+export type ButtonVariant = 'primary' | 'secondary' | 'accent';
 export type ButtonSize = 'sm' | 'md' | 'lg';
 
 export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
-  /** `primary` = brand fill, ink by default (Charge, Save, Confirm). `secondary` = paper + hairline. */
+  /** `primary` = brand fill, ink by default (Charge, Save, Confirm). `secondary` = paper + hairline. `accent` = marigold, for the one thing to do first. */
   variant?: ButtonVariant;
   /** `lg` is the countertop action size used for Charge. */
   size?: ButtonSize;

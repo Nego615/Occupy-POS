@@ -40,6 +40,29 @@ export function Money({ value, currency, className }: { value: number; currency?
   );
 }
 
+/**
+ * A headline amount with the cents at about half size, so the eye reads the
+ * dollars first: "$48" + ".50". Currencies without cents render whole.
+ */
+export function BigMoney({ value, currency, className }: { value: number; currency?: Currency; className?: string }) {
+  const inherited = useContext(MoneyCurrency);
+  const text = formatMoney(value, currency ?? inherited);
+  const split = /^(.*d)([.,]d{2})(D*)$/.exec(text);
+  return (
+    <Mono className={className ? `money money--big ${className}` : "money money--big"}>
+      {split ? (
+        <>
+          {split[1]}
+          <span className="money__cents">{split[2]}</span>
+          {split[3]}
+        </>
+      ) : (
+        text
+      )}
+    </Mono>
+  );
+}
+
 /** "TSh 6,500" or "$6.50" — whatever currency Settings names, unless told otherwise. */
 export function formatMoney(value: number, currency?: Currency): string {
   return formatCurrency(value, currency);

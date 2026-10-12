@@ -22,6 +22,8 @@ export type ItemTileProps = {
    * live preview so the same markup drives both surfaces.
    */
   interactive?: boolean;
+  /** How many are on the open tab — a marigold badge, and a marigold ring round the tile. */
+  count?: number;
   /** Surface the tile sits on. `paper` is the editor's preview rail. */
   tone?: 'surface' | 'paper';
   className?: string;
@@ -57,6 +59,7 @@ export function ItemTile({
   disabled = false,
   interactive = true,
   tone = 'surface',
+  count = 0,
   className,
 }: ItemTileProps) {
   const classes = [
@@ -65,6 +68,7 @@ export function ItemTile({
     interactive ? 'item-tile--interactive' : '',
     selected ? 'item-tile--selected' : '',
     disabled ? 'item-tile--disabled' : '',
+    count > 0 ? 'item-tile--on-tab' : '',
     className ?? '',
   ]
     .filter(Boolean)
@@ -87,6 +91,11 @@ export function ItemTile({
       </span>
       {deal && <span className="item-tile__deal">{deal}</span>}
       {note && <span className="item-tile__note">{note}</span>}
+      {count > 0 && (
+        <span className="item-tile__count mono" aria-label={`${count} on this tab`}>
+          {count}
+        </span>
+      )}
     </>
   );
 

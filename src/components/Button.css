@@ -4,7 +4,7 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-pill);
   font-family: inherit;
   font-weight: 700;
   line-height: 1.2;
@@ -53,6 +53,17 @@
 
 .btn--secondary:hover:not(:disabled) {
   background: var(--surface-hover);
+}
+
+/* The thing to press next, like sending to the kitchen. Marigold, one per screen. */
+.btn--accent {
+  background: var(--marigold);
+  color: var(--on-marigold);
+  border: none;
+}
+
+.btn--accent:hover:not(:disabled) {
+  opacity: 0.88;
 }
 
 /* ---- Sizes ---- */

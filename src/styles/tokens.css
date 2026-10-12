@@ -1,18 +1,32 @@
 /* ---------------------------------------------------------------
    Occupy POS — design tokens
-   Ported verbatim from occupy-pos-design-system.md §2–3.
+   Pocket, in kanga colours: cocoa ink on paper and sand, marigold
+   for "yours / next", vermilion for the mark and for anything a
+   person has to deal with.
    Nothing in this file may be overridden ad hoc in a component;
    add a token here instead.
    --------------------------------------------------------------- */
 
 :root {
   /* Base */
-  --ink:            #121212; /* primary text, primary buttons, active states */
-  --ink-soft:       #63615c; /* secondary text, captions, timestamps */
-  --paper:          #ffffff; /* page background */
-  --surface:        #f5f4f1; /* cards, panels, item tiles */
-  --surface-hover:  #eeece6; /* hover state for surface elements */
-  --line:           #e4e2dc; /* all hairline borders/dividers */
+  --ink:            #2b1810; /* cocoa — primary text, primary buttons, active states */
+  --ink-soft:       #6b5244; /* secondary text, captions, timestamps */
+  --paper:          #fff9ee; /* page background, panels on sand */
+  --surface:        #f6ecda; /* cards, panels, item tiles on paper */
+  --surface-hover:  #efe0c6; /* hover state for surface elements */
+  --line:           #e6d5b8; /* all hairline borders/dividers */
+
+  /* Pocket — the ground the register and overview sit on, and quiet fills on it */
+  --sand:           #f2e6d0;
+  --tint:           #eadbc0; /* tracks, done days, avatars */
+
+  /* Kanga accents */
+  --marigold:       #f4b12e; /* the tab you're on, the thing to press next, money in */
+  --on-marigold:    #2b1810;
+  --vermilion:      #cf3720; /* the mark, and anything a person has to deal with */
+  --on-vermilion:   #fff4e2;
+  --clay:           #c8693a; /* charts — background work only */
+  --hatch:          #c4a385; /* hatched chart marks: what a usual day looks like */
 
   /* Brand — a shop's own colors, set in Admin → Settings (lib/brand.ts
      overrides these on :root). Unset, they're ink, so the stock look holds. */
@@ -22,25 +36,28 @@
   --accent:         var(--brand); /* chart columns and share bars */
 
   /* Signal (state only — never decorative) */
-  --occupied:       #ff4b2e; /* tab/table occupied, pending payment */
-  --occupied-soft:  #fff0ec; /* occupied chip background */
-  --open:           #1fae5c; /* available, paid, success */
-  --open-soft:      #eafaf1; /* success chip background */
-  --refund:         #8a5cf6; /* refunded / voided */
-  --refund-soft:    #f3efff; /* refund chip background */
+  --occupied:       #b8301a; /* tab/table occupied, pending payment — vermilion, deep enough for text */
+  --occupied-soft:  #fadbd0; /* occupied chip background */
+  --open:           #2f7d4a; /* available, paid, success */
+  --open-soft:      #e1efdc; /* success chip background */
+  --refund:         #7a4fa3; /* refunded / voided */
+  --refund-soft:    #efe4f6; /* refund chip background */
 
   /* Radius */
-  --radius-lg: 20px; /* panels, modals */
-  --radius-md: 14px; /* item tiles, cards */
-  --radius-sm: 10px; /* buttons, inputs */
+  --radius-xl: 28px;  /* tab cards, the register rail */
+  --radius-lg: 24px;  /* panels, modals */
+  --radius-md: 20px;  /* item tiles, cards */
+  --radius-sm: 12px;  /* inputs */
+  --radius-pill: 999px; /* every button — if it's round, you can press it */
 
-  /* Elevation — floating surfaces only (modals, popovers).
+  /* Elevation — floating surfaces only (modals, popovers, the front tab card).
      Never on base cards or buttons. */
-  --shadow: 0 1px 2px rgba(18, 18, 18, 0.04), 0 8px 24px rgba(18, 18, 18, 0.04);
+  --shadow: 0 1px 2px rgba(43, 24, 16, 0.05), 0 8px 24px rgba(43, 24, 16, 0.06);
+  --lift: 0 18px 30px -22px rgba(43, 24, 16, 0.45);
 
-  /* Type */
-  --font-ui:   'Inter', system-ui, sans-serif;
-  --font-mono: 'IBM Plex Mono', monospace;
+  /* Type — one family. Numbers use it too, with tabular figures (.mono). */
+  --font-ui:   'Archivo', 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'Archivo', 'Helvetica Neue', Arial, sans-serif;
 
   /* Focus ring — every interactive element gets one.
      Drawn with outline, not box-shadow, so the no-shadow rule holds. */

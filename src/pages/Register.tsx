@@ -9,11 +9,10 @@ import { DocketDialog, LineDialog, PortionDialog, PriceDialog } from '../compone
 import { PrintableDocket, type DocketKind } from '../components/PrintableSlip';
 import { ItemTile } from '../components/ItemTile';
 import { MealDialog } from '../components/MealDialog';
-import { Money, Mono } from '../components/Mono';
+import { BigMoney, Money, Mono, formatMoney } from '../components/Mono';
 import { Pill, PillRow } from '../components/Pill';
-import { ReceiptEdge, SummaryRow } from '../components/Receipt';
+import { SummaryRow } from '../components/Receipt';
 import { SearchField } from '../components/SearchField';
-import { StatusChip } from '../components/StatusChip';
 import { Stepper } from '../components/Stepper';
 import {
   addOnOptions,
@@ -37,7 +36,16 @@ import {
 } from '../data/deals';
 import { sameDish } from '../data/kitchen';
 import { paidAmount, type Order } from '../data/orders';
-import { discountLabel, itemLine, itemQuantities, lineCap, lineDishes, round, type CartLine } from '../lib/cart';
+import {
+  computeTotals,
+  discountLabel,
+  itemLine,
+  itemQuantities,
+  lineCap,
+  lineDishes,
+  round,
+  type CartLine,
+} from '../lib/cart';
 import { rowInOut, snap } from '../lib/motion';
 import { usePos } from '../lib/store';
 import { useNow } from '../lib/useClock';
@@ -90,6 +98,8 @@ export function Register() {
     categories,
     orders,
     locations,
+    tabs,
+    switchTab,
   } = usePos();
   const tabOrder = orders.find((o) => o.id === tab.orderId && o.status === 'occupied');
 
@@ -131,6 +141,14 @@ export function Register() {
   const paid = paidAmount(tab.payments);
   const partPaid = tab.payments.length > 0;
   const dueNow = round(totals.total + (tab.tip ?? 0) - paid);
+
+  // The rail's card stack: this tab in front, the two newest other open tabs
+  // peeking out behind it, oldest at the back. Tapping one puts it in front.
+  const others = tabs
+    .filter((t) => t.orderId !== tab.orderId && t.cart.length > 0)
+    .sort((a, b) => b.orderId - a.orderId);
+  const peeks = others.slice(0, 2).reverse();
+  const openCount = others.length + (hasItems ? 1 : 0);
 
   /** The stepper's ceiling: what's on hand, but never below what's already on the line. */
   function lineMax(line: CartLine): number {
@@ -314,6 +332,7 @@ export function Register() {
                     color={item.color}
                     note={stock.note}
                     disabled={stock.soldOut}
+                    count={onTab.get(item.id) ?? 0}
                     onClick={() =>
                       openPrice
                         ? setPricing(item)
@@ -359,51 +378,86 @@ export function Register() {
       </main>
 
       <aside className="cart" aria-label="Current tab">
-        <ReceiptEdge />
-
-        <div className="cart__status">
-          {tab.billRequestedAt ? (
-            <StatusChip status="occupied">Bill at front desk</StatusChip>
-          ) : hasItems ? (
-            <StatusChip status="occupied">Tab occupied</StatusChip>
-          ) : (
-            <StatusChip status="open">Tab open</StatusChip>
-          )}
-          <span className="cart__count">
-            <Mono>{totals.itemCount}</Mono> {totals.itemCount === 1 ? 'item' : 'items'}
-            {hasItems && !partPaid && (
-              <button
-                type="button"
-                className={confirmingClear ? 'cart__clear cart__clear--confirm' : 'cart__clear'}
-                onClick={clear}
-                onBlur={() => setConfirmingClear(false)}
-              >
-                {confirmingClear ? 'Confirm clear' : 'Clear tab'}
-              </button>
-            )}
-          </span>
+        <div className="cart__head">
+          <h2 className="cart__heading">Open tabs</h2>
+          {openCount > 0 && <Mono className="cart__tab-count">{openCount}</Mono>}
+          <button type="button" className="cart__new" onClick={() => openTab(null)}>
+            <span aria-hidden="true">+</span> New tab
+          </button>
         </div>
 
-        <div className="cart__title">
-          <button
-            type="button"
-            className="cart__assign"
-            onClick={() => setAssigning(true)}
-            aria-label={`${tab.name} — change table or room`}
-          >
-            <span className="cart__assign-name">{tab.name}</span>
-            {tab.locationId === null && (
-              <span className="cart__assign-hint" aria-hidden="true">
-                Assign table
+        {/* Every tab is a card. The other open tabs peek out behind this one. */}
+        <div className={`tab-stack tab-stack--${peeks.length}`}>
+          {peeks.map((t, i) => {
+            const total = computeTotals(t.cart, settings.taxRate).total;
+            const tone = peeks.length === 2 && i === 0 ? 'paper' : 'cocoa';
+            return (
+              <button
+                key={t.orderId}
+                type="button"
+                className={`tab-card tab-card--peek tab-card--${tone} tab-card--peek-${peeks.length - i}`}
+                onClick={() => switchTab(t.orderId)}
+                aria-label={`Switch to ${t.name}, ${formatMoney(total)}${t.billRequestedAt ? ', bill asked' : ''}`}
+              >
+                <span className="tab-card__top">
+                  <span className="tab-card__name">{t.name}</span>
+                  {t.billRequestedAt && <span className="tab-chip tab-chip--alert">Bill asked</span>}
+                  <Money value={total} className="tab-card__peek-total" />
+                </span>
+              </button>
+            );
+          })}
+
+          <div className="tab-card tab-card--gold tab-card--front">
+            <div className="tab-card__top">
+              <button
+                type="button"
+                className="tab-card__assign"
+                onClick={() => setAssigning(true)}
+                aria-label={`${tab.name} — change table or room`}
+              >
+                <span className="tab-card__name">{tab.name}</span>
+                {tab.locationId === null && (
+                  <span className="tab-card__hint" aria-hidden="true">
+                    Assign table
+                  </span>
+                )}
+                <span className="tab-card__caret" aria-hidden="true">
+                  ▾
+                </span>
+              </button>
+              <span className="tab-chip tab-chip--dark">
+                {tab.billRequestedAt ? (
+                  'Bill at front desk'
+                ) : (
+                  <>
+                    <Mono>{totals.itemCount}</Mono> {totals.itemCount === 1 ? 'item' : 'items'}
+                  </>
+                )}
               </span>
-            )}
-            <span className="cart__assign-caret" aria-hidden="true">
-              ▾
+            </div>
+            <BigMoney value={partPaid ? dueNow : totals.total} className="tab-card__amount" />
+            <div className="tab-card__meta">
+              <span title={`Order #${tab.orderId}, opened ${tab.openedAt}`}>
+                {partPaid ? 'Still to pay, ' : ''}
+                <Mono>{`#${tab.orderId}`}</Mono>, opened <Mono>{tab.openedAt}</Mono>
+              </span>
+              {hasItems && !partPaid && (
+                <button
+                  type="button"
+                  className={confirmingClear ? 'tab-card__clear tab-card__clear--confirm' : 'tab-card__clear'}
+                  onClick={clear}
+                  onBlur={() => setConfirmingClear(false)}
+                >
+                  {confirmingClear ? 'Confirm clear' : 'Clear tab'}
+                </button>
+              )}
+            </div>
+            {/* A kanga carries a saying in its border; so does every tab card. */}
+            <span className="tab-card__saying" aria-hidden="true">
+              {SAYINGS[tab.orderId % SAYINGS.length]}
             </span>
-          </button>
-          <span className="cart__title-meta" title={`Order #${tab.orderId}, opened ${tab.openedAt}`}>
-            <Mono>{`#${tab.orderId}`}</Mono> · <Mono>{tab.openedAt}</Mono>
-          </span>
+          </div>
         </div>
 
         <AssignTabDialog open={assigning} onClose={() => setAssigning(false)} />
@@ -495,7 +549,7 @@ export function Register() {
           )}
 
           {unsentCount > 0 && (
-            <Button variant="secondary" block className="cart__send" onClick={sendToKitchen}>
+            <Button variant="accent" block className="cart__send" onClick={sendToKitchen}>
               <span>
                 Send <Mono>{unsentCount}</Mono> to kitchen
               </span>
@@ -533,6 +587,12 @@ export function Register() {
     </div>
   );
 }
+
+/**
+ * The saying in each tab card's border, as on a kanga. Decorative only —
+ * never an instruction — and picked by order number so a tab keeps its own.
+ */
+const SAYINGS = ['Karibu tena', 'Tuko pamoja', 'Pole pole ndio mwendo', 'Asante kwa kuja'];
 
 /** Where a kitchen item on the tab stands: all sent, or how many are still to send. */
 function KitchenNote({ qty }: { qty: number }) {

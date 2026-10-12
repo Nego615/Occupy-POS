@@ -181,12 +181,9 @@
 .logo-picker__preview .brand-mark {
   width: 44px;
   height: 44px;
-  border-radius: 10px;
+  border-radius: 30%;
 }
 
-.logo-picker__preview .brand-mark::after {
-  inset: 13px;
-}
 
 /* ---------- Brand colors ---------- */
 

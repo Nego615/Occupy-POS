@@ -1,7 +1,23 @@
+/* The register sits on sand: paper menu tiles on the left, and a paper rail
+   on the right where every open tab is a card. */
 .register__body {
   display: grid;
-  grid-template-columns: 1fr 380px;
+  grid-template-columns: 1fr 400px;
   min-height: 0;
+  background: var(--sand);
+}
+
+/* On sand, menu tiles are paper. */
+.register__body .item-tile {
+  background: var(--paper);
+}
+
+.register__body .item-tile--interactive:hover:not(:disabled) {
+  background: var(--surface);
+}
+
+.register__body .item-tile--disabled:hover {
+  background: var(--paper);
 }
 
 /* ---------- Catalog ---------- */
@@ -26,8 +42,8 @@
 
 .catalog__deal {
   padding: 6px 12px;
-  border: 1px solid var(--line);
   border-radius: 100px;
+  background: var(--paper);
   font-size: 12.5px;
   color: var(--ink-soft);
 }
@@ -38,50 +54,70 @@
 
 .catalog__grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(156px, 1fr));
   gap: 12px;
 }
 
 /* ---------- Cart rail ---------- */
 
 .cart {
-  border-left: 1px solid var(--line);
-  background: var(--surface);
+  margin: 16px 16px 16px 0;
+  border-radius: var(--radius-xl);
+  background: var(--paper);
   display: flex;
   flex-direction: column;
   min-height: 0;
+  overflow: hidden;
 }
 
-.cart__status {
+.cart__head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 16px 20px 4px;
+  gap: 8px;
+  padding: 18px 20px 0;
 }
 
-.cart__count {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+.cart__heading {
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.cart__tab-count {
+  min-width: 24px;
+  padding: 3px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--tint);
   font-size: 12px;
-  color: var(--ink-soft);
+  font-weight: 700;
+  text-align: center;
 }
 
-/* Quiet text action — clearing is secondary to charging, so it doesn't compete. */
-.cart__clear {
+.cart__new {
   position: relative;
-  padding: 6px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  margin-left: auto;
+  padding: 0 14px 0 12px;
   border: 1px solid var(--line);
-  border-radius: 100px;
-  background: var(--paper);
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--ink-soft);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  font-size: 13.5px;
+  font-weight: 650;
   cursor: pointer;
 }
 
-.cart__clear::after {
+.cart__new span {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.cart__new:hover {
+  background: var(--surface-hover);
+}
+
+.cart__new::after {
   content: '';
   position: absolute;
   inset: 50% 0 auto;
@@ -89,97 +125,266 @@
   height: var(--hit-area);
 }
 
-.cart__clear:hover {
-  color: var(--ink);
-  background: var(--surface-hover);
+/* ---------- Tab cards ----------
+   Printed like a kanga: a dotted border, the amount in the middle, and a
+   saying set into the bottom border. */
+
+.tab-stack {
+  position: relative;
+  margin: 14px 20px 4px;
 }
 
-/* The confirm step names the consequence in the state color. */
-.cart__clear--confirm {
-  border-color: var(--occupied);
+.tab-stack--1 {
+  padding-top: 34px;
+}
+
+.tab-stack--2 {
+  padding-top: 68px;
+}
+
+.tab-card {
+  --card-bg: var(--paper);
+  --card-ink: var(--ink);
+  --card-ink-soft: var(--ink-soft);
+  --kb: rgba(207, 55, 32, 0.55);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  border: none;
+  border-radius: 22px;
+  background: var(--card-bg);
+  color: var(--card-ink);
+  font-family: inherit;
+  text-align: left;
+}
+
+.tab-card::before {
+  content: '';
+  position: absolute;
+  inset: 7px;
+  border: 2.5px dotted var(--kb);
+  border-radius: 15px;
+  pointer-events: none;
+}
+
+.tab-card--gold {
+  --card-bg: var(--marigold);
+  --card-ink: var(--on-marigold);
+  --card-ink-soft: rgba(43, 24, 16, 0.72);
+  --kb: rgba(43, 24, 16, 0.42);
+}
+
+.tab-card--cocoa {
+  --card-bg: var(--ink);
+  --card-ink: var(--paper);
+  --card-ink-soft: rgba(255, 249, 238, 0.7);
+  --kb: rgba(244, 177, 46, 0.7);
+}
+
+.tab-card--paper {
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+/* The other open tabs: only their top strip shows. */
+.tab-card--peek {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 120px;
+  padding: 11px 20px;
+  transform-origin: 50% 0;
+  cursor: pointer;
+}
+
+.tab-card--peek-2 {
+  transform: scale(0.9);
+}
+
+.tab-card--peek-1 {
+  transform: scale(0.95);
+}
+
+.tab-stack--2 .tab-card--peek-1 {
+  top: 34px;
+}
+
+.tab-card--peek:hover {
+  filter: brightness(1.05);
+}
+
+.tab-card--front {
+  z-index: 1;
+  min-height: 168px;
+  padding: 16px 20px 22px;
+  box-shadow: var(--lift);
+}
+
+.tab-card__top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.tab-card__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.tab-card--front .tab-card__name {
+  font-size: 17px;
+}
+
+.tab-card__peek-total {
+  margin-left: auto;
+  font-size: 14.5px;
+  font-weight: 700;
+}
+
+/* The tab name doubles as the control for moving it to a table or room. */
+.tab-card__assign {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 36px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.tab-card__assign::after {
+  content: '';
+  position: absolute;
+  inset: 50% 0 auto;
+  transform: translateY(-50%);
+  height: var(--hit-area);
+}
+
+.tab-card__hint {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--card-ink-soft);
+  white-space: nowrap;
+}
+
+.tab-card__caret {
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(43, 24, 16, 0.12);
+  font-size: 10px;
+}
+
+.tab-card__assign:hover .tab-card__caret {
+  background: var(--ink);
+  color: var(--marigold);
+}
+
+.tab-chip {
+  flex-shrink: 0;
+  padding: 4px 9px;
+  border-radius: var(--radius-pill);
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.tab-card--front .tab-chip {
+  margin-left: auto;
+}
+
+.tab-chip--dark {
+  background: var(--ink);
+  color: var(--marigold);
+}
+
+.tab-chip--alert {
   background: var(--occupied-soft);
   color: var(--occupied);
 }
 
-.cart__clear--confirm:hover {
-  background: var(--occupied-soft);
-  color: var(--occupied);
+.tab-card__amount {
+  display: block;
+  margin-top: auto;
+  padding-top: 14px;
+  font-size: 46px;
+  font-weight: 700;
+  line-height: 1;
 }
 
-.cart__title {
+.tab-card__meta {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 6px 20px 14px;
+  margin-top: 6px;
   font-size: 13px;
-  color: var(--ink-soft);
+  color: var(--card-ink-soft);
 }
 
-/* The tab name doubles as the control for moving it to a table or room.
-   Styled as a select — white field, visible border — so it reads as a
-   control against the --surface rail, not as a label. */
-.cart__assign {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  min-height: var(--hit-area);
-  padding: 0 12px 0 14px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--paper);
-  font: inherit;
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--ink);
-  cursor: pointer;
-  transition: border-color 0.15s ease;
-  /* Name, hint, and caret stay on one line, beside the order number. */
+.tab-card__clear {
+  position: relative;
   flex-shrink: 0;
-  max-width: 100%;
-  white-space: nowrap;
+  padding: 4px 0;
+  border: none;
+  background: none;
+  color: var(--card-ink);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 650;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
 }
 
-.cart__assign-name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.tab-card__clear::after {
+  content: '';
+  position: absolute;
+  inset: 50% 0 auto;
+  transform: translateY(-50%);
+  height: var(--hit-area);
 }
 
-/* Gives way to the button: cut short with "…" rather than wrapping below it. */
-.cart__title-meta {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+/* The confirm step names the consequence in the state color. */
+.tab-card__clear--confirm {
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--vermilion);
+  color: var(--on-vermilion);
+  text-decoration: none;
 }
 
-.cart__assign:hover {
-  border-color: var(--ink);
-}
-
-.cart__assign-hint {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--ink-soft);
-}
-
-.cart__assign-caret {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: var(--surface);
+/* The saying interrupts the dots of the bottom border. Decorative only. */
+.tab-card__saying {
+  position: absolute;
+  left: 50%;
+  bottom: 8px;
+  padding: 0 8px;
+  background: var(--card-bg);
   font-size: 10px;
-  color: var(--ink);
+  font-weight: 750;
+  letter-spacing: 0.14em;
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+  transform: translate(-50%, 50%);
 }
 
-.cart__assign:hover .cart__assign-caret {
-  background: var(--ink);
-  color: var(--paper);
-}
+/* ---------- Lines on the tab ---------- */
 
 .cart__items {
   /* A removed line is lifted out while it fades (Register's popLayout). */
@@ -215,8 +420,8 @@
 }
 
 .cart-line__name {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 14.5px;
+  font-weight: 650;
 }
 
 .cart-line__unit {
@@ -245,8 +450,8 @@
 }
 
 .cart-line__price {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 14.5px;
+  font-weight: 700;
   /* Grows for long amounts — a price never runs under the remove button. */
   min-width: 56px;
   text-align: right;
@@ -287,13 +492,13 @@
 /* ---------- Summary ---------- */
 
 .cart__summary {
-  padding: 16px 20px;
+  padding: 14px 20px 18px;
   border-top: 1px solid var(--line);
   flex-shrink: 0;
 }
 
 .cart__send {
-  margin-top: 16px;
+  margin-top: 14px;
 }
 
 .cart__charge {
@@ -312,10 +517,11 @@
   border: none;
   background: none;
   font-family: inherit;
-  font-size: 12.5px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 650;
   color: var(--brand);
   text-decoration: underline;
+  text-underline-offset: 3px;
   cursor: pointer;
 }
 
@@ -325,6 +531,14 @@
 
 .cart__docket + .cart__charge {
   margin-top: 6px;
+}
+
+/* The charge button: label on the left, amount on the right. */
+.cart__charge {
+  justify-content: space-between;
+  padding-left: 24px;
+  padding-right: 24px;
+  font-size: 16px;
 }
 
 .cart__charge-sub {
@@ -388,7 +602,7 @@ button.cart-line__info:hover .cart-line__name {
 
 @media (max-width: 1100px) {
   .register__body {
-    grid-template-columns: minmax(0, 1fr) 320px;
+    grid-template-columns: minmax(0, 1fr) 340px;
   }
 }
 
@@ -404,9 +618,26 @@ button.cart-line__info:hover .cart-line__name {
   }
 
   .cart {
-    border-left: none;
-    border-top: 1px solid var(--line);
-    max-height: 52vh;
+    margin: 0 16px 16px;
+    max-height: 56vh;
+  }
+
+  /* No room for the peeking tabs here; Tables lists them all. */
+  .tab-card--peek {
+    display: none;
+  }
+
+  .tab-stack--1,
+  .tab-stack--2 {
+    padding-top: 0;
+  }
+
+  .tab-card--front {
+    min-height: 140px;
+  }
+
+  .tab-card__amount {
+    font-size: 38px;
   }
 }
 
@@ -438,8 +669,12 @@ button.cart-line__info:hover .cart-line__name {
     padding: 0 16px;
   }
 
-  .cart__status,
-  .cart__title,
+  .tab-stack {
+    margin-left: 16px;
+    margin-right: 16px;
+  }
+
+  .cart__head,
   .cart__summary {
     padding-left: 16px;
     padding-right: 16px;

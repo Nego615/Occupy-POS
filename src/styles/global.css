@@ -41,6 +41,16 @@ h4 {
   white-space: nowrap;
 }
 
+/* Headline amounts: tight, with the cents dropped to about half size. */
+.money--big {
+  letter-spacing: -0.045em;
+}
+
+.money__cents {
+  font-size: 0.52em;
+  letter-spacing: -0.01em;
+}
+
 /* Global focus floor. Components may restyle the ring but must not remove it. */
 :focus-visible {
   outline: var(--focus-width) solid var(--focus-color);
