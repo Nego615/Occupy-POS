@@ -9,7 +9,7 @@ import { DocketDialog, LineDialog, PortionDialog, PriceDialog } from '../compone
 import { PrintableDocket, type DocketKind } from '../components/PrintableSlip';
 import { ItemTile } from '../components/ItemTile';
 import { MealDialog } from '../components/MealDialog';
-import { BigMoney, Money, Mono, formatMoney } from '../components/Mono';
+import { BigMoney, Money, Mono } from '../components/Mono';
 import { Pill, PillRow } from '../components/Pill';
 import { SummaryRow } from '../components/Receipt';
 import { SearchField } from '../components/SearchField';
@@ -37,7 +37,6 @@ import {
 import { sameDish } from '../data/kitchen';
 import { paidAmount, type Order } from '../data/orders';
 import {
-  computeTotals,
   discountLabel,
   itemLine,
   itemQuantities,
@@ -99,7 +98,6 @@ export function Register() {
     orders,
     locations,
     tabs,
-    switchTab,
   } = usePos();
   const tabOrder = orders.find((o) => o.id === tab.orderId && o.status === 'occupied');
 
@@ -142,13 +140,9 @@ export function Register() {
   const partPaid = tab.payments.length > 0;
   const dueNow = round(totals.total + (tab.tip ?? 0) - paid);
 
-  // The rail's card stack: this tab in front, the two newest other open tabs
-  // peeking out behind it, oldest at the back. Tapping one puts it in front.
-  const others = tabs
-    .filter((t) => t.orderId !== tab.orderId && t.cart.length > 0)
-    .sort((a, b) => b.orderId - a.orderId);
-  const peeks = others.slice(0, 2).reverse();
-  const openCount = others.length + (hasItems ? 1 : 0);
+  // How many tabs are running, this one included — the count beside "Open tabs".
+  const openCount =
+    tabs.filter((t) => t.orderId !== tab.orderId && t.cart.length > 0).length + (hasItems ? 1 : 0);
 
   /** The stepper's ceiling: what's on hand, but never below what's already on the line. */
   function lineMax(line: CartLine): number {
@@ -386,28 +380,7 @@ export function Register() {
           </button>
         </div>
 
-        {/* Every tab is a card. The other open tabs peek out behind this one. */}
-        <div className={`tab-stack tab-stack--${peeks.length}`}>
-          {peeks.map((t, i) => {
-            const total = computeTotals(t.cart, settings.taxRate).total;
-            const tone = peeks.length === 2 && i === 0 ? 'paper' : 'cocoa';
-            return (
-              <button
-                key={t.orderId}
-                type="button"
-                className={`tab-card tab-card--peek tab-card--${tone} tab-card--peek-${peeks.length - i}`}
-                onClick={() => switchTab(t.orderId)}
-                aria-label={`Switch to ${t.name}, ${formatMoney(total)}${t.billRequestedAt ? ', bill asked' : ''}`}
-              >
-                <span className="tab-card__top">
-                  <span className="tab-card__name">{t.name}</span>
-                  {t.billRequestedAt && <span className="tab-chip tab-chip--alert">Bill asked</span>}
-                  <Money value={total} className="tab-card__peek-total" />
-                </span>
-              </button>
-            );
-          })}
-
+        <div className="tab-stack">
           <div className="tab-card tab-card--gold tab-card--front">
             <div className="tab-card__top">
               <button
