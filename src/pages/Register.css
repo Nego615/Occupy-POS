@@ -7,13 +7,28 @@
 /* ---------- Catalog ---------- */
 
 .catalog {
-  padding: 20px 28px 28px;
+  padding: 0 28px 28px;
   overflow-y: auto;
   min-width: 0;
 }
 
+/* Search and the category rows, pinned to the top of the scrolling menu. Its
+   paper background hides the tiles passing underneath. */
+.catalog__head {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  padding-top: 20px;
+  background: var(--paper);
+}
+
 .catalog__tabs {
   margin-bottom: 20px;
+}
+
+/* A row narrowing a shelf to one of the categories inside it — Drinks → Sodas. */
+.catalog__tabs--sub {
+  margin-top: -10px;
 }
 
 /* Promotions running right now — so staff know why prices dropped. */
@@ -158,10 +173,25 @@
   border-color: var(--ink);
 }
 
-.cart__assign-hint {
-  font-size: 12px;
+/* No table or room yet: an empty field with a placeholder, marked required. */
+.cart__assign-placeholder {
   font-weight: 500;
   color: var(--ink-soft);
+}
+
+.cart__assign-required {
+  color: var(--occupied);
+}
+
+.cart__assign--empty {
+  border-style: dashed;
+}
+
+/* Items rung up but nowhere to charge them — the pick still owed. */
+.cart__assign--invalid,
+.cart__assign--invalid:hover {
+  border-style: solid;
+  border-color: var(--occupied);
 }
 
 .cart__assign-caret {
@@ -400,7 +430,11 @@ button.cart-line__info:hover .cart-line__name {
   }
 
   .catalog {
-    padding: 16px;
+    padding: 0 16px 16px;
+  }
+
+  .catalog__head {
+    padding-top: 16px;
   }
 
   .cart {
@@ -418,6 +452,11 @@ button.cart-line__info:hover .cart-line__name {
 
   .catalog {
     overflow: visible;
+  }
+
+  /* The page scrolls as a whole here, so the head pins under the sticky top bar. */
+  .catalog__head {
+    top: var(--topbar-h, 0px);
   }
 
   .catalog__toolbar {

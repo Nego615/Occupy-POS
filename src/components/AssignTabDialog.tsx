@@ -14,7 +14,9 @@ import { StatusChip } from './StatusChip';
  */
 export function AssignTabDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const ref = useRef<HTMLDialogElement>(null);
-  const { tab, tabs, assignTab, mergeTab } = usePos();
+  const { tab, tabs, locations, assignTab, mergeTab } = usePos();
+  // A table or room is required, so walk-in is only offered to shops without any.
+  const walkIn = locations.length === 0;
   const [mergeTarget, setMergeTarget] = useState<OpenTab | null>(null);
 
   useEffect(() => {
@@ -72,24 +74,26 @@ export function AssignTabDialog({ open, onClose }: { open: boolean; onClose: () 
           />
         ) : (
           <div className="assign__floor">
-            <button
-              type="button"
-              className={
-                tab.locationId === null
-                  ? 'assign__walk-in assign__walk-in--current'
-                  : 'assign__walk-in'
-              }
-              onClick={() => pick(null)}
-              aria-current={tab.locationId === null || undefined}
-            >
-              <span className="assign__walk-in-name">Walk-in</span>
-              <span className="assign__walk-in-sub">Not seated at a table or room</span>
-              {tab.locationId === null && (
-                <StatusChip status="occupied" size="sm" className="assign__walk-in-chip">
-                  This tab
-                </StatusChip>
-              )}
-            </button>
+            {walkIn && (
+              <button
+                type="button"
+                className={
+                  tab.locationId === null
+                    ? 'assign__walk-in assign__walk-in--current'
+                    : 'assign__walk-in'
+                }
+                onClick={() => pick(null)}
+                aria-current={tab.locationId === null || undefined}
+              >
+                <span className="assign__walk-in-name">Walk-in</span>
+                <span className="assign__walk-in-sub">Not seated at a table or room</span>
+                {tab.locationId === null && (
+                  <StatusChip status="occupied" size="sm" className="assign__walk-in-chip">
+                    This tab
+                  </StatusChip>
+                )}
+              </button>
+            )}
 
             <FloorGrid onPick={pick} assigningOrderId={tab.orderId} />
           </div>

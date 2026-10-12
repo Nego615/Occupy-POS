@@ -3,7 +3,7 @@ import './Inventory.css';
 import './Deals.css';
 import { FilterSelect } from '../components/FilterSelect';
 import { Mono } from '../components/Mono';
-import { NO_CATEGORY, type CatalogItem } from '../data/catalog';
+import { NO_CATEGORY, categoryPath, categoryTree, type CatalogItem } from '../data/catalog';
 import { usePos } from '../lib/store';
 
 /**
@@ -44,7 +44,10 @@ export function ItemPicker({
   }
   // Items whose category has gone still show, under their own heading.
   const known = new Set(categories.map((c) => c.id));
-  const groups = [...categories, { id: '', label: NO_CATEGORY }]
+  const groups = [
+    ...categoryTree(categories).map(({ category: c }) => ({ id: c.id, label: categoryPath(categories, c.id) })),
+    { id: '', label: NO_CATEGORY },
+  ]
     .map((cat) => ({
       ...cat,
       items: catalog.filter((i) => (cat.id ? i.category === cat.id : !known.has(i.category))),

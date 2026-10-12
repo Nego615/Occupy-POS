@@ -14,6 +14,13 @@
   padding: 20px 14px;
   background: var(--paper);
   overflow-y: auto;
+  /* Held to the screen even when a short window scrolls the whole page past
+     the layout's minimum height. */
+  position: sticky;
+  top: 0;
+  align-self: start;
+  height: 100vh;
+  height: 100dvh;
 }
 
 .admin__brand {
@@ -225,11 +232,13 @@
   }
 
   .admin__sidebar {
-    position: relative;
     padding: 10px 16px;
     border-right: none;
     border-bottom: 1px solid var(--line);
     overflow: visible;
+    /* A top strip here: it sticks above the page instead of filling the height. */
+    height: auto;
+    z-index: 30;
   }
 
   .admin__top {

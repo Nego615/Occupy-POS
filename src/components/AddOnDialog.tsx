@@ -43,7 +43,7 @@ export function AddOnDialog({ item, onClose }: { item: CatalogItem | null; onClo
 
   const options = item ? addOnOptions(item, categories, catalog) : [];
   const portions = item?.portions?.length ? servings(item) : null;
-  const promo = item ? bestPromo(promotions, item, new Date()) : null;
+  const promo = item ? bestPromo(promotions, item, new Date(), categories) : null;
   /** The line this would add, for a serving and a set of add-ons. */
   const lineFor = (servingId: string, ids: string[]) =>
     item &&
