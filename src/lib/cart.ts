@@ -289,6 +289,41 @@ export function mergeLines(lines: CartLine[], incoming: CartLine[]): CartLine[] 
   return merged;
 }
 
+/** How many of each line (by key) have already been on a printed docket. */
+export type Printed = Record<string, number>;
+
+/**
+ * The current order: what's on the tab beyond what earlier dockets printed,
+ * each line at just its new quantity.
+ */
+export function unprintedLines(lines: CartLine[], printed: Printed = {}): CartLine[] {
+  return lines
+    .map((l) => ({ ...l, qty: l.qty - Math.min(l.qty, printed[l.key] ?? 0) }))
+    .filter((l) => l.qty > 0);
+}
+
+/** Everything on the tab counted as printed — the current order ends and the next starts empty. */
+export function allPrinted(lines: CartLine[]): Printed {
+  return Object.fromEntries(lines.map((l) => [l.key, l.qty]));
+}
+
+/** `printed` kept no higher than what's still on the tab, so a re-added item counts as new. */
+export function trimPrinted(lines: CartLine[], printed: Printed): Printed {
+  const next: Printed = {};
+  for (const l of lines) {
+    const n = Math.min(l.qty, printed[l.key] ?? 0);
+    if (n > 0) next[l.key] = n;
+  }
+  return next;
+}
+
+/** Two tabs' `printed` added together, for when they merge. */
+export function addPrinted(a: Printed = {}, b: Printed = {}): Printed {
+  const next: Printed = { ...a };
+  for (const [key, n] of Object.entries(b)) next[key] = (next[key] ?? 0) + n;
+  return next;
+}
+
 /** Setting a quantity to 0 drops the line. */
 export function setLineQty(lines: CartLine[], key: string, qty: number): CartLine[] {
   return qty <= 0
@@ -361,7 +396,7 @@ export function lineCap(lines: CartLine[], key: string, catalog: CatalogItem[]):
   for (const item of lineItems(line)) perUnit.set(item.itemId, (perUnit.get(item.itemId) ?? 0) + item.units);
   for (const [itemId, each] of perUnit) {
     const item = catalog.find((i) => i.id === itemId);
-    if (!item) continue;
+    if (!item || item.untracked) continue;
     const elsewhere = (counts.get(itemId) ?? 0) - each * line.qty;
     cap = Math.min(cap, Math.floor((Math.max(0, item.stock) - elsewhere + STOCK_SLACK) / each));
   }

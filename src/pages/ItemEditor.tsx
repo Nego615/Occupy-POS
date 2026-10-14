@@ -35,6 +35,8 @@ type ItemDraft = {
   description: string;
   available: boolean;
   openPrice: boolean;
+  /** Off for items sold without counting stock. */
+  tracked: boolean;
   /** Strings for the same reason as price. */
   stock: string;
   lowStockAt: string;
@@ -66,6 +68,7 @@ const BLANK: ItemDraft = {
   description: '',
   available: true,
   openPrice: false,
+  tracked: true,
   // Blank, not 0 — a new item's count has to be entered, never assumed.
   stock: '',
   // Filled from the Settings low-stock default when the editor opens.
@@ -168,6 +171,7 @@ export function ItemEditor() {
             description: item.description ?? '',
             available: item.available,
             openPrice: item.openPrice ?? false,
+            tracked: !item.untracked,
             stock: String(item.stock),
             lowStockAt: String(item.lowStockAt ?? settings.lowStockDefault),
             cost: item.cost !== undefined ? String(item.cost) : '',
@@ -198,13 +202,13 @@ export function ItemEditor() {
   const nameValid = draft.name.trim().length > 0;
   const categoryValid = editable.some((c) => c.id === draft.category);
   // An existing item's stock is changed on the Stock page, through the ledger — only new items set it here.
-  const stockValid = !creating || WHOLE_NUMBER.test(draft.stock);
+  const stockValid = !creating || !draft.tracked || WHOLE_NUMBER.test(draft.stock);
   const costValid = draft.cost === '' || isAmountText(draft.cost);
   const parValid = draft.parLevel === '' || WHOLE_NUMBER.test(draft.parLevel);
-  const lowValid = WHOLE_NUMBER.test(draft.lowStockAt);
+  const lowValid = !draft.tracked || WHOLE_NUMBER.test(draft.lowStockAt);
   const stockValue = creating ? Number.parseInt(draft.stock, 10) || 0 : item?.stock ?? 0;
   const lowValue = Number.parseInt(draft.lowStockAt, 10) || 0;
-  const draftStock = stockValid && lowValid ? stockState({ stock: stockValue, lowStockAt: lowValue }, settings.lowStockDefault) : null;
+  const draftStock = draft.tracked && stockValid && lowValid ? stockState({ stock: stockValue, lowStockAt: lowValue }, settings.lowStockDefault) : null;
   // Only measured portions need a size; measuring by share leaves it unset.
   const unitSize = draft.measure === 'ml' ? (parseUnitSize(draft.unitSize) ?? undefined) : undefined;
   const unitSizeValid = draft.measure === 'share' || unitSize !== undefined;
@@ -349,6 +353,7 @@ export function ItemEditor() {
       description: draft.description.trim() || undefined,
       available: draft.available,
       openPrice: draft.openPrice || undefined,
+      untracked: draft.tracked ? undefined : true,
       cost: draft.cost === '' ? undefined : Number(draft.cost),
       supplierId: draft.supplierId || undefined,
       parLevel: draft.parLevel === '' ? undefined : Number(draft.parLevel),
@@ -473,6 +478,24 @@ export function ItemEditor() {
           {/* Stock is the number staff come back to most, so it gets its own
               panel and the largest figure on the form. */}
           <section className="stock-panel" aria-labelledby="stock-heading">
+            <div className="toggle-row">
+              <div>
+                <div className="toggle-row__label">Track stock</div>
+                <div className="toggle-row__sub" id="tracked-sub">
+                  Off for items made to order from shared ingredients — chicken dishes from the same
+                  chickens, drinks from the same milk. They always sell and never show as sold out.
+                </div>
+              </div>
+              <Switch
+                checked={draft.tracked}
+                onChange={(v) => set('tracked', v)}
+                label="Track stock"
+                describedBy="tracked-sub"
+              />
+            </div>
+
+            {draft.tracked ? (
+            <>
             <div className="stock-panel__head">
               <label className="stock-panel__label" id="stock-heading" htmlFor="item-stock">
                 On hand
@@ -545,6 +568,13 @@ export function ItemEditor() {
             {!lowValid && (
               <p className="field__error" id="low-error">
                 Enter a whole number, like 5.
+              </p>
+            )}
+            </>
+            ) : (
+              <p className="stock-panel__help" id="stock-heading">
+                Stock isn’t counted for this item. Sales and refunds leave it alone, and it stays off
+                the Stock page and stock counts.
               </p>
             )}
 

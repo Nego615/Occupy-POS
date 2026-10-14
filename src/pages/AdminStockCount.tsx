@@ -138,7 +138,9 @@ export function AdminStockCount() {
 /* ---------- Starting a count ---------- */
 
 function StartCount() {
-  const { catalog, categories, suppliers, startCount } = usePos();
+  const { catalog: allItems, categories, suppliers, startCount } = usePos();
+  // Items sold without counting stock aren't counted.
+  const catalog = useMemo(() => allItems.filter((i) => !i.untracked), [allItems]);
   const [scope, setScope] = useState('all');
 
   // "all", "cat:pastries", or "sup:dar-bakery".

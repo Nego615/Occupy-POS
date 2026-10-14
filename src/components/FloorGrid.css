@@ -50,6 +50,19 @@
   border-left-color: var(--occupied);
 }
 
+.location--theirs {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.location--theirs:hover {
+  background: var(--surface);
+}
+
+.location--theirs:active {
+  transform: none;
+}
+
 .location--current {
   background: var(--paper);
   border-color: var(--ink);

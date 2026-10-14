@@ -1,0 +1,72 @@
+/* The dialog shell is .assign, from AssignTabDialog.css. */
+
+.open-tabs {
+  display: flex;
+  flex-direction: column;
+  max-height: 60vh;
+  overflow-y: auto;
+  border-top: 1px solid var(--line);
+}
+
+.open-tab {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: var(--hit-area);
+  padding: 12px 8px;
+  border: none;
+  border-bottom: 1px solid var(--line);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.open-tab:hover {
+  background: var(--surface);
+}
+
+.open-tab--current {
+  background: var(--surface);
+}
+
+.open-tab__name {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.open-tab__id {
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+
+.open-tab__meta {
+  flex: 1;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+
+.open-tab__total {
+  width: 84px;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: right;
+}
+
+.open-tabs__empty {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+@media (max-width: 600px) {
+  .open-tab {
+    flex-wrap: wrap;
+  }
+
+  .open-tab__meta {
+    flex-basis: 100%;
+    order: 5;
+  }
+}

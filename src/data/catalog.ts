@@ -33,6 +33,11 @@ export type CatalogItem = {
    * drink's portions be measured as "25 ml" rather than a fraction.
    */
   unitSize?: number;
+  /**
+   * Sold without counting stock — made to order from shared ingredients, say.
+   * Never held back or shown as low or sold out, and sales leave its stock alone.
+   */
+  untracked?: boolean;
 };
 
 /** A serving of an item sold at its own price, drawing `units` of its stock. */
@@ -51,9 +56,10 @@ export type StockState = 'in' | 'low' | 'out';
 
 /** `lowDefault` is the Settings low-stock threshold, for items that don't set their own. */
 export function stockState(
-  item: Pick<CatalogItem, 'stock' | 'lowStockAt'>,
+  item: Pick<CatalogItem, 'stock' | 'lowStockAt' | 'untracked'>,
   lowDefault = LOW_STOCK_DEFAULT,
 ): StockState {
+  if (item.untracked) return 'in';
   if (item.stock <= 0) return 'out';
   if (item.stock <= (item.lowStockAt ?? lowDefault)) return 'low';
   return 'in';
@@ -75,9 +81,9 @@ export function withTitleCaseNames(catalog: CatalogItem[]): CatalogItem[] {
   });
 }
 
-/** How many of `item` can be rung up. */
+/** How many of `item` can be rung up — no limit when its stock isn't tracked. */
 export function stockLimit(item: CatalogItem): number {
-  return Math.max(0, item.stock);
+  return item.untracked ? Infinity : Math.max(0, item.stock);
 }
 
 /**

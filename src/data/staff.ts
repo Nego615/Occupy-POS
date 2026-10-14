@@ -19,7 +19,8 @@ export type Permission =
   | 'payables'
   | 'expenses'
   | 'discounts'
-  | 'editTabs';
+  | 'editTabs'
+  | 'allTabs';
 
 export const PERMISSIONS: { id: Permission; label: string }[] = [
   { id: 'register', label: 'Ring up orders' },
@@ -39,6 +40,7 @@ export const PERMISSIONS: { id: Permission; label: string }[] = [
   { id: 'expenses', label: 'Record expenses' },
   { id: 'discounts', label: 'Give discounts' },
   { id: 'editTabs', label: 'Remove items & clear tabs' },
+  { id: 'allTabs', label: 'See everyone’s open tabs' },
 ];
 
 export const ROLES: { id: RoleId; label: string; can: Permission[] }[] = [
@@ -63,6 +65,7 @@ export const ROLES: { id: RoleId; label: string; can: Permission[] }[] = [
       'expenses',
       'discounts',
       'editTabs',
+      'allTabs',
     ],
   },
   {
@@ -84,13 +87,15 @@ export const ROLES: { id: RoleId; label: string; can: Permission[] }[] = [
       'expenses',
       'discounts',
       'editTabs',
+      'allTabs',
     ],
   },
   // Every bill is paid, and every discount given, at the counter — the register only
   // charges tabs to tables and rooms and sends the bills there.
-  { id: 'frontdesk', label: 'Counter', can: ['payments', 'discounts'] },
-  { id: 'barista', label: 'Barista', can: ['register', 'kitchen', 'editTabs'] },
-  // Servers only add to tabs; taking anything off needs a manager's PIN.
+  { id: 'frontdesk', label: 'Counter', can: ['payments', 'discounts', 'allTabs'] },
+  { id: 'barista', label: 'Barista', can: ['register', 'kitchen', 'editTabs', 'allTabs'] },
+  // Servers only add to tabs; taking anything off needs a manager's PIN. They
+  // see only the tabs they opened.
   { id: 'server', label: 'Server', can: ['register', 'kitchen'] },
   // Cooks can also be let manage items and set meals — see KITCHEN_MENU_ROLES.
   { id: 'cook', label: 'Cook', can: ['kitchen'] },

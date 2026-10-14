@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode, SetStateAction } from 'react';
 import {
   CATALOG,
@@ -81,17 +81,22 @@ import {
   lineFits,
   lineItems,
   mealLine,
+  addPrinted,
+  allPrinted,
   mergeLines,
   openPriceLine,
   portionLine,
   round,
   editLine as withLineEdit,
   setLineQty,
+  trimPrinted,
+  unprintedLines,
   withAddOns,
   type CartLine,
   type CartTotals,
   type CourseAddOn,
   type ManualDiscount,
+  type Printed,
 } from './cart';
 import { salaried, type PayrollRun } from './payroll';
 import { costDue, currencyOf, setActiveCurrency, setCostCurrency, type CurrencyCode } from './currency';
@@ -108,7 +113,11 @@ type StoredTab = {
   locationId: string | null;
   /** ISO timestamp. */
   openedIso: string;
+  /** Staff id of whoever opened it — set by the first person to ring anything up on it. */
+  openedBy?: string;
   cart: CartLine[];
+  /** Lines already on a printed docket. Whatever's on the cart beyond this is the current order. */
+  printed?: Printed;
   /** Kitchen items already sent. Whatever's on the cart beyond this is waiting to be sent. */
   sent: SentLine[];
   /** Taken off the whole tab by hand, before tax. */
@@ -256,8 +265,13 @@ type PosStore = {
    * otherwise a fresh one. `null` starts a new walk-in.
    */
   openTab: (locationId: string | null) => void;
-  /** Puts an existing open tab on the register. */
+  /** Puts an existing open tab on the register. Refused for a tab the signed-in person can't see. */
   switchTab: (orderId: number) => void;
+  /**
+   * Whether the signed-in person sees `tab`: their own, one nobody has
+   * claimed yet, or any tab at all with `allTabs`. Servers see only theirs.
+   */
+  canSeeTab: (tab: Pick<OpenTab, 'openedBy'>) => boolean;
   /**
    * Moves the register's tab to a table or room (or back to walk-in).
    * A location holds one tab at a time, so an occupied one is refused.
@@ -280,6 +294,12 @@ type PosStore = {
   removePayment: (index: number) => void;
   /** Sends the register's tab to the counter to be paid. */
   requestBill: () => void;
+  /**
+   * The current order on the register's tab — what's been added since its
+   * last docket — as an order to print, and marks it printed so it joins the
+   * rest of the tab. Null when nothing's new.
+   */
+  printDocket: () => Order | null;
   /**
    * Closes an open tab onto a room's bill, to be paid when the room settles
    * up. Refused for an empty or part-paid tab, or a location that isn't a room.
@@ -404,11 +424,12 @@ export function newShopSnapshot(
   owner: { name: string; pin: string },
   settings: Partial<Settings>,
 ): Snapshot {
+  const first = freshTab(draftId(), null);
   const id = `staff-${Date.now().toString(36)}`;
   const member: StaffMember = { id, name: owner.name, role: 'owner', pinHash: hashPin(id, owner.pin), active: true };
   return {
-    tabs: [freshTab(1, null)],
-    activeTab: 1,
+    tabs: [first],
+    activeTab: first.orderId,
     orders: [],
     catalog: [],
     categories: [],
@@ -435,11 +456,34 @@ function placeholderTab(orderId: number): OpenTab {
   return { ...freshTab(orderId, null), name: 'Walk-in', openedAt: '' };
 }
 
-function freshTab(orderId: number, locationId: string | null): StoredTab {
+let lastDraftId = 0;
+
+/**
+ * An id for a tab with nothing on it yet. Order numbers count only tabs with
+ * a bill, so an empty tab holds this negative stand-in and takes the next
+ * order number with its first item. Time-based, so two tills don't clash.
+ */
+function draftId(): number {
+  lastDraftId = Math.min(lastDraftId - 1, -Date.now());
+  return lastDraftId;
+}
+
+/** Whether `orderId` is an empty tab's stand-in rather than an order number. */
+export function isDraftId(orderId: number): boolean {
+  return orderId < 0;
+}
+
+/** "#42" for a numbered tab; null for an empty one, which has no number yet. */
+export function orderNo(orderId: number): string | null {
+  return isDraftId(orderId) ? null : `#${orderId}`;
+}
+
+function freshTab(orderId: number, locationId: string | null, openedBy?: string): StoredTab {
   return {
     orderId,
     locationId,
     openedIso: new Date().toISOString(),
+    ...(openedBy ? { openedBy } : {}),
     cart: [],
     sent: [],
     payments: [],
@@ -640,7 +684,7 @@ export function PosProvider({
   // fresh walk-in rather than jumping to someone else's tab.
   useEffect(() => {
     if (storedTabs.some((t) => t.orderId === activeId)) return;
-    const fresh = freshTab(nextOrderId(), null);
+    const fresh = freshTab(draftId(), null);
     setTabs((prev) => [...prev, fresh]);
     setActiveId(fresh.orderId);
   }, [storedTabs, activeId, nextOrderId]);
@@ -661,6 +705,23 @@ export function PosProvider({
     () => staff.find((m) => m.id === signedInId && m.active) ?? null,
     [staff, signedInId],
   );
+
+  const canSeeTab = useCallback(
+    (t: Pick<StoredTab, 'openedBy'>) =>
+      !t.openedBy || t.openedBy === me?.id || hasPermission(me, 'allTabs', settings),
+    [me, settings],
+  );
+
+  // Someone who can't see the register's tab (a server signing in after
+  // another) gets a fresh walk-in of their own instead.
+  useEffect(() => {
+    if (!me) return;
+    const active = storedTabs.find((t) => t.orderId === activeId);
+    if (!active || canSeeTab(active)) return;
+    const fresh = freshTab(draftId(), null, me.id);
+    setTabs((prev) => [...pruneIdle(prev, fresh.orderId), fresh]);
+    setActiveId(fresh.orderId);
+  }, [me, storedTabs, activeId, canSeeTab, nextOrderId]);
 
   // Suppliers, purchases, bills, and the stock ledger. Stock moves only through it.
   const inventory = useInventory(catalog, setCatalog, me, repo, snapshot);
@@ -687,7 +748,7 @@ export function PosProvider({
   const orders = useMemo(
     () => [
       ...tabs
-        .filter((t) => t.cart.length > 0 || t.locationId)
+        .filter((t) => t.cart.length > 0 || (t.locationId && !isDraftId(t.orderId)))
         .map((t) => tabAsOrder(t, settings.taxRate))
         .reverse(),
       ...closedOrders,
@@ -695,16 +756,40 @@ export function PosProvider({
     [tabs, closedOrders, settings.taxRate],
   );
 
+  // Empty tabs numbered since the last render, so a second update in the same
+  // tick still finds the tab under its new number.
+  const numbered = useRef(new Map<number, number>());
+
   const updateActiveTab = useCallback(
     (update: (tab: StoredTab) => StoredTab) => {
-      setTabs((prev) => prev.map((t) => (t.orderId === activeId ? update(t) : t)));
+      // Whoever first puts something on an unclaimed tab owns it.
+      const claim = (t: StoredTab) => (t.openedBy || !me ? t : { ...t, openedBy: me.id });
+      const id = numbered.current.get(activeId) ?? activeId;
+      // An empty tab takes the next order number with its first item.
+      const current = storedTabs.find((t) => t.orderId === id);
+      const number =
+        isDraftId(id) && current && update(claim(current)).cart.length > 0 ? nextOrderId() : null;
+      setTabs((prev) =>
+        prev.map((t) => {
+          if (t.orderId !== id) return t;
+          const next = update(claim(t));
+          return number !== null && next.cart.length > 0 ? { ...next, orderId: number } : next;
+        }),
+      );
+      if (number !== null) {
+        numbered.current.set(id, number);
+        setActiveId(number);
+      }
     },
-    [activeId],
+    [activeId, me, storedTabs, nextOrderId],
   );
 
   const updateActiveCart = useCallback(
     (update: (lines: CartLine[]) => CartLine[]) => {
-      updateActiveTab((t) => ({ ...t, cart: update(t.cart) }));
+      updateActiveTab((t) => {
+        const cart = update(t.cart);
+        return t.printed ? { ...t, cart, printed: trimPrinted(cart, t.printed) } : { ...t, cart };
+      });
     },
     [updateActiveTab],
   );
@@ -801,7 +886,11 @@ export function PosProvider({
     (next: CartLine[]) => {
       const { sent, voids } = takeVoids(next, tab.sent);
       setTabs((prev) =>
-        prev.map((t) => (t.orderId === tab.orderId ? { ...t, cart: next, sent } : t)),
+        prev.map((t) =>
+          t.orderId === tab.orderId
+            ? { ...t, cart: next, sent, ...(t.printed ? { printed: trimPrinted(next, t.printed) } : {}) }
+            : t,
+        ),
       );
       if (voids.length > 0) fireTicket(tab, voids, 'void');
     },
@@ -844,10 +933,28 @@ export function PosProvider({
     return true;
   }, [tab.payments.length, replaceActiveCart, setTabDiscount]);
 
-  const switchTab = useCallback((orderId: number) => {
-    setTabs((prev) => pruneIdle(prev, orderId));
-    setActiveId(orderId);
-  }, []);
+  /**
+   * The register moving off its tab ends that tab's current order: whatever
+   * was rung up joins the rest, so reopening it later to add more puts only
+   * the new items on the next docket.
+   */
+  const leaveActive = useCallback(
+    (prev: StoredTab[], nextId: number) =>
+      activeId === nextId
+        ? prev
+        : prev.map((t) => (t.orderId === activeId && t.cart.length > 0 ? { ...t, printed: allPrinted(t.cart) } : t)),
+    [activeId],
+  );
+
+  const switchTab = useCallback(
+    (orderId: number) => {
+      const target = storedTabs.find((t) => t.orderId === orderId);
+      if (target && !canSeeTab(target)) return;
+      setTabs((prev) => pruneIdle(leaveActive(prev, orderId), orderId));
+      setActiveId(orderId);
+    },
+    [storedTabs, canSeeTab, leaveActive],
+  );
 
   const openTab = useCallback(
     (locationId: string | null) => {
@@ -858,11 +965,14 @@ export function PosProvider({
         switchTab(existing.orderId);
         return;
       }
-      const fresh = freshTab(nextOrderId(), locationId);
-      setTabs((prev) => [...pruneIdle(prev, fresh.orderId), fresh]);
+      // Already on an empty walk-in: that's the new tab.
+      const active = storedTabs.find((t) => t.orderId === activeId);
+      if (locationId === null && active && active.locationId === null && active.cart.length === 0) return;
+      const fresh = freshTab(draftId(), locationId, me?.id);
+      setTabs((prev) => [...pruneIdle(leaveActive(prev, fresh.orderId), fresh.orderId), fresh]);
       setActiveId(fresh.orderId);
     },
-    [storedTabs, switchTab],
+    [storedTabs, switchTab, me, leaveActive, activeId],
   );
 
   const assignTab = useCallback(
@@ -871,10 +981,14 @@ export function PosProvider({
         locationId !== null &&
         storedTabs.some((t) => t.locationId === locationId && t.orderId !== activeId);
       if (taken) return false;
-      setTabs((prev) => prev.map((t) => (t.orderId === activeId ? { ...t, locationId } : t)));
+      setTabs((prev) =>
+        prev.map((t) =>
+          t.orderId === activeId ? { ...t, locationId, openedBy: t.openedBy ?? me?.id } : t,
+        ),
+      );
       return true;
     },
-    [storedTabs, activeId],
+    [storedTabs, activeId, me],
   );
 
   const mergeTab = useCallback(
@@ -883,8 +997,16 @@ export function PosProvider({
       const source = storedTabs.find((t) => t.orderId === activeId);
       const target = storedTabs.find((t) => t.orderId === targetOrderId);
       // Payments belong to the bill they were taken against.
-      if (!source || !target || source.payments.length > 0) return false;
+      if (!source || !target || source.payments.length > 0 || !canSeeTab(target)) return false;
       if (target.payments.length > 0 && source.cart.length > 0) return false;
+      // An empty table taking items in needs an order number: the incoming
+      // tab's, when it has one, as that tab closes.
+      const mergedId =
+        isDraftId(targetOrderId) && source.cart.length > 0
+          ? isDraftId(source.orderId)
+            ? nextOrderId()
+            : source.orderId
+          : targetOrderId;
       setTabs((prev) =>
         prev
           .filter((t) => t.orderId !== activeId)
@@ -892,17 +1014,19 @@ export function PosProvider({
             t.orderId === targetOrderId
               ? {
                   ...t,
+                  orderId: mergedId,
                   cart: mergeLines(t.cart, source.cart),
                   // What the kitchen already has from either tab stays sent.
                   sent: addSent(t.sent, source.sent),
+                  printed: addPrinted(t.printed, source.printed),
                 }
               : t,
           ),
       );
-      setActiveId(targetOrderId);
+      setActiveId(mergedId);
       return true;
     },
-    [activeId, storedTabs],
+    [activeId, storedTabs, canSeeTab, nextOrderId],
   );
 
   /**
@@ -959,7 +1083,7 @@ export function PosProvider({
         setTabs((prev) => prev.filter((t) => t.orderId !== orderId));
         return;
       }
-      const fresh = freshTab(nextOrderId(), null);
+      const fresh = freshTab(draftId(), null);
       setTabs((prev) => [
         ...pruneIdle(
           prev.filter((t) => t.orderId !== orderId),
@@ -996,6 +1120,14 @@ export function PosProvider({
     const at = new Date().toISOString();
     updateActiveTab((t) => ({ ...t, billRequestedAt: t.billRequestedAt ?? at }));
   }, [cart.length, updateActiveTab]);
+
+  const printDocket = useCallback(() => {
+    const current = unprintedLines(tab.cart, tab.printed);
+    if (current.length === 0) return null;
+    updateActiveTab((t) => ({ ...t, printed: allPrinted(t.cart) }));
+    // The tab's discount and payments belong to the whole bill, not one order.
+    return tabAsOrder({ ...tab, cart: current, discount: undefined, payments: [] }, settings.taxRate);
+  }, [tab, settings.taxRate, updateActiveTab]);
 
   const chargeToRoom = useCallback(
     (orderId: number, roomId: string) => {
@@ -1521,11 +1653,13 @@ export function PosProvider({
       clearTab,
       openTab,
       switchTab,
+      canSeeTab,
       assignTab,
       mergeTab,
       takePayment,
       removePayment,
       requestBill,
+      printDocket,
       chargeToRoom,
       settleRoom,
       cashUps,
@@ -1601,11 +1735,13 @@ export function PosProvider({
       clearTab,
       openTab,
       switchTab,
+      canSeeTab,
       assignTab,
       mergeTab,
       takePayment,
       removePayment,
       requestBill,
+      printDocket,
       chargeToRoom,
       settleRoom,
       cashUps,

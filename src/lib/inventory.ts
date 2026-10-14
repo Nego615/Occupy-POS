@@ -44,12 +44,15 @@ export function applyMovements(
   const stock = new Map(catalog.map((i) => [i.id, i.stock]));
   const names = new Map(catalog.map((i) => [i.id, i.name]));
   const costs = new Map(catalog.map((i) => [i.id, i.cost]));
+  // Selling or refunding an item whose stock isn't tracked leaves its stock alone.
+  const untracked = new Set(catalog.filter((i) => i.untracked).map((i) => i.id));
   const movements: StockMovement[] = [];
   const date = todayIso();
   const time = formatTime(new Date());
 
   for (const entry of entries) {
     if (!stock.has(entry.itemId) || entry.change === 0) continue;
+    if (untracked.has(entry.itemId) && (entry.reason === 'sale' || entry.reason === 'refund')) continue;
     const before = stock.get(entry.itemId)!;
     const after = Math.max(0, roundStock(before + entry.change));
     stock.set(entry.itemId, after);

@@ -118,8 +118,9 @@ export function valuation(catalog: CatalogItem[], categories: Category[]): Valua
     return {
       label: c.label,
       items: items.length,
-      units: items.reduce((s, i) => s + i.stock, 0),
-      value: round(items.reduce((s, i) => s + i.stock * (i.cost ?? 0), 0)),
+      // Items sold without counting stock hold none.
+      units: items.reduce((s, i) => s + (i.untracked ? 0 : i.stock), 0),
+      value: round(items.reduce((s, i) => s + (i.untracked ? 0 : i.stock * (i.cost ?? 0)), 0)),
       uncosted: items.filter((i) => i.cost === undefined).length,
     };
   }).filter((r) => r.items > 0);

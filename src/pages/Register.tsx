@@ -9,6 +9,7 @@ import { DocketDialog, LineDialog, PortionDialog, PriceDialog } from '../compone
 import { PrintableDocket, type DocketKind } from '../components/PrintableSlip';
 import { ItemTile } from '../components/ItemTile';
 import { MealDialog } from '../components/MealDialog';
+import { OpenTabsDialog } from '../components/OpenTabsDialog';
 import { BigMoney, Money, Mono } from '../components/Mono';
 import { Pill, PillRow } from '../components/Pill';
 import { SummaryRow } from '../components/Receipt';
@@ -47,10 +48,11 @@ import {
   lineCap,
   lineDishes,
   round,
+  unprintedLines,
   type CartLine,
 } from '../lib/cart';
 import { rowInOut, snap } from '../lib/motion';
-import { usePos } from '../lib/store';
+import { orderNo, usePos } from '../lib/store';
 import { useNow } from '../lib/useClock';
 
 /**
@@ -64,6 +66,7 @@ export function Register() {
   const [chosenShelf, setCategory] = useState<Shelf | null>(null);
   const [meal, setMeal] = useState<SetMeal | null>(null);
   const [assigning, setAssigning] = useState(false);
+  const [browsingTabs, setBrowsingTabs] = useState(false);
   const [confirmingClear, setConfirmingClear] = useState(false);
   // Something being taken off the tab that's waiting on a manager's PIN: a line
   // brought down to `qty`, or — with no `key` — the whole tab cleared.
@@ -77,6 +80,8 @@ export function Register() {
   const [addingTo, setAddingTo] = useState<CatalogItem | null>(null);
   const [editingLine, setEditingLine] = useState<string | null>(null);
   const [choosingDocket, setChoosingDocket] = useState(false);
+  // Print docket was tapped on a tab with no table or room yet — it carries on once one's picked.
+  const [printAfterAssign, setPrintAfterAssign] = useState(false);
   // The docket being printed — on the page only while the print dialog is up. It keeps
   // its own copy of the tab, so a bill sent to the counter still prints once it's gone.
   const [docket, setDocket] = useState<{ order: Order; kind: DocketKind } | null>(null);
@@ -97,16 +102,16 @@ export function Register() {
     unsent,
     sendToKitchen,
     requestBill,
+    printDocket,
     openTab,
     can,
     promotions,
     setMeals,
     categories,
-    orders,
     locations,
     tabs,
+    canSeeTab,
   } = usePos();
-  const tabOrder = orders.find((o) => o.id === tab.orderId && o.status === 'occupied');
 
   // Prints once the docket is on the page, then takes it off again.
   useEffect(() => {
@@ -151,9 +156,13 @@ export function Register() {
   const partPaid = tab.payments.length > 0;
   const dueNow = round(totals.total + (tab.tip ?? 0) - paid);
 
+  // The current order: what's been added since the tab's last docket.
+  const newCount = unprintedLines(cart, tab.printed).reduce((sum, l) => sum + l.qty, 0);
+  const printedBefore = newCount < totals.itemCount;
+
   // How many tabs are running, this one included — the count beside "Open tabs".
   const openCount =
-    tabs.filter((t) => t.orderId !== tab.orderId && t.cart.length > 0).length + (hasItems ? 1 : 0);
+    tabs.filter((t) => t.orderId !== tab.orderId && t.cart.length > 0 && canSeeTab(t)).length + (hasItems ? 1 : 0);
 
   /** The stepper's ceiling: what's on hand, but never below what's already on the line. */
   function lineMax(line: CartLine): number {
@@ -248,16 +257,39 @@ export function Register() {
     if (hasItems) setBillSent(null);
   }, [hasItems]);
 
+  /**
+   * Prints the current order on its own. Once printed it joins the rest of the
+   * tab, so the next docket starts fresh. A tab with no table or room is
+   * placed first — onto a table that already has a tab, it merges in.
+   */
+  function startDocket() {
+    if (!placed) {
+      setPrintAfterAssign(true);
+      setAssigning(true);
+      return;
+    }
+    setChoosingDocket(true);
+  }
+
+  // Back from placing the tab for a docket: carry on to printing if it's placed now.
+  useEffect(() => {
+    if (assigning || !printAfterAssign) return;
+    setPrintAfterAssign(false);
+    if (placed && newCount > 0) setChoosingDocket(true);
+  }, [assigning, printAfterAssign, placed, newCount]);
+
   /** Charges the open tab to its table or room, which sends its bill to the counter to be paid. */
   function charge() {
     if (!placed) {
       setAssigning(true);
       return;
     }
+    // The current order's docket goes with the bill — up for printing straight
+    // away, with only what's been added since the last docket.
+    const order = printDocket();
+    if (order) setDocket({ order, kind: 'bill' });
     requestBill();
     setBillSent(tab.name);
-    // The order docket goes with the bill — up for printing straight away.
-    if (tabOrder) setDocket({ order: tabOrder, kind: 'bill' });
     // The bill waits at the counter; the register moves on to the next customer.
     openTab(null);
   }
@@ -400,7 +432,10 @@ export function Register() {
         <LineDialog lineKey={editingLine} onClose={() => setEditingLine(null)} />
         <DocketDialog
           open={choosingDocket}
-          onPick={(kind) => tabOrder && setDocket({ order: tabOrder, kind })}
+          onPick={(kind) => {
+            const order = printDocket();
+            if (order) setDocket({ order, kind });
+          }}
           onClose={() => setChoosingDocket(false)}
         />
         {docket && <PrintableDocket order={docket.order} kind={docket.kind} />}
@@ -418,8 +453,21 @@ export function Register() {
 
       <aside className="cart" aria-label="Current tab">
         <div className="cart__head">
-          <h2 className="cart__heading">Open tabs</h2>
-          {openCount > 0 && <Mono className="cart__tab-count">{openCount}</Mono>}
+          {/* Any open tab can be brought back onto the register to add to. */}
+          <h2 className="cart__heading">
+            <button
+              type="button"
+              className="cart__tabs"
+              onClick={() => setBrowsingTabs(true)}
+              aria-label={`Open tabs (${openCount}) — switch to one`}
+            >
+              Open tabs
+              {openCount > 0 && <Mono className="cart__tab-count">{openCount}</Mono>}
+              <span className="cart__tabs-caret" aria-hidden="true">
+                ▾
+              </span>
+            </button>
+          </h2>
           <button type="button" className="cart__new" onClick={() => openTab(null)}>
             <span aria-hidden="true">+</span> New tab
           </button>
@@ -465,10 +513,15 @@ export function Register() {
             </div>
             <BigMoney value={partPaid ? dueNow : totals.total} className="tab-card__amount" />
             <div className="tab-card__meta">
-              <span title={`Order #${tab.orderId}, opened ${tab.openedAt}`}>
-                {partPaid ? 'Still to pay, ' : ''}
-                <Mono>{`#${tab.orderId}`}</Mono>, opened <Mono>{tab.openedAt}</Mono>
-              </span>
+              {/* A tab takes its order number with its first item. */}
+              {orderNo(tab.orderId) ? (
+                <span title={`Order ${orderNo(tab.orderId)}, opened ${tab.openedAt}`}>
+                  {partPaid ? 'Still to pay, ' : ''}
+                  <Mono>{orderNo(tab.orderId)}</Mono>, opened <Mono>{tab.openedAt}</Mono>
+                </span>
+              ) : (
+                <span>New tab</span>
+              )}
               {hasItems && !partPaid && (
                 <button
                   type="button"
@@ -482,12 +535,13 @@ export function Register() {
             </div>
             {/* A short saying along the bottom edge, as on a kanga. */}
             <span className="tab-card__saying" aria-hidden="true">
-              {SAYINGS[tab.orderId % SAYINGS.length]}
+              {SAYINGS[Math.abs(tab.orderId) % SAYINGS.length]}
             </span>
           </div>
         </div>
 
         <AssignTabDialog open={assigning} onClose={() => setAssigning(false)} />
+        <OpenTabsDialog open={browsingTabs} onClose={() => setBrowsingTabs(false)} />
 
         <div className="cart__items">
           {/* Lines slide in when added and out when removed, and the rest close
@@ -583,9 +637,15 @@ export function Register() {
             </Button>
           )}
 
-          {hasItems && (
-            <button type="button" className="cart__docket" onClick={() => setChoosingDocket(true)}>
-              Print docket
+          {newCount > 0 && (
+            <button type="button" className="cart__docket" onClick={startDocket}>
+              {printedBefore ? (
+                <>
+                  Print docket · <Mono>{newCount}</Mono> new
+                </>
+              ) : (
+                'Print docket'
+              )}
             </button>
           )}
 
@@ -649,6 +709,7 @@ function tileStock(
   onTab: number,
   lowDefault: number,
 ): { note?: string; soldOut: boolean } {
+  if (item.untracked) return { soldOut: false };
   const remaining = roundStock(item.stock - onTab);
   // Sold out once not even the smallest serving fits.
   const smallest = Math.min(1, ...(item.portions ?? []).map((p) => p.units));

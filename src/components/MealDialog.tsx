@@ -31,6 +31,7 @@ export function MealDialog({ meal, onClose }: { meal: SetMeal | null; onClose: (
    * what's being chosen.
    */
   function left(item: CatalogItem, course: number): number {
+    if (item.untracked) return Infinity;
     const picked = picks.filter((id, i) => i !== course && id === item.id).length;
     const added = extras.filter((_, i) => i !== course).flat().filter((id) => id === item.id).length;
     // Meals take whole units — a half left over doesn't make one.

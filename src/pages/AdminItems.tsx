@@ -136,6 +136,7 @@ export function AdminItems() {
 function StockCell({ item }: { item: CatalogItem }) {
   const { settings } = usePos();
   const state = stockState(item, settings.lowStockDefault);
+  if (item.untracked) return <span className="item-row__stock">Stock not tracked</span>;
   return (
     <span className="item-row__stock">
       {state === 'in' && (

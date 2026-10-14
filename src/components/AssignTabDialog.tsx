@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import './AssignTabDialog.css';
 import { computeTotals, mergeLines } from '../lib/cart';
-import { usePos, type OpenTab } from '../lib/store';
+import { orderNo, usePos, type OpenTab } from '../lib/store';
 import { Button } from './Button';
 import { FloorGrid } from './FloorGrid';
 import { Money, Mono } from './Mono';
@@ -9,7 +9,7 @@ import { StatusChip } from './StatusChip';
 
 /**
  * Moves the register's tab to a table or room. Picking one that already has a
- * tab offers to merge the two instead. Built on native <dialog> so focus
+ * tab merges the two instead. Built on native <dialog> so focus
  * trapping and Escape-to-close come for free.
  */
 export function AssignTabDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -27,12 +27,19 @@ export function AssignTabDialog({ open, onClose }: { open: boolean; onClose: () 
     if (!open) setMergeTarget(null);
   }, [open]);
 
+  // A table or room that already has a tab takes this one's items straight
+  // in. Only a merge that's refused (a part-paid bill) stops to say why.
   function pick(locationId: string | null) {
     if (assignTab(locationId)) {
       onClose();
       return;
     }
-    setMergeTarget(tabs.find((t) => t.locationId === locationId) ?? null);
+    const target = tabs.find((t) => t.locationId === locationId) ?? null;
+    if (target && mergeTab(target.orderId)) {
+      onClose();
+      return;
+    }
+    setMergeTarget(target);
   }
 
   function merge(target: OpenTab) {
@@ -53,7 +60,7 @@ export function AssignTabDialog({ open, onClose }: { open: boolean; onClose: () 
       <div className="assign__body">
         <header className="assign__head">
           <h2 id="assign-title" className="assign__title">
-            {mergeTarget ? 'Merge tabs' : 'Assign tab'} <Mono>{`#${tab.orderId}`}</Mono>
+            {mergeTarget ? 'Merge tabs' : 'Assign tab'} {orderNo(tab.orderId) && <Mono>{orderNo(tab.orderId)}</Mono>}
           </h2>
           <button
             type="button"
@@ -130,13 +137,20 @@ function MergeConfirm({
   return (
     <div className="merge">
       <p className="merge__lead">
-        {target.name} already has tab <Mono>{`#${target.orderId}`}</Mono> open — each table or room
-        holds one tab at a time.
+        {target.name} already has{' '}
+        {orderNo(target.orderId) ? (
+          <>
+            tab <Mono>{orderNo(target.orderId)}</Mono>
+          </>
+        ) : (
+          'a tab'
+        )}{' '}
+        open — each table or room holds one tab at a time.
       </p>
 
       {empty ? (
         <p className="merge__note">
-          Tab <Mono>{`#${source.orderId}`}</Mono> has no items, so this just switches the
+          This tab has no items, so this just switches the
           register to {target.name}’s tab.
         </p>
       ) : (
@@ -149,7 +163,14 @@ function MergeConfirm({
           </div>
           <div className="merge__row">
             <span>
-              {target.name} · <Mono>{`#${target.orderId}`}</Mono> · {count(targetTotals.itemCount)}
+              {target.name}
+              {orderNo(target.orderId) && (
+                <>
+                  {' '}
+                  · <Mono>{orderNo(target.orderId)}</Mono>
+                </>
+              )}{' '}
+              · {count(targetTotals.itemCount)}
             </span>
             <Money value={targetTotals.total} />
           </div>

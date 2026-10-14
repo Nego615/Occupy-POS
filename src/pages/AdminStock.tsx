@@ -25,7 +25,9 @@ type Filter = 'all' | 'low' | 'out';
 export function AdminStock() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
-  const { catalog, categories, suppliers, purchaseOrders, savePurchaseOrder, settings } = usePos();
+  const { catalog: allItems, categories, suppliers, purchaseOrders, savePurchaseOrder, settings } = usePos();
+  // Items sold without counting stock have none to show here.
+  const catalog = useMemo(() => allItems.filter((i) => !i.untracked), [allItems]);
   const [filter, setFilter] = useState<Filter>('all');
   const [query, setQuery] = useState('');
   const [supplier, setSupplier] = useState('all');

@@ -42,13 +42,21 @@ type PlaceFilter = string;
  */
 export function OrderHistory({ onOpenTab }: { onOpenTab?: (orderId: number) => void } = {}) {
   const navigate = useNavigate();
-  const { orders, locations, switchTab } = usePos();
+  const { orders: allOrders, tabs, canSeeTab, locations, switchTab } = usePos();
   const [range, setRange] = useState<RangeId>('today');
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState<StatusFilter>('all');
   const [place, setPlace] = useState<PlaceFilter>('all');
   const [payment, setPayment] = useState<PaymentFilter>('all');
   const [selectedId, setSelectedId] = useState<number | null>(1042);
+
+  // Open tabs someone else is running stay off a server's list.
+  const orders = useMemo(() => {
+    const hidden = new Set(tabs.filter((t) => !canSeeTab(t)).map((t) => t.orderId));
+    return hidden.size === 0
+      ? allOrders
+      : allOrders.filter((o) => !(o.status === 'occupied' && hidden.has(o.id)));
+  }, [allOrders, tabs, canSeeTab]);
 
   const filtersActive = status !== 'all' || place !== 'all' || payment !== 'all';
 

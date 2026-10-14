@@ -14,10 +14,10 @@ import { usePos } from '../lib/store';
  */
 export function Tables() {
   const navigate = useNavigate();
-  const { tabs, locations, openTab, switchTab, settings } = usePos();
+  const { tabs, locations, openTab, switchTab, canSeeTab, settings } = usePos();
 
   const occupiedCount = locations.filter((l) => tabs.some((t) => t.locationId === l.id)).length;
-  const walkIns = tabs.filter((t) => t.locationId === null && t.cart.length > 0);
+  const walkIns = tabs.filter((t) => t.locationId === null && t.cart.length > 0 && canSeeTab(t));
 
   function open(locationId: string | null) {
     openTab(locationId);

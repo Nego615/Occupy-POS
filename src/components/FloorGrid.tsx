@@ -1,7 +1,7 @@
 import './FloorGrid.css';
 import { LOCATION_GROUPS } from '../data/locations';
 import { computeTotals } from '../lib/cart';
-import { usePos } from '../lib/store';
+import { orderNo, usePos } from '../lib/store';
 import { Money, Mono } from './Mono';
 import { StatusChip } from './StatusChip';
 
@@ -16,7 +16,7 @@ export type FloorGridProps = {
 
 /** Every table and room, grouped, each showing whether a tab is running there. */
 export function FloorGrid({ onPick, assigningOrderId }: FloorGridProps) {
-  const { tabs, locations, settings } = usePos();
+  const { tabs, locations, settings, canSeeTab, allStaff } = usePos();
   const picking = assigningOrderId !== undefined;
   const groups = LOCATION_GROUPS.map((group) => ({
     ...group,
@@ -33,11 +33,15 @@ export function FloorGrid({ onPick, assigningOrderId }: FloorGridProps) {
               const tab = tabs.find((t) => t.locationId === location.id);
               const isCurrent = picking && tab?.orderId === assigningOrderId;
               const occupied = tab !== undefined && !isCurrent;
-              const totals = tab ? computeTotals(tab.cart, settings.taxRate) : null;
+              // Another server's table: shown as taken, but its tab stays theirs.
+              const theirs = tab !== undefined && !canSeeTab(tab);
+              const owner = theirs ? allStaff.find((m) => m.id === tab.openedBy) : undefined;
+              const totals = tab && !theirs ? computeTotals(tab.cart, settings.taxRate) : null;
               const classes = [
                 'location',
                 occupied ? 'location--occupied' : '',
                 isCurrent ? 'location--current' : '',
+                theirs ? 'location--theirs' : '',
               ]
                 .filter(Boolean)
                 .join(' ');
@@ -48,6 +52,7 @@ export function FloorGrid({ onPick, assigningOrderId }: FloorGridProps) {
                   type="button"
                   className={classes}
                   onClick={() => onPick(location.id)}
+                  disabled={theirs}
                   aria-current={isCurrent || undefined}
                 >
                   <span className="location__top">
@@ -69,10 +74,17 @@ export function FloorGrid({ onPick, assigningOrderId }: FloorGridProps) {
                   <span className="location__meta">
                     <Mono>{location.seats}</Mono> seats
                   </span>
+                  {theirs && (
+                    <span className="location__tab">
+                      <span className="location__tab-info">
+                        {owner ? `${owner.name.split(' ')[0]}’s table` : 'Another server’s table'}
+                      </span>
+                    </span>
+                  )}
                   {tab && totals && !isCurrent && (
                     <span className="location__tab">
                       <span className="location__tab-info">
-                        <Mono>{`#${tab.orderId}`}</Mono> · <Mono>{totals.itemCount}</Mono>{' '}
+                        {orderNo(tab.orderId) && <><Mono>{orderNo(tab.orderId)}</Mono> · </>}<Mono>{totals.itemCount}</Mono>{' '}
                         {totals.itemCount === 1 ? 'item' : 'items'} · since{' '}
                         <Mono>{tab.openedAt}</Mono>
                       </span>
