@@ -103,6 +103,8 @@ export type OrderRecord = {
   at: string;
   /** Staff id of whoever took payment. */
   staffId?: string;
+  /** Staff id of whoever served the tab — the first to ring anything up on it. */
+  servedBy?: string;
   lines: OrderLine[];
   /** Taken off the whole order by hand, before tax. Line deals are on the lines. */
   discount?: number;

@@ -8,6 +8,7 @@ import { ORDER_CHIP, OrderDetail } from '../components/OrderDetail';
 import { Pill, PillRow } from '../components/Pill';
 import { PrintableReceipt } from '../components/PrintableReceipt';
 import { SearchField } from '../components/SearchField';
+import { StaffFilterSelect } from '../components/StaffFilterSelect';
 import { StatusChip } from '../components/StatusChip';
 import { orderItemCount, orderNetTotal, orderRefundTotal, orderTotal, type Order } from '../data/orders';
 import { downloadCsv, money, ordersCsv } from '../lib/analytics';
@@ -17,7 +18,9 @@ import {
   countByStatus,
   matchesPayment,
   matchesQuery,
+  matchesStaff,
   type PaymentFilter,
+  type StaffFilter,
   type StatusFilter,
 } from '../lib/orderFilters';
 import { usePos } from '../lib/store';
@@ -45,24 +48,29 @@ const PAGE_SIZE = 50;
  */
 export function AdminOrders() {
   const navigate = useNavigate();
-  const { orders, switchTab, settings } = usePos();
+  const { orders, switchTab, settings, staff, allStaff } = usePos();
   const [range, setRange] = useState<RangeId>('week');
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState<StatusFilter>('all');
   const [payment, setPayment] = useState<PaymentFilter>('all');
+  const [person, setPerson] = useState<StaffFilter>('all');
   const [sort, setSort] = useState<Sort>({ key: 'when', dir: 'desc' });
   const [selectedId, setSelectedId] = useState<number | null>(null);
 
-  const filtersActive = status !== 'all' || payment !== 'all' || query.trim() !== '';
+  const filtersActive = status !== 'all' || payment !== 'all' || person !== 'all' || query.trim() !== '';
 
   // Everything except status, so each status pill counts what picking it would show.
   const beforeStatus = useMemo(() => {
     const maxDaysAgo = RANGES.find((r) => r.id === range)!.maxDaysAgo;
     const q = query.trim().toLowerCase();
     return orders.filter(
-      (o) => o.daysAgo <= maxDaysAgo && matchesPayment(o, payment) && matchesQuery(o, q),
+      (o) =>
+        o.daysAgo <= maxDaysAgo &&
+        matchesPayment(o, payment) &&
+        matchesStaff(o, person, allStaff) &&
+        matchesQuery(o, q),
     );
-  }, [orders, range, query, payment]);
+  }, [orders, range, query, payment, person, allStaff]);
 
   const statusCounts = useMemo(() => countByStatus(beforeStatus), [beforeStatus]);
 
@@ -90,7 +98,7 @@ export function AdminOrders() {
   }, [visible]);
 
   // A new filter or sort starts back at the first page.
-  const pagingKey = `${range}|${query}|${status}|${payment}|${sort.key}|${sort.dir}`;
+  const pagingKey = `${range}|${query}|${status}|${payment}|${person}|${sort.key}|${sort.dir}`;
   const [paging, setPaging] = useState({ key: pagingKey, limit: PAGE_SIZE });
   const limit = paging.key === pagingKey ? paging.limit : PAGE_SIZE;
   const shown = visible.slice(0, limit);
@@ -113,6 +121,7 @@ export function AdminOrders() {
     setQuery('');
     setStatus('all');
     setPayment('all');
+    setPerson('all');
   }
 
   function exportCsv() {
@@ -166,6 +175,7 @@ export function AdminOrders() {
           ))}
         </PillRow>
         <div className="orders-filters__right">
+          <StaffFilterSelect value={person} onChange={setPerson} staff={staff} />
           <FilterSelect
             value={payment}
             onChange={(v) => setPayment(v as PaymentFilter)}

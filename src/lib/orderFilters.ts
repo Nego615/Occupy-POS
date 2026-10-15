@@ -1,5 +1,6 @@
 import { formatMoney } from '../components/Mono';
 import { orderTotal, type Order, type OrderStatus } from '../data/orders';
+import type { StaffMember } from '../data/staff';
 
 /**
  * Filters shared by every order list — the counter's history and the admin's
@@ -61,4 +62,33 @@ export function countByStatus(orders: Order[]): Record<StatusFilter, number> {
   };
   for (const order of orders) counts[order.status]++;
   return counts;
+}
+
+/**
+ * Everyone (`all`), everyone in one role (`role:server`), or one person (their
+ * staff id).
+ */
+export type StaffFilter = string;
+
+/** Who sold an order: whoever served the tab, or — before that was recorded — who took payment. */
+export function soldBy(order: Pick<Order, 'servedBy' | 'staffId'>): string | undefined {
+  return order.servedBy ?? order.staffId;
+}
+
+/**
+ * Orders `filter` takes in: ones the person served or took payment for, or
+ * that someone in the role did.
+ */
+export function matchesStaff(
+  order: Order,
+  filter: StaffFilter,
+  staff: Pick<StaffMember, 'id' | 'role'>[],
+): boolean {
+  if (filter === 'all') return true;
+  const people = [order.servedBy, order.staffId].filter((id): id is string => id !== undefined);
+  if (filter.startsWith('role:')) {
+    const role = filter.slice('role:'.length);
+    return people.some((id) => staff.find((m) => m.id === id)?.role === role);
+  }
+  return people.includes(filter);
 }

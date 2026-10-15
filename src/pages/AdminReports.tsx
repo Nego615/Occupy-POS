@@ -5,12 +5,13 @@ import { Button } from '../components/Button';
 import { ColumnChart } from '../components/ColumnChart';
 import { Mono, formatCost } from '../components/Mono';
 import { Pill, PillRow } from '../components/Pill';
+import { StaffFilterSelect } from '../components/StaffFilterSelect';
 import type { CatalogItem, Category } from '../data/catalog';
 import { dateOfDaysAgo } from '../data/history';
 import type { Expense } from '../data/expenses';
 import type { StockMovement, Supplier, SupplierBill } from '../data/inventory';
 import { exchangeRate } from '../data/settings';
-import type { StaffMember } from '../data/staff';
+import { roleLabel, type StaffMember } from '../data/staff';
 import { downloadCsv, money } from '../lib/analytics';
 import {
   REPORT_RANGES,
@@ -20,6 +21,7 @@ import {
   byItem,
   byMonth,
   byPayment,
+  byStaff,
   byTab,
   daysSpanned,
   inLastDays,
@@ -32,6 +34,7 @@ import {
 import { losses, margins, supplierSpend, valuation } from '../lib/costReports';
 import type { PayrollRun } from '../lib/payroll';
 import { profitAndLoss } from '../lib/profit';
+import { matchesStaff } from '../lib/orderFilters';
 import { usePos } from '../lib/store';
 
 type ReportId =
@@ -42,6 +45,7 @@ type ReportId =
   | 'payments'
   | 'hours'
   | 'tabs'
+  | 'staff'
   | 'margins'
   | 'inventory'
   | 'purchasing';
@@ -54,12 +58,22 @@ const REPORTS: { id: ReportId; label: string; blurb: string }[] = [
   { id: 'payments', label: 'Payments', blurb: 'How customers paid' },
   { id: 'hours', label: 'Time of day', blurb: 'When the counter is busiest' },
   { id: 'tabs', label: 'Tabs & tables', blurb: 'Walk-ins against each table and room' },
+  { id: 'staff', label: 'Staff', blurb: 'What each person sold' },
   { id: 'margins', label: 'Margins', blurb: 'What each item earns after its cost' },
   { id: 'inventory', label: 'Stock & losses', blurb: 'What stock is worth, and what went missing' },
   { id: 'purchasing', label: 'Purchasing', blurb: 'Deliveries, payments, and what’s owed' },
 ];
 
 const pct = (fraction: number) => `${(fraction * 100).toFixed(1)}%`;
+
+/** Reports over the whole shop, which a staff filter doesn't apply to. */
+const SHOP_WIDE: ReportId[] = ['profit', 'inventory', 'purchasing'];
+
+/** "Dev Okafor · Server" for the Staff report. */
+const staffName = (people: StaffMember[]) => (id: string | undefined) => {
+  const m = id ? people.find((p) => p.id === id) : undefined;
+  return m ? `${m.name} · ${roleLabel(m.role)}` : 'Not recorded';
+};
 
 /**
  * Back-office reports over paid orders. The report and range live in the URL
@@ -79,6 +93,7 @@ export function AdminReports() {
     payrollRuns,
     expenses,
     staff,
+    allStaff,
     can,
   } = usePos();
   const [params, setParams] = useSearchParams();
@@ -94,7 +109,12 @@ export function AdminReports() {
   );
   const meta = REPORTS.find((r) => r.id === report)!;
 
-  function setParam(key: 'report' | 'range', value: string) {
+  // Whose sales: everyone, a role, or one person. Kept in the URL with the rest.
+  const person = params.get('staff') ?? 'all';
+  // Profit and the stock reports cover the whole shop, so they aren't split by person.
+  const byPerson = !SHOP_WIDE.includes(report);
+
+  function setParam(key: 'report' | 'range' | 'staff', value: string) {
     setParams(
       (prev) => {
         const next = new URLSearchParams(prev);
@@ -105,7 +125,10 @@ export function AdminReports() {
     );
   }
 
-  const windowed = useMemo(() => inLastDays(orders, days), [orders, days]);
+  const windowed = useMemo(() => {
+    const inRange = inLastDays(orders, days);
+    return byPerson && person !== 'all' ? inRange.filter((o) => matchesStaff(o, person, allStaff)) : inRange;
+  }, [orders, days, byPerson, person, allStaff]);
   const items = useMemo(() => byItem(windowed, catalog, categories), [windowed, catalog, categories]);
 
   const view = useMemo(
@@ -119,6 +142,7 @@ export function AdminReports() {
         payrollRuns,
         expenses,
         staff,
+        allStaff,
         canRecordExpenses: can('expenses'),
         rate: exchangeRate(settings),
       }),
@@ -138,6 +162,7 @@ export function AdminReports() {
       payrollRuns,
       expenses,
       staff,
+      allStaff,
       can,
       settings,
     ],
@@ -158,6 +183,9 @@ export function AdminReports() {
           <div className="page-sub">{settings.locationName} · paid orders only · open tabs excluded</div>
         </div>
         <div className="head-actions">
+          {byPerson && (
+            <StaffFilterSelect value={person} onChange={(v) => setParam('staff', v)} staff={staff} />
+          )}
           <PillRow label="Date range">
             {REPORT_RANGES.map((r) => (
               <Pill key={r.id} active={r.id === range} onClick={() => setParam('range', r.id)}>
@@ -234,6 +262,8 @@ type CostContext = {
   payrollRuns: PayrollRun[];
   expenses: Expense[];
   staff: StaffMember[];
+  /** Everyone ever on the team, for names on past sales. */
+  allStaff: StaffMember[];
   /** Whether to link to the Expenses page. */
   canRecordExpenses: boolean;
   /** Cost-currency units to one sales unit, when the shop buys in another currency. */
@@ -276,6 +306,8 @@ function buildReport(
       return hoursReport(orders);
     case 'tabs':
       return groupReport(byTab(orders), 'Tab', tipsEnabled);
+    case 'staff':
+      return groupReport(byStaff(orders, staffName(ctx.allStaff)), 'Staff', tipsEnabled);
     case 'profit':
       return profitReport(orders, days, span, ctx);
     case 'margins':

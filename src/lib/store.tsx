@@ -63,10 +63,14 @@ import {
   STAFF,
   hashPin,
   hasPermission,
+  hydrateShift,
   isPin,
+  minutesNow,
   pinMatches,
   uniquePin,
   type Permission,
+  type Shift,
+  type ShiftRecord,
   type StaffMember,
 } from '../data/staff';
 import { isoDate } from '../data/history';
@@ -399,6 +403,15 @@ type PosStore = {
    * name. Refused for whoever is signed in and for the last active owner.
    */
   deleteStaff: (id: string) => boolean;
+  /** Every shift on record, newest first. */
+  shifts: Shift[];
+  /** Starts a shift now. Refused if they're inactive or already on the clock. */
+  clockIn: (staffId: string) => boolean;
+  /** Ends their open shift now, if they have one. */
+  clockOut: (staffId: string) => void;
+  /** Manager correction — times, break, or a missed clock-out. */
+  updateShift: (id: string, patch: Partial<Omit<ShiftRecord, 'id' | 'staffId' | 'date'>>) => void;
+  removeShift: (id: string) => void;
   /** Wipes everything saved and starts again from the new-shop setup. */
   resetAllData: () => Promise<void>;
 } & InventoryStore;
@@ -439,6 +452,7 @@ export function newShopSnapshot(
     staff: [member],
     payrollRuns: [],
     expenses: [],
+    shifts: [],
     settings,
     kitchenTickets: [],
     cashUps: [],
@@ -547,6 +561,7 @@ function tabAsOrder(tab: OpenTab, taxRate: number): Order {
     locationId: tab.locationId ?? undefined,
     status: 'occupied',
     at: tab.openedIso,
+    ...(tab.openedBy ? { servedBy: tab.openedBy } : {}),
     lines: toOrderLines(tab.cart),
     ...(totals.orderDiscount > 0 && tab.discount
       ? { discount: totals.orderDiscount, discountLabel: discountLabel(tab.discount) }
@@ -620,6 +635,7 @@ export function PosProvider({
   );
   // Never seeded: a shop saved before expenses existed has none, not the demo's.
   const [expenses, setExpenses] = useState<Expense[]>(() => restored(snapshot, 'expenses', []));
+  const [shiftRecords, setShifts] = useState<ShiftRecord[]>(() => restored(snapshot, 'shifts', []));
   const [settings, setSettings] = useState<Settings>(() =>
     withSwitchCurrencies({
       ...DEFAULT_SETTINGS,
@@ -655,6 +671,7 @@ export function PosProvider({
   usePersist(repo, 'staff', staff);
   usePersist(repo, 'payrollRuns', payrollRuns);
   usePersist(repo, 'expenses', expenses);
+  usePersist(repo, 'shifts', shiftRecords);
   usePersist(repo, 'settings', settings);
   usePersist(repo, 'kitchenTickets', kitchenTickets);
   usePersist(repo, 'cashUps', cashUps);
@@ -670,6 +687,7 @@ export function PosProvider({
   useRemote(repo, 'staff', setStaff);
   useRemote(repo, 'payrollRuns', setPayrollRuns);
   useRemote(repo, 'expenses', setExpenses);
+  useRemote(repo, 'shifts', setShifts);
   // Settings from another device get the same repair as saved ones.
   const setRemoteSettings = useCallback(
     (action: SetStateAction<Settings>) =>
@@ -692,6 +710,12 @@ export function PosProvider({
   // Day counts ("today", "3 days ago") are worked out from saved dates, and
   // re-worked when the date rolls over.
   const today = useToday();
+  const shifts = useMemo(
+    () => shiftRecords.map(hydrateShift),
+    // `today` is a dependency so day counts are redone at midnight.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [shiftRecords, today],
+  );
   // Orders from before a switch of sales currency are read back converted.
   const closedOrders = useMemo(
     () => closedRecords.map((r) => readOrder(r, settings.currencySwitch, currencyOf(settings.currency))),
@@ -1064,6 +1088,7 @@ export function PosProvider({
         status: onRoom ? 'charged' : 'paid',
         at: new Date().toISOString(),
         staffId: me?.id,
+        ...(closing.openedBy ? { servedBy: closing.openedBy } : {}),
         lines,
         ...(closingTotals.orderDiscount > 0 && closing.discount
           ? {
@@ -1531,6 +1556,22 @@ export function PosProvider({
     [staff],
   );
 
+  /**
+   * Ends `staffId`'s open shift now. A shift left running past midnight ends
+   * at the end of the day it started on.
+   */
+  const clockOut = useCallback((staffId: string) => {
+    const day = isoDate(new Date());
+    const now = minutesNow();
+    setShifts((prev) =>
+      prev.map((s) =>
+        s.staffId === staffId && s.clockOut === null
+          ? { ...s, clockOut: s.date === day ? Math.max(now, s.clockIn) : 24 * 60 - 1 }
+          : s,
+      ),
+    );
+  }, []);
+
   const deleteStaff = useCallback(
     (id: string) => {
       const member = staff.find((m) => m.id === id);
@@ -1541,9 +1582,10 @@ export function PosProvider({
       setStaff((prev) =>
         prev.map((m) => (m.id === id ? { ...m, active: false, deleted: true, pinHash: '' } : m)),
       );
+      clockOut(id);
       return true;
     },
-    [staff, signedInId],
+    [staff, signedInId, clockOut],
   );
 
   const visibleStaff = useMemo(() => staff.filter((m) => !m.deleted), [staff]);
@@ -1551,9 +1593,41 @@ export function PosProvider({
   const updateStaff = useCallback(
     (id: string, patch: Partial<Omit<StaffMember, 'id' | 'pinHash'>>) => {
       setStaff((prev) => prev.map((m) => (m.id === id ? { ...m, ...patch } : m)));
+      // Deactivating someone mid-shift clocks them out rather than leaving it running.
+      if (patch.active === false) clockOut(id);
     },
-    [setStaff],
+    [setStaff, clockOut],
   );
+
+  const clockIn = useCallback(
+    (staffId: string) => {
+      const member = staff.find((m) => m.id === staffId);
+      const onClock = shiftRecords.some((s) => s.staffId === staffId && s.clockOut === null);
+      if (!member?.active || onClock) return false;
+      const shift: ShiftRecord = {
+        id: `shift-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+        staffId,
+        date: isoDate(new Date()),
+        clockIn: minutesNow(),
+        clockOut: null,
+        breakMinutes: 0,
+      };
+      setShifts((prev) => [shift, ...prev]);
+      return true;
+    },
+    [staff, shiftRecords],
+  );
+
+  const updateShift = useCallback(
+    (id: string, patch: Partial<Omit<ShiftRecord, 'id' | 'staffId' | 'date'>>) => {
+      setShifts((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
+    },
+    [],
+  );
+
+  const removeShift = useCallback((id: string) => {
+    setShifts((prev) => prev.filter((s) => s.id !== id));
+  }, []);
 
   const recordPayrollRun = useCallback(
     (run: Omit<PayrollRun, 'id'>) => {
@@ -1691,6 +1765,11 @@ export function PosProvider({
       updateStaff,
       setPin,
       deleteStaff,
+      shifts,
+      clockIn,
+      clockOut,
+      updateShift,
+      removeShift,
       me,
       signIn,
       signOut,
@@ -1773,6 +1852,11 @@ export function PosProvider({
       updateStaff,
       setPin,
       deleteStaff,
+      shifts,
+      clockIn,
+      clockOut,
+      updateShift,
+      removeShift,
       me,
       signIn,
       signOut,

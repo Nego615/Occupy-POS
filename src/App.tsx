@@ -16,6 +16,7 @@ import { AdminOrders } from './pages/AdminOrders';
 import { AdminPurchases } from './pages/AdminPurchases';
 import { AdminReports } from './pages/AdminReports';
 import { AdminSalaries } from './pages/AdminSalaries';
+import { AdminTimecards } from './pages/AdminTimecards';
 import { AdminSettings } from './pages/AdminSettings';
 import { AdminStaff } from './pages/AdminStaff';
 import { AdminStock } from './pages/AdminStock';
@@ -90,6 +91,7 @@ export function App() {
               <Route path="orders" element={guard('reports', <AdminOrders />)} />
               <Route path="reports" element={guard('reports', <AdminReports />)} />
               <Route path="staff" element={guard('staff', <AdminStaff />)} />
+              <Route path="timecards" element={guard('timecards', <AdminTimecards />)} />
               <Route path="salaries" element={guard('payroll', <AdminSalaries />)} />
               <Route path="items" element={guard('menu', <AdminItems />)} />
               <Route path="categories" element={guard('catalog', <AdminCategories />)} />

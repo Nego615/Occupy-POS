@@ -270,6 +270,14 @@ export function byTab(orders: Order[]): GroupRow[] {
   return groupOrders(orders, (o) => o.name);
 }
 
+/**
+ * Paid sales by who sold them — whoever served the tab, or, for orders from
+ * before that was recorded, whoever took payment. `nameOf` labels each person.
+ */
+export function byStaff(orders: Order[], nameOf: (staffId: string | undefined) => string): GroupRow[] {
+  return groupOrders(orders, (o) => nameOf(o.servedBy ?? o.staffId));
+}
+
 /* ---------- Time of day ---------- */
 
 export type HourRow = { hour: number; label: string; orders: number; sales: number };

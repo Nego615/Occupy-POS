@@ -84,6 +84,7 @@ export function OrderDetail({
   const nameOf = (id?: string) => (id ? staff.find((m) => m.id === id)?.name : undefined);
   const refundedBy = nameOf(order.refundedBy);
   const cashier = nameOf(order.staffId);
+  const server = nameOf(order.servedBy);
   const alreadyRefunded = refundedAmount(order);
   const change = changeGiven(order.payments);
   // Cash taken in the cost currency, and its change — all in that currency.
@@ -139,7 +140,8 @@ export function OrderDetail({
               ? ` · On ${room}’s bill`
               : ' · Not yet tendered'}
           {order.status === 'paid' && room && ` · settled with ${room}`}
-          {cashier && ` · ${cashier}`}
+          {server && ` · served by ${server}`}
+          {cashier && (server ? (cashier === server ? '' : ` · paid with ${cashier}`) : ` · ${cashier}`)}
         </div>
         {given.recordedIn && (
           <div className="detail__sub">

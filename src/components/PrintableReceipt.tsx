@@ -33,7 +33,8 @@ export function PrintableReceipt({ order: given }: { order: Order }) {
   // Cash taken in the cost currency, and its change — all in that currency.
   const localCash = order.payments.find((p) => p.local)?.local;
   const changeLocal = localChange(order.payments);
-  const cashier = staff.find((m) => m.id === order.staffId)?.name;
+  // Whoever served the tab; older orders only know who took payment.
+  const cashier = staff.find((m) => m.id === (order.servedBy ?? order.staffId))?.name;
   return createPortal(
     <div className="print-receipt">
       {settings.logo && <img className="print-receipt__logo" src={settings.logo} alt="" />}

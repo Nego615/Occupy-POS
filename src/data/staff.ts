@@ -1,3 +1,4 @@
+import { daysAgoOfIsoDate } from './history';
 import type { Settings } from './settings';
 
 export type RoleId = 'owner' | 'manager' | 'frontdesk' | 'barista' | 'server' | 'cook';
@@ -13,6 +14,7 @@ export type Permission =
   | 'locations'
   | 'reports'
   | 'staff'
+  | 'timecards'
   | 'payroll'
   | 'settings'
   | 'inventory'
@@ -33,6 +35,7 @@ export const PERMISSIONS: { id: Permission; label: string }[] = [
   { id: 'locations', label: 'Edit tables & rooms' },
   { id: 'reports', label: 'View reports' },
   { id: 'staff', label: 'Manage staff' },
+  { id: 'timecards', label: 'See & edit timecards' },
   { id: 'payroll', label: 'See & run payroll' },
   { id: 'settings', label: 'Change business settings' },
   { id: 'inventory', label: 'Stock, deliveries & purchasing' },
@@ -58,6 +61,7 @@ export const ROLES: { id: RoleId; label: string; can: Permission[] }[] = [
       'locations',
       'reports',
       'staff',
+      'timecards',
       'payroll',
       'settings',
       'inventory',
@@ -83,6 +87,7 @@ export const ROLES: { id: RoleId; label: string; can: Permission[] }[] = [
       'promotions',
       'locations',
       'reports',
+      'timecards',
       'inventory',
       'expenses',
       'discounts',
@@ -134,6 +139,7 @@ export const ADMIN_PERMISSIONS: Permission[] = [
   'promotions',
   'locations',
   'staff',
+  'timecards',
   'payroll',
   'settings',
   'inventory',
@@ -230,3 +236,63 @@ export const STAFF: StaffMember[] = [
   { id: 'amani', name: 'Amani Mwita', role: 'cook', monthlySalary: 780_000, pinHash: hashPin('amani', '6203'), active: true },
   { id: 'leo', name: 'Leo Brandt', role: 'server', monthlySalary: 690_000, pinHash: hashPin('leo', '9042'), active: false },
 ];
+
+/* ---------- Timecards ---------- */
+
+/** A shift as it's saved. */
+export type ShiftRecord = {
+  id: string;
+  staffId: string;
+  /** The day it started, "2026-09-29". */
+  date: string;
+  /** Minutes after midnight. */
+  clockIn: number;
+  /** Minutes after midnight; null while the person is still on the clock. */
+  clockOut: number | null;
+  /** Unpaid break, in minutes. */
+  breakMinutes: number;
+};
+
+export type Shift = ShiftRecord & {
+  /** 0 = today, matching how orders count days. Worked out from `date` when read. */
+  daysAgo: number;
+};
+
+export function hydrateShift(record: ShiftRecord): Shift {
+  return { ...record, daysAgo: daysAgoOfIsoDate(record.date) };
+}
+
+/** Worked minutes in a shift. An open shift counts up to `nowMinutes`. */
+export function shiftMinutes(shift: Shift, nowMinutes: number): number {
+  const end = shift.clockOut ?? nowMinutes;
+  return Math.max(0, end - shift.clockIn - shift.breakMinutes);
+}
+
+export function minutesNow(d = new Date()): number {
+  return d.getHours() * 60 + d.getMinutes();
+}
+
+/** 390 → "6:30 AM". */
+export function formatClock(minutes: number): string {
+  const h = Math.floor(minutes / 60) % 24;
+  const m = minutes % 60;
+  return `${h % 12 || 12}:${m.toString().padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
+}
+
+/** 390 → "06:30", for <input type="time">. */
+export function toTimeInput(minutes: number): string {
+  const h = Math.floor(minutes / 60) % 24;
+  return `${h.toString().padStart(2, '0')}:${(minutes % 60).toString().padStart(2, '0')}`;
+}
+
+export function fromTimeInput(value: string): number | null {
+  const match = /^(\d{2}):(\d{2})$/.exec(value);
+  return match ? Number(match[1]) * 60 + Number(match[2]) : null;
+}
+
+/** 452 → "7h 32m". */
+export function formatDuration(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = Math.round(minutes % 60);
+  return h ? `${h}h ${m.toString().padStart(2, '0')}m` : `${m}m`;
+}
