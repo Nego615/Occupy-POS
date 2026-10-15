@@ -269,6 +269,35 @@
   color: var(--marigold);
 }
 
+.tab-card__walk-in {
+  position: relative;
+  flex-shrink: 0;
+  min-height: 28px;
+  padding: 4px 11px;
+  border: 1px solid rgba(43, 24, 16, 0.28);
+  border-radius: var(--radius-pill);
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.tab-card__walk-in::after {
+  content: '';
+  position: absolute;
+  inset: 50% 0 auto;
+  transform: translateY(-50%);
+  height: var(--hit-area);
+}
+
+.tab-card__walk-in:hover {
+  background: var(--panel);
+  color: var(--marigold);
+}
+
 .tab-chip {
   flex-shrink: 0;
   padding: 4px 9px;

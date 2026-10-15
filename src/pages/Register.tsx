@@ -104,6 +104,7 @@ export function Register() {
     requestBill,
     printDocket,
     openTab,
+    assignTab,
     can,
     promotions,
     setMeals,
@@ -220,9 +221,9 @@ export function Register() {
   }
 
   // The register never takes payment or gives discounts — that's the counter's job.
-  // It charges each tab to its table or room — a required pick, unless the shop
-  // has none to pick from.
-  const placed = tab.locationId !== null || locations.length === 0;
+  // It charges each tab to its table or room, or as a walk-in — a required pick,
+  // unless the shop has no tables or rooms to pick from.
+  const placed = tab.locationId !== null || !!tab.walkIn || locations.length === 0;
 
   /** Sends the tab's new kitchen items — once it has a table or room to send them for. */
   function send() {
@@ -477,7 +478,7 @@ export function Register() {
           <div className="tab-card tab-card--gold tab-card--front">
             <div className="tab-card__top">
               {/* Required: a tab starts with no table or room, and can't be charged
-                  or sent to the kitchen until it has one. */}
+                  or sent to the kitchen until it has one or is made a walk-in. */}
               <button
                 type="button"
                 className={[
@@ -501,6 +502,12 @@ export function Register() {
                   ▾
                 </span>
               </button>
+              {/* One tap for the customer at the counter — no trip to the floor plan. */}
+              {!placed && (
+                <button type="button" className="tab-card__walk-in" onClick={() => assignTab(null)}>
+                  Walk-in
+                </button>
+              )}
               <span className="tab-chip tab-chip--dark">
                 {tab.billRequestedAt ? (
                   'Bill at counter'
@@ -660,7 +667,7 @@ export function Register() {
               ? `Charge to ${tab.name}`
               : placed
                 ? 'Send bill to counter'
-                : 'Charge to a table or room'}{' '}
+                : 'Charge to a table or walk-in'}{' '}
             <Money value={partPaid ? dueNow : totals.total} />
           </Button>
 
@@ -668,7 +675,7 @@ export function Register() {
             {!hasItems
               ? 'Add an item to start charging'
               : !placed
-                ? 'Assign a table or room to charge or send to the kitchen'
+                ? 'Pick a table, room or walk-in to charge or send to the kitchen'
                 : 'Paid and discounted at the counter · or press Enter'}
           </p>
         </div>

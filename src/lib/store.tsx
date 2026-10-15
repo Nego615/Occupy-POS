@@ -127,6 +127,8 @@ type StoredTab = {
   orderId: number;
   /** The table or room the tab is assigned to; null for a walk-in. */
   locationId: string | null;
+  /** Picked as a walk-in on purpose, so it can be charged without a table or room. */
+  walkIn?: true;
   /** ISO timestamp. */
   openedIso: string;
   /** Staff id of whoever opened it — set by the first person to ring anything up on it. */
@@ -1050,9 +1052,13 @@ export function PosProvider({
         storedTabs.some((t) => t.locationId === locationId && t.orderId !== activeId);
       if (taken) return false;
       setTabs((prev) =>
-        prev.map((t) =>
-          t.orderId === activeId ? { ...t, locationId, openedBy: t.openedBy ?? me?.id } : t,
-        ),
+        prev.map((t) => {
+          if (t.orderId !== activeId) return t;
+          // Null here is a walk-in picked on purpose; a table or room clears it.
+          const { walkIn: _, ...rest } = t;
+          const moved = { ...rest, locationId, openedBy: t.openedBy ?? me?.id };
+          return locationId === null ? { ...moved, walkIn: true as const } : moved;
+        }),
       );
       return true;
     },
