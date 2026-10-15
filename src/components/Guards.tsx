@@ -2,7 +2,7 @@ import { useEffect, type ReactNode } from 'react';
 import { Link, Navigate, Outlet, useLocation, useNavigate } from 'react-router';
 import './Guards.css';
 import { Button } from './Button';
-import { homePath, permissionLabel, roleLabel, type Permission } from '../data/staff';
+import { homePath, permissionLabel, rolesLabel, type Permission } from '../data/staff';
 import { usePos } from '../lib/store';
 
 /**
@@ -87,7 +87,8 @@ export function NoAccess({ permission }: { permission?: Permission }) {
           which{' '}
           {me ? (
             <>
-              {me.name}’s role ({roleLabel(me.role)}) doesn’t include
+              {me.name}’s {me.extraRoles?.length ? 'roles' : 'role'} ({rolesLabel(me)}){' '}
+              {me.extraRoles?.length ? 'don’t' : 'doesn’t'} include
             </>
           ) : (
             'your role doesn’t include'

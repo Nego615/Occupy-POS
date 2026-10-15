@@ -1,6 +1,6 @@
 import { formatMoney } from '../components/Mono';
 import { orderTotal, type Order, type OrderStatus } from '../data/orders';
-import type { StaffMember } from '../data/staff';
+import { hasRole, type RoleId, type StaffMember } from '../data/staff';
 
 /**
  * Filters shared by every order list — the counter's history and the admin's
@@ -82,13 +82,17 @@ export function soldBy(order: Pick<Order, 'servedBy' | 'staffId'>): string | und
 export function matchesStaff(
   order: Order,
   filter: StaffFilter,
-  staff: Pick<StaffMember, 'id' | 'role'>[],
+  staff: Pick<StaffMember, 'id' | 'role' | 'extraRoles'>[],
 ): boolean {
   if (filter === 'all') return true;
   const people = [order.servedBy, order.staffId].filter((id): id is string => id !== undefined);
   if (filter.startsWith('role:')) {
-    const role = filter.slice('role:'.length);
-    return people.some((id) => staff.find((m) => m.id === id)?.role === role);
+    const role = filter.slice('role:'.length) as RoleId;
+    // Anyone who works the role, as their main one or as well as it.
+    return people.some((id) => {
+      const m = staff.find((x) => x.id === id);
+      return m !== undefined && hasRole(m, role);
+    });
   }
   return people.includes(filter);
 }

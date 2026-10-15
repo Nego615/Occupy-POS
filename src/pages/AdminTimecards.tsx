@@ -10,7 +10,7 @@ import {
   formatClock,
   formatDuration,
   fromTimeInput,
-  roleLabel,
+  rolesLabel,
   shiftMinutes,
   toTimeInput,
   type Shift,
@@ -81,7 +81,7 @@ export function AdminTimecards() {
       return [
         dayLabel(s.daysAgo),
         member?.name ?? 'Unknown',
-        member ? roleLabel(member.role) : '',
+        member ? rolesLabel(member) : '',
         formatClock(s.clockIn),
         s.clockOut === null ? 'on the clock' : formatClock(s.clockOut),
         s.breakMinutes,
@@ -151,7 +151,7 @@ export function AdminTimecards() {
                   <span className="clock-row__who">
                     <span className="clock-row__name">{member.name}</span>
                     <span className="clock-row__meta">
-                      {roleLabel(member.role)} · in <Mono>{formatClock(shift.clockIn)}</Mono>
+                      {rolesLabel(member)} · in <Mono>{formatClock(shift.clockIn)}</Mono>
                     </span>
                   </span>
                   <Mono className="clock-row__elapsed">
@@ -207,7 +207,7 @@ export function AdminTimecards() {
                   <tr key={r.member.id}>
                     <td>
                       <span className="tc-table__who">{r.member.name}</span>
-                      <span className="tc-table__sub">{roleLabel(r.member.role)}</span>
+                      <span className="tc-table__sub">{rolesLabel(r.member)}</span>
                     </td>
                     <td className="tc-table__num">
                       <Mono>{r.shifts}</Mono>

@@ -253,3 +253,56 @@
   color: var(--ink-soft);
   white-space: nowrap;
 }
+
+/* Roles worked besides the main one, under the main-role select. */
+.extra-roles {
+  margin-top: 6px;
+}
+
+.extra-roles__summary {
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  cursor: pointer;
+  list-style: none;
+}
+
+.extra-roles__summary::-webkit-details-marker {
+  display: none;
+}
+
+.extra-roles__summary:hover {
+  color: var(--ink);
+}
+
+.extra-roles[open] .extra-roles__summary {
+  color: var(--ink);
+}
+
+.extra-roles__options {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 4px 0 0;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.extra-roles__option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.extra-roles__option:has(input:disabled) {
+  cursor: not-allowed;
+  color: var(--ink-soft);
+}

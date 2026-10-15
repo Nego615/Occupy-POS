@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router';
 import './AccountMenu.css';
 import { Button } from './Button';
 import { Mono } from './Mono';
-import { formatClock, initials, roleLabel } from '../data/staff';
+import { formatClock, initials, rolesLabel } from '../data/staff';
 import { quick } from '../lib/motion';
 import { usePos } from '../lib/store';
 
@@ -80,7 +80,7 @@ export function AccountMenu({ align = 'right' }: { align?: 'right' | 'left-up' }
           <div className="account__who">
             <div className="account__name">{me.name}</div>
             <div className="account__role">
-              {roleLabel(me.role)} ·{' '}
+              {rolesLabel(me)} ·{' '}
               {shift ? (
                 <>
                   on the clock since <Mono>{formatClock(shift.clockIn)}</Mono>

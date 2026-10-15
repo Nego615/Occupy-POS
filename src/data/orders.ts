@@ -124,6 +124,35 @@ export type OrderRecord = {
   roomId?: string;
   /** ISO timestamp a room charge was paid off with the rest of the room's bill. */
   settledAt?: string;
+  /** Changes made after it closed, oldest first. */
+  edits?: OrderEdit[];
+  /**
+   * Set once it's deleted: it leaves sales, reports, and cash-ups, but is kept
+   * so it can be looked up or restored.
+   */
+  deleted?: OrderDeletion;
+};
+
+/** A change made to an order after it closed. */
+export type OrderEdit = {
+  /** ISO timestamp. */
+  at: string;
+  /** Staff id of whoever made it. */
+  by: string;
+  /** What changed and why. */
+  note: string;
+  /** The order's total and item count before the change. */
+  before: { total: number; items: number };
+};
+
+export type OrderDeletion = {
+  /** ISO timestamp. */
+  at: string;
+  /** Staff id of whoever deleted it. */
+  by: string;
+  reason: string;
+  /** Whether its items went back into stock. */
+  restocked: boolean;
 };
 
 export type Order = OrderRecord & {

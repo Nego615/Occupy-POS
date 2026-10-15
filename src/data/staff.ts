@@ -8,6 +8,7 @@ export type Permission =
   | 'payments'
   | 'kitchen'
   | 'refunds'
+  | 'editOrders'
   | 'catalog'
   | 'menu'
   | 'promotions'
@@ -29,6 +30,7 @@ export const PERMISSIONS: { id: Permission; label: string }[] = [
   { id: 'payments', label: 'Take payment at the counter' },
   { id: 'kitchen', label: 'Work the kitchen screen' },
   { id: 'refunds', label: 'Refund orders' },
+  { id: 'editOrders', label: 'Edit & delete orders' },
   { id: 'catalog', label: 'Edit every item & category' },
   { id: 'menu', label: 'Add & edit items and set meals' },
   { id: 'promotions', label: 'Run promotions' },
@@ -55,6 +57,7 @@ export const ROLES: { id: RoleId; label: string; can: Permission[] }[] = [
       'payments',
       'kitchen',
       'refunds',
+      'editOrders',
       'catalog',
       'menu',
       'promotions',
@@ -82,6 +85,7 @@ export const ROLES: { id: RoleId; label: string; can: Permission[] }[] = [
       'payments',
       'kitchen',
       'refunds',
+      'editOrders',
       'catalog',
       'menu',
       'promotions',
@@ -116,19 +120,34 @@ export function roleLabel(role: RoleId): string {
   return ROLES.find((r) => r.id === role)!.label;
 }
 
+/** Someone's main role first, then any others they also work as. */
+export function rolesOf(member: Pick<StaffMember, 'role' | 'extraRoles'>): RoleId[] {
+  return [member.role, ...(member.extraRoles ?? []).filter((r) => r !== member.role)];
+}
+
+export function hasRole(member: Pick<StaffMember, 'role' | 'extraRoles'>, role: RoleId): boolean {
+  return rolesOf(member).includes(role);
+}
+
+/** "Server + Counter". */
+export function rolesLabel(member: Pick<StaffMember, 'role' | 'extraRoles'>): string {
+  return rolesOf(member).map(roleLabel).join(' + ');
+}
+
 /**
- * What a role grants — and with `settings`, what Settings adds: the kitchen's
- * `menu`, while it's let manage items. Deactivated staff get nothing,
- * whatever their role.
+ * What someone's roles grant between them — and with `settings`, what Settings
+ * adds: the kitchen's `menu`, while it's let manage items. Deactivated staff
+ * get nothing, whatever their roles.
  */
 export function hasPermission(
-  member: Pick<StaffMember, 'role' | 'active'> | null,
+  member: Pick<StaffMember, 'role' | 'extraRoles' | 'active'> | null,
   permission: Permission,
   settings?: Pick<Settings, 'kitchenMenu'>,
 ): boolean {
   if (!member?.active) return false;
-  if (ROLES.find((r) => r.id === member.role)!.can.includes(permission)) return true;
-  return permission === 'menu' && !!settings?.kitchenMenu && KITCHEN_MENU_ROLES.includes(member.role);
+  const roles = rolesOf(member);
+  if (roles.some((role) => ROLES.find((r) => r.id === role)!.can.includes(permission))) return true;
+  return permission === 'menu' && !!settings?.kitchenMenu && roles.some((r) => KITCHEN_MENU_ROLES.includes(r));
 }
 
 /** Permissions that open some part of the admin — holding any one shows the Admin link. */
@@ -146,11 +165,16 @@ export const ADMIN_PERMISSIONS: Permission[] = [
   'expenses',
 ];
 
-/** Where someone lands after signing in with nowhere else to go — a cook goes straight to the kitchen. */
+/**
+ * Where someone lands after signing in with nowhere else to go — a cook goes
+ * straight to the kitchen. Their main role decides, so counter staff who also
+ * serve still start at the counter.
+ */
 export function homePath(member: Pick<StaffMember, 'role' | 'active'>): string {
-  if (hasPermission(member, 'register')) return '/counter/register';
-  if (hasPermission(member, 'payments')) return '/desk';
-  if (hasPermission(member, 'kitchen')) return '/kitchen';
+  const main = { role: member.role, active: member.active };
+  if (hasPermission(main, 'register')) return '/counter/register';
+  if (hasPermission(main, 'payments')) return '/desk';
+  if (hasPermission(main, 'kitchen')) return '/kitchen';
   return '/admin';
 }
 
@@ -161,7 +185,10 @@ export function permissionLabel(permission: Permission): string {
 export type StaffMember = {
   id: string;
   name: string;
+  /** Their main role — where they land on sign-in, and how they're listed. */
   role: RoleId;
+  /** Other roles they also work as. Permissions are everything any of their roles allows. */
+  extraRoles?: RoleId[];
   /** Pay per month, in the business currency. */
   monthlySalary?: number;
   /**

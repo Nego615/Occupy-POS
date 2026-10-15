@@ -3,6 +3,7 @@ import './OrderDetail.css';
 import { ApprovalDialog } from './ApprovalDialog';
 import { Button } from './Button';
 import { InCurrency, Money, Mono, formatMoney } from './Mono';
+import { DeleteOrderPanel, OrderEditor } from './OrderEditor';
 import { SummaryRow } from './Receipt';
 import { StatusChip, type StatusKind } from './StatusChip';
 import { Stepper } from './Stepper';
@@ -23,6 +24,7 @@ import {
 } from '../data/orders';
 import { lineContents } from '../data/catalog';
 import { convertPrice, receiptCurrency } from '../lib/currencySwitch';
+import { editBlocker } from '../lib/orderEdits';
 import { activeCurrency, currencyOf, formatCurrency } from '../lib/currency';
 import { usePos } from '../lib/store';
 
@@ -65,7 +67,7 @@ export function OrderDetail({
   headingLevel: Heading = 'h2',
   openActions,
 }: OrderDetailProps) {
-  const { me, can, allStaff: staff, catalog, settings, refundOrder, locations } = usePos();
+  const { me, can, allStaff: staff, catalog, settings, refundOrder, restoreOrder, locations } = usePos();
   // An order from before the shop switched currencies shows as it was taken.
   const order = given.recordedIn?.original ?? given;
   const currency = receiptCurrency(given);
@@ -76,6 +78,8 @@ export function OrderDetail({
   // Off by default: a refunded latte can't go back on the shelf, a tumbler can.
   const [restock, setRestock] = useState(false);
   const [approving, setApproving] = useState(false);
+  // Editing or deleting the order, in place of its receipt.
+  const [changing, setChanging] = useState<'edit' | 'delete' | null>(null);
 
   const discount = orderDiscount(order);
   const chip = ORDER_CHIP[order.status];
@@ -86,6 +90,9 @@ export function OrderDetail({
   const cashier = nameOf(order.staffId);
   const server = nameOf(order.servedBy);
   const alreadyRefunded = refundedAmount(order);
+  const canChange = can('editOrders') && order.status !== 'occupied';
+  const blocked = editBlocker(given);
+  const deletedBy = nameOf(given.deleted?.by);
   const change = changeGiven(order.payments);
   // Cash taken in the cost currency, and its change — all in that currency.
   const localCash = order.payments.find((p) => p.local)?.local;
@@ -162,6 +169,12 @@ export function OrderDetail({
         </div>
       </div>
 
+      {changing === 'edit' ? (
+        <OrderEditor order={order} onDone={() => setChanging(null)} />
+      ) : changing === 'delete' ? (
+        <DeleteOrderPanel order={order} onDone={() => setChanging(null)} />
+      ) : (
+      <>
       <div className="detail__items">
         {order.lines.map((line, i) => {
           const back = refundedQty(order, i);
@@ -266,8 +279,33 @@ export function OrderDetail({
         </div>
       )}
 
+      {(given.deleted || (order.edits?.length ?? 0) > 0) && (
+        <div className="order-log">
+          {given.deleted && (
+            <p className="order-log__deleted">
+              Deleted {new Date(given.deleted.at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+              {deletedBy && ` by ${deletedBy}`} · {given.deleted.reason}
+              {given.deleted.restocked && ' · items put back in stock'}
+            </p>
+          )}
+          {(order.edits ?? []).map((e, i) => (
+            <span key={i}>
+              Edited {new Date(e.at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+              {nameOf(e.by) && ` by ${nameOf(e.by)}`} · {e.note} · was <Money value={e.before.total} />
+            </span>
+          ))}
+        </div>
+      )}
+
       <div className="detail__actions">
-        {order.status === 'occupied' && openActions ? (
+        {given.deleted ? (
+          <>
+            <Button variant="secondary" onClick={() => window.print()}>
+              Reprint receipt
+            </Button>
+            {canChange && <Button onClick={() => restoreOrder(order.id)}>Restore order</Button>}
+          </>
+        ) : order.status === 'occupied' && openActions ? (
           openActions
         ) : order.status === 'occupied' ? (
           <>
@@ -298,6 +336,26 @@ export function OrderDetail({
           </>
         )}
       </div>
+      {canChange && !given.deleted && !refunding && (
+        <div className="detail__actions">
+          <Button
+            variant="secondary"
+            onClick={() => setChanging('edit')}
+            disabled={blocked !== null}
+            title={blocked ?? undefined}
+          >
+            Edit order
+          </Button>
+          <Button variant="secondary" onClick={() => setChanging('delete')}>
+            Delete order
+          </Button>
+        </div>
+      )}
+      {canChange && !given.deleted && !refunding && blocked && (
+        <p className="order-log">{blocked}</p>
+      )}
+      </>
+      )}
 
       <ApprovalDialog
         open={approving}

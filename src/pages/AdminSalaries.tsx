@@ -4,7 +4,7 @@ import { Button } from '../components/Button';
 import { Mono, formatCost } from '../components/Mono';
 import { Pill, PillRow } from '../components/Pill';
 import { StatusChip } from '../components/StatusChip';
-import { roleLabel, type StaffMember } from '../data/staff';
+import { rolesLabel, type StaffMember } from '../data/staff';
 import { downloadCsv } from '../lib/analytics';
 import {
   PAY_PARTS,
@@ -125,7 +125,7 @@ export function AdminSalaries() {
         ['staff', 'role', 'salary', 'gross'],
         ...payroll.lines.map((l) => [
           l.member.name,
-          roleLabel(l.member.role),
+          rolesLabel(l.member),
           payLabel(l.member),
           l.gross.toFixed(2),
         ]),
@@ -240,7 +240,7 @@ export function AdminSalaries() {
                   <tr key={l.member.id}>
                     <td>
                       <span className="pay-table__name">{l.member.name}</span>
-                      <span className="pay-table__sub">{roleLabel(l.member.role)}</span>
+                      <span className="pay-table__sub">{rolesLabel(l.member)}</span>
                     </td>
                     <td className="pay-table__soft">{payLabel(l.member)}</td>
                     <td className="pay-table__num">
@@ -325,7 +325,7 @@ function RateRow({ member }: { member: StaffMember }) {
     <div className="rate-row">
       <span className="rate-row__who">
         <span className="rate-row__name">{member.name}</span>
-        <span className="rate-row__role">{roleLabel(member.role)}</span>
+        <span className="rate-row__role">{rolesLabel(member)}</span>
       </span>
       <span className="rate-row__amount">
         <span className="rate-row__unit" aria-hidden="true">

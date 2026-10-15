@@ -1,4 +1,4 @@
-import { ROLES, type RoleId, type StaffMember } from '../data/staff';
+import { ROLES, hasRole, type RoleId, type StaffMember } from '../data/staff';
 import type { StaffFilter } from '../lib/orderFilters';
 import { FilterSelect } from './FilterSelect';
 
@@ -14,7 +14,8 @@ const EVERYONE_IN: Record<RoleId, string> = {
 
 /**
  * Picks whose orders to show: everyone, a whole role ("All servers"), or one
- * person, grouped under their role. Removed staff are left out; people
+ * person, listed under their main role. A role's "All" takes in everyone
+ * who works it, main role or not. Removed staff are left out; people
  * who've been deactivated stay, since their past sales still count.
  */
 export function StaffFilterSelect({
@@ -26,12 +27,14 @@ export function StaffFilterSelect({
   onChange: (value: StaffFilter) => void;
   staff: StaffMember[];
 }) {
+  const current = staff.filter((m) => !m.deleted);
   const roles = ROLES.map((r) => ({
     ...r,
-    people: staff
-      .filter((m) => m.role === r.id && !m.deleted)
+    anyone: current.some((m) => hasRole(m, r.id)),
+    people: current
+      .filter((m) => m.role === r.id)
       .sort((a, b) => Number(b.active) - Number(a.active) || a.name.localeCompare(b.name)),
-  })).filter((r) => r.people.length > 0);
+  })).filter((r) => r.anyone);
 
   return (
     <FilterSelect value={value} onChange={onChange} label="Staff">

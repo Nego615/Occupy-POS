@@ -55,14 +55,26 @@ import {
   type Order,
   type OrderLine,
   type LocalCash,
+  type OrderDeletion,
+  type OrderEdit,
   type OrderRecord,
   type Payment,
   type Refund,
 } from '../data/orders';
 import {
+  editBlocker,
+  editProblem,
+  hasLocalCash,
+  heldItems,
+  snapshot as orderSnapshot,
+  stockDelta,
+  withLines,
+} from './orderEdits';
+import {
   STAFF,
   hashPin,
   hasPermission,
+  hasRole,
   hydrateShift,
   isPin,
   minutesNow,
@@ -142,6 +154,18 @@ export type OpenTab = StoredTab & {
   name: string;
   /** Display time it was opened — "4:41 PM". */
   openedAt: string;
+};
+
+/**
+ * A change to a closed order. `payments` replaces them all (left out, they stay
+ * as they were); `servedBy` set to '' clears it.
+ */
+export type OrderChange = {
+  lines: OrderLine[];
+  payments?: Payment[];
+  servedBy?: string;
+  /** What changed and why — kept with the order. */
+  note: string;
 };
 
 /** What a refund covers. Leaving out `lines` refunds everything not yet refunded. */
@@ -353,6 +377,20 @@ type PosStore = {
    * approved it. Refunding the last of it marks the whole order refunded.
    */
   refundOrder: (orderId: number, byStaffId: string, request: RefundRequest) => void;
+  /**
+   * Changes a closed order — its lines, payments, or who served it — and
+   * moves stock for the difference. Returns why it was refused, or null once saved.
+   */
+  editOrder: (orderId: number, change: OrderChange) => string | null;
+  /**
+   * Takes a closed order out of sales, reports, and cash-ups, optionally
+   * putting what's left of its items back in stock. It can be restored.
+   */
+  deleteOrder: (orderId: number, request: { reason: string; restock: boolean }) => string | null;
+  /** Brings a deleted order back, drawing down again any stock its deletion put back. */
+  restoreOrder: (orderId: number) => void;
+  /** Deleted orders, newest first. */
+  deletedOrders: Order[];
   /** Who's signed in. Null before sign-in, or once their account is deactivated. */
   me: StaffMember | null;
   /** Signs in by PIN. Returns who signed in, or null for a wrong or inactive PIN. */
@@ -717,11 +755,17 @@ export function PosProvider({
     [shiftRecords, today],
   );
   // Orders from before a switch of sales currency are read back converted.
-  const closedOrders = useMemo(
+  const readOrders = useMemo(
     () => closedRecords.map((r) => readOrder(r, settings.currencySwitch, currencyOf(settings.currency))),
     // `today` is a dependency so day counts are redone at midnight.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [closedRecords, today, settings.currencySwitch, settings.currency],
   );
+  // Deleted orders leave sales, reports, room bills, and cash-ups; they're
+  // kept apart so they can be looked up or restored.
+  const closedOrders = useMemo(() => readOrders.filter((o) => !o.deleted), [readOrders]);
+  const deletedOrders = useMemo(() => readOrders.filter((o) => o.deleted), [readOrders]);
+  const liveRecords = useMemo(() => closedRecords.filter((o) => !o.deleted), [closedRecords]);
 
   // Derived each render, so a role change or deactivation applies at once —
   // a deactivated account drops straight back to the sign-in screen.
@@ -1168,7 +1212,7 @@ export function PosProvider({
 
   const settleRoom = useCallback(
     (roomId: string, payment: Pick<Payment, 'method' | 'ref'> & { local?: Pick<LocalCash, 'currency' | 'rate'> }) => {
-      const owing = closedRecords.filter((o) => o.status === 'charged' && o.roomId === roomId);
+      const owing = liveRecords.filter((o) => o.status === 'charged' && o.roomId === roomId);
       if (owing.length === 0) return 0;
       const at = new Date().toISOString();
       const ids = new Set(owing.map((o) => o.id));
@@ -1195,7 +1239,7 @@ export function PosProvider({
       );
       return round(owing.reduce((sum, o) => sum + orderTotal(o), 0));
     },
-    [closedRecords, me],
+    [liveRecords, me],
   );
 
   const closeShift = useCallback(
@@ -1203,7 +1247,7 @@ export function PosProvider({
       const openedAt = shiftStart(cashUps);
       const closedAt = new Date().toISOString();
       const totals = shiftTotals(
-        closedRecords,
+        liveRecords,
         storedTabs.flatMap((t) => t.payments),
         openedAt,
         closedAt,
@@ -1236,7 +1280,7 @@ export function PosProvider({
       setCashUps((prev) => [cashUp, ...prev]);
       return cashUp;
     },
-    [cashUps, closedRecords, storedTabs, me, rate, settings.costCurrency],
+    [cashUps, liveRecords, storedTabs, me, rate, settings.costCurrency],
   );
 
   const removePayment = useCallback(
@@ -1503,6 +1547,96 @@ export function PosProvider({
     [closedRecords, catalog, logStock],
   );
 
+  /** Stock movements for items an order moved, matched to the catalog by id or — for older orders — name. */
+  const orderStock = useCallback(
+    (
+      items: { itemId?: string; name: string; change: number }[],
+      reason: 'sale' | 'refund',
+      ref: string,
+    ) => {
+      const ids = new Set(catalog.map((i) => i.id));
+      const byName = new Map(catalog.map((i) => [i.name, i.id]));
+      logStock(
+        items
+          .map((l) => ({ ...l, itemId: l.itemId && ids.has(l.itemId) ? l.itemId : byName.get(l.name) }))
+          .filter((l): l is typeof l & { itemId: string } => l.itemId !== undefined && l.change !== 0)
+          .map((l) => ({ itemId: l.itemId, change: l.change, reason, ref })),
+      );
+    },
+    [catalog, logStock],
+  );
+
+  const editOrder = useCallback(
+    (orderId: number, change: OrderChange) => {
+      if (!me || !hasPermission(me, 'editOrders', settings)) return 'You can’t edit orders.';
+      const record = closedRecords.find((o) => o.id === orderId);
+      const read = closedOrders.find((o) => o.id === orderId);
+      if (!record || !read) return 'That order isn’t here any more.';
+      const blocked = editBlocker(read);
+      if (blocked) return blocked;
+      let next = withLines(record, change.lines, settings.taxRate);
+      // Cost-currency cash was counted in its own drawer, so it stays as taken.
+      if (change.payments && !hasLocalCash(record)) next = { ...next, payments: change.payments };
+      if (change.servedBy !== undefined) {
+        next = change.servedBy ? { ...next, servedBy: change.servedBy } : { ...next, servedBy: undefined };
+      }
+      const problem = editProblem(next, change.note);
+      if (problem) return problem;
+      const entry: OrderEdit = { at: new Date().toISOString(), by: me.id, note: change.note.trim(), before: orderSnapshot(record) };
+      next = { ...next, edits: [...(record.edits ?? []), entry] };
+      setClosedOrders((prev) => prev.map((o) => (o.id === orderId ? next : o)));
+      // More sold draws stock down; less puts it back.
+      const delta = stockDelta(record, next);
+      orderStock(delta.filter((d) => d.change < 0), 'sale', `Order #${orderId} · edited`);
+      orderStock(delta.filter((d) => d.change > 0), 'refund', `Order #${orderId} · edited`);
+      return null;
+    },
+    [me, settings, closedRecords, closedOrders, orderStock],
+  );
+
+  const deleteOrder = useCallback(
+    (orderId: number, request: { reason: string; restock: boolean }) => {
+      if (!me || !hasPermission(me, 'editOrders', settings)) return 'You can’t delete orders.';
+      const record = closedRecords.find((o) => o.id === orderId);
+      if (!record || record.deleted) return 'That order isn’t here any more.';
+      if (record.status === 'occupied') return 'Open tabs are cleared on the register.';
+      if (!request.reason.trim()) return 'Say why it’s being deleted.';
+      const deleted: OrderDeletion = {
+        at: new Date().toISOString(),
+        by: me.id,
+        reason: request.reason.trim(),
+        restocked: request.restock,
+      };
+      setClosedOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, deleted } : o)));
+      if (request.restock) {
+        orderStock(
+          heldItems(record).map((i) => ({ ...i, change: i.qty })),
+          'refund',
+          `Order #${orderId} · deleted`,
+        );
+      }
+      return null;
+    },
+    [me, settings, closedRecords, orderStock],
+  );
+
+  const restoreOrder = useCallback(
+    (orderId: number) => {
+      if (!me || !hasPermission(me, 'editOrders', settings)) return;
+      const record = closedRecords.find((o) => o.id === orderId);
+      if (!record?.deleted) return;
+      setClosedOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, deleted: undefined } : o)));
+      if (record.deleted.restocked) {
+        orderStock(
+          heldItems(record).map((i) => ({ ...i, change: -i.qty })),
+          'sale',
+          `Order #${orderId} · restored`,
+        );
+      }
+    },
+    [me, settings, closedRecords, orderStock],
+  );
+
   const signIn = useCallback(
     (pin: string) => {
       const member = staff.find((m) => m.active && pinMatches(m, pin)) ?? null;
@@ -1575,9 +1709,9 @@ export function PosProvider({
   const deleteStaff = useCallback(
     (id: string) => {
       const member = staff.find((m) => m.id === id);
-      const owners = staff.filter((m) => m.role === 'owner' && m.active && !m.deleted);
+      const owners = staff.filter((m) => hasRole(m, 'owner') && m.active && !m.deleted);
       if (!member || id === signedInId) return false;
-      if (member.role === 'owner' && member.active && owners.length === 1) return false;
+      if (hasRole(member, 'owner') && member.active && owners.length === 1) return false;
       // Kept, inactive and with no PIN, so history can still show their name.
       setStaff((prev) =>
         prev.map((m) => (m.id === id ? { ...m, active: false, deleted: true, pinHash: '' } : m)),
@@ -1661,7 +1795,7 @@ export function PosProvider({
   const { convertForSwitch } = inventory;
   const switchSalesCurrency = useCallback(
     (to: CurrencyCode, rate: number, step?: number) => {
-      const blockers = switchBlockers({ tabs, orders: closedRecords, cashUps });
+      const blockers = switchBlockers({ tabs, orders: liveRecords, cashUps });
       if (settings.costCurrency || settings.currencySwitch) blockers.push('This shop has already switched currencies.');
       if (to === settings.currency || !(rate > 0)) blockers.push('Pick another currency and a rate above zero.');
       if (blockers.length > 0) return { blockers };
@@ -1686,7 +1820,7 @@ export function PosProvider({
       setSettings(next);
       return { settings: next };
     },
-    [tabs, closedRecords, cashUps, settings, catalog, setMeals, promotions, setSyncedCatalog, convertForSwitch],
+    [tabs, liveRecords, cashUps, settings, catalog, setMeals, promotions, setSyncedCatalog, convertForSwitch],
   );
 
   const resetAllData = useCallback(async () => {
@@ -1747,6 +1881,10 @@ export function PosProvider({
       toggleTicketLine,
       toggleTicketStarted,
       refundOrder,
+      editOrder,
+      deleteOrder,
+      restoreOrder,
+      deletedOrders,
       updateItem,
       createItem,
       deleteItem,
@@ -1834,6 +1972,10 @@ export function PosProvider({
       toggleTicketLine,
       toggleTicketStarted,
       refundOrder,
+      editOrder,
+      deleteOrder,
+      restoreOrder,
+      deletedOrders,
       updateItem,
       createItem,
       deleteItem,

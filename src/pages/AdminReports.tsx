@@ -11,7 +11,7 @@ import { dateOfDaysAgo } from '../data/history';
 import type { Expense } from '../data/expenses';
 import type { StockMovement, Supplier, SupplierBill } from '../data/inventory';
 import { exchangeRate } from '../data/settings';
-import { roleLabel, type StaffMember } from '../data/staff';
+import { rolesLabel, type StaffMember } from '../data/staff';
 import { downloadCsv, money } from '../lib/analytics';
 import {
   REPORT_RANGES,
@@ -72,7 +72,7 @@ const SHOP_WIDE: ReportId[] = ['profit', 'inventory', 'purchasing'];
 /** "Dev Okafor · Server" for the Staff report. */
 const staffName = (people: StaffMember[]) => (id: string | undefined) => {
   const m = id ? people.find((p) => p.id === id) : undefined;
-  return m ? `${m.name} · ${roleLabel(m.role)}` : 'Not recorded';
+  return m ? `${m.name} · ${rolesLabel(m)}` : 'Not recorded';
 };
 
 /**

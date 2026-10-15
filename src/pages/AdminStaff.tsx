@@ -7,7 +7,16 @@ import { FilterSelect } from '../components/FilterSelect';
 import { Mono } from '../components/Mono';
 import { Pill, PillRow } from '../components/Pill';
 import { Switch } from '../components/Switch';
-import { KITCHEN_MENU_ROLES, PERMISSIONS, ROLES, uniquePin, type RoleId, type StaffMember } from '../data/staff';
+import {
+  KITCHEN_MENU_ROLES,
+  PERMISSIONS,
+  ROLES,
+  hasRole,
+  rolesOf,
+  uniquePin,
+  type RoleId,
+  type StaffMember,
+} from '../data/staff';
 import { payLabel } from '../lib/payroll';
 import { usePos } from '../lib/store';
 
@@ -121,9 +130,9 @@ function StaffRow({
 
   // The last active owner can't be demoted or deactivated — someone has to hold the keys.
   const lastOwner =
-    member.role === 'owner' &&
+    hasRole(member, 'owner') &&
     member.active &&
-    staff.filter((m) => m.role === 'owner' && m.active).length === 1;
+    staff.filter((m) => hasRole(m, 'owner') && m.active).length === 1;
 
   function commitName() {
     const next = name.trim().replace(/\s+/g, ' ');
@@ -213,15 +222,21 @@ function StaffRow({
       <span className="staff-row__role">
         <FilterSelect
           value={member.role}
-          onChange={(role) => updateStaff(member.id, { role: role as RoleId })}
-          label={`Role for ${member.name}`}
+          onChange={(value) => {
+            const role = value as RoleId;
+            // A role that becomes the main one isn't listed again as an extra.
+            const extra = rolesOf(member).slice(1).filter((r) => r !== role);
+            updateStaff(member.id, { role, extraRoles: extra.length ? extra : undefined });
+          }}
+          label={`Main role for ${member.name}`}
         >
           {ROLES.map((r) => (
-            <option key={r.id} value={r.id} disabled={lastOwner && r.id !== 'owner'}>
+            <option key={r.id} value={r.id} disabled={lastOwner && member.role === 'owner' && r.id !== 'owner'}>
               {r.label}
             </option>
           ))}
         </FilterSelect>
+        <ExtraRoles member={member} lastOwner={lastOwner} />
       </span>
 
       {/* Pay is set on Salaries, behind the payroll permission — shown here read-only. */}
@@ -343,6 +358,44 @@ function StaffRow({
   );
 }
 
+/**
+ * Roles someone works besides their main one — a server who also takes
+ * payment at the counter. They can do everything any of their roles allows.
+ */
+function ExtraRoles({ member, lastOwner }: { member: StaffMember; lastOwner: boolean }) {
+  const { updateStaff } = usePos();
+  const extra = rolesOf(member).slice(1);
+  const summary = extra.length
+    ? `Also ${extra.map((r) => ROLES.find((x) => x.id === r)!.label).join(', ')}`
+    : 'Also works as…';
+
+  function toggle(role: RoleId, on: boolean) {
+    const next = on ? [...extra, role] : extra.filter((r) => r !== role);
+    updateStaff(member.id, { extraRoles: next.length ? next : undefined });
+  }
+
+  return (
+    <details className="extra-roles">
+      <summary className="extra-roles__summary">{summary}</summary>
+      <fieldset className="extra-roles__options">
+        <legend className="sr-only">Other roles {member.name} works as</legend>
+        {ROLES.filter((r) => r.id !== member.role).map((r) => (
+          <label key={r.id} className="extra-roles__option">
+            <input
+              type="checkbox"
+              checked={extra.includes(r.id)}
+              // The last owner keeps owner, whichever way they hold it.
+              disabled={lastOwner && r.id === 'owner'}
+              onChange={(e) => toggle(r.id, e.target.checked)}
+            />
+            {r.label}
+          </label>
+        ))}
+      </fieldset>
+    </details>
+  );
+}
+
 /** What each role can do, read off the role definitions. */
 function RoleTable() {
   const { staff, settings } = usePos();
@@ -366,7 +419,7 @@ function RoleTable() {
                 <th scope="col" key={r.id}>
                   {r.label}
                   <span className="role-table__count">
-                    <Mono>{staff.filter((m) => m.active && m.role === r.id).length}</Mono> active
+                    <Mono>{staff.filter((m) => m.active && hasRole(m, r.id)).length}</Mono> active
                   </span>
                 </th>
               ))}

@@ -6,7 +6,7 @@ import { BrandMark } from '../components/BrandMark';
 import { Button } from '../components/Button';
 import { Mono } from '../components/Mono';
 import { PinPad } from '../components/PinPad';
-import { homePath, roleLabel } from '../data/staff';
+import { homePath, rolesLabel } from '../data/staff';
 import { usePos } from '../lib/store';
 import { useClock } from '../lib/useClock';
 
@@ -114,7 +114,7 @@ export function SignIn() {
           <div className="signin__clock">
             <Avatar name={me.name} />
             <h1 className="signin__title">Hi, {me.name.split(' ')[0]}</h1>
-            <p className="signin__sub">{roleLabel(me.role)} · you’re not on the clock yet.</p>
+            <p className="signin__sub">{rolesLabel(me)} · you’re not on the clock yet.</p>
             <div className="signin__actions">
               <Button size="lg" block onClick={() => continueIn(true)}>
                 Clock in and continue

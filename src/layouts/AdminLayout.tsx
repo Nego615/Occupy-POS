@@ -8,7 +8,7 @@ import { Icon, type IconName } from '../components/Icon';
 import { NoAccess } from '../components/Guards';
 import { SubscriptionBanner } from '../components/SubscriptionBanner';
 import { ThemeToggle } from '../components/ThemeToggle';
-import { ADMIN_PERMISSIONS, homePath, roleLabel, type Permission } from '../data/staff';
+import { ADMIN_PERMISSIONS, homePath, rolesLabel, type Permission } from '../data/staff';
 import { snap, swapIn } from '../lib/motion';
 import { usePos } from '../lib/store';
 
@@ -147,7 +147,7 @@ export function AdminLayout() {
             <AccountMenu align="left-up" />
             <div>
               <div className="admin__footer-name">{me.name}</div>
-              <div className="admin__footer-role">{roleLabel(me.role)} · {settings.locationName}</div>
+              <div className="admin__footer-role">{rolesLabel(me)} · {settings.locationName}</div>
             </div>
             <ThemeToggle className="admin__theme" />
           </div>

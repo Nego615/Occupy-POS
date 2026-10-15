@@ -48,12 +48,14 @@ const PAGE_SIZE = 50;
  */
 export function AdminOrders() {
   const navigate = useNavigate();
-  const { orders, switchTab, settings, staff, allStaff } = usePos();
+  const { orders, deletedOrders, switchTab, settings, staff, allStaff, can } = usePos();
   const [range, setRange] = useState<RangeId>('week');
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState<StatusFilter>('all');
   const [payment, setPayment] = useState<PaymentFilter>('all');
   const [person, setPerson] = useState<StaffFilter>('all');
+  // Deleted orders are kept apart from the rest, and shown only on request.
+  const [showDeleted, setShowDeleted] = useState(false);
   const [sort, setSort] = useState<Sort>({ key: 'when', dir: 'desc' });
   const [selectedId, setSelectedId] = useState<number | null>(null);
 
@@ -63,20 +65,20 @@ export function AdminOrders() {
   const beforeStatus = useMemo(() => {
     const maxDaysAgo = RANGES.find((r) => r.id === range)!.maxDaysAgo;
     const q = query.trim().toLowerCase();
-    return orders.filter(
+    return (showDeleted ? deletedOrders : orders).filter(
       (o) =>
         o.daysAgo <= maxDaysAgo &&
         matchesPayment(o, payment) &&
         matchesStaff(o, person, allStaff) &&
         matchesQuery(o, q),
     );
-  }, [orders, range, query, payment, person, allStaff]);
+  }, [orders, deletedOrders, showDeleted, range, query, payment, person, allStaff]);
 
   const statusCounts = useMemo(() => countByStatus(beforeStatus), [beforeStatus]);
 
   const visible = useMemo(() => {
     const filtered =
-      status === 'all' ? beforeStatus : beforeStatus.filter((o) => o.status === status);
+      status === 'all' || showDeleted ? beforeStatus : beforeStatus.filter((o) => o.status === status);
     // The store already lists newest first, so "when" is just that order.
     if (sort.key === 'when') return sort.dir === 'desc' ? filtered : [...filtered].reverse();
     const sign = sort.dir === 'desc' ? -1 : 1;
@@ -98,7 +100,7 @@ export function AdminOrders() {
   }, [visible]);
 
   // A new filter or sort starts back at the first page.
-  const pagingKey = `${range}|${query}|${status}|${payment}|${person}|${sort.key}|${sort.dir}`;
+  const pagingKey = `${range}|${query}|${status}|${payment}|${person}|${showDeleted}|${sort.key}|${sort.dir}`;
   const [paging, setPaging] = useState({ key: pagingKey, limit: PAGE_SIZE });
   const limit = paging.key === pagingKey ? paging.limit : PAGE_SIZE;
   const shown = visible.slice(0, limit);
@@ -169,10 +171,22 @@ export function AdminOrders() {
       <div className="orders-filters">
         <PillRow label="Status">
           {STATUSES.map((s) => (
-            <Pill key={s.id} active={s.id === status} onClick={() => setStatus(s.id)}>
-              {s.label} <Mono className="orders-filters__count">{statusCounts[s.id]}</Mono>
+            <Pill
+              key={s.id}
+              active={!showDeleted && s.id === status}
+              onClick={() => {
+                setShowDeleted(false);
+                setStatus(s.id);
+              }}
+            >
+              {s.label} <Mono className="orders-filters__count">{showDeleted ? '–' : statusCounts[s.id]}</Mono>
             </Pill>
           ))}
+          {(can('editOrders') || deletedOrders.length > 0) && (
+            <Pill active={showDeleted} onClick={() => setShowDeleted(true)}>
+              Deleted <Mono className="orders-filters__count">{deletedOrders.length}</Mono>
+            </Pill>
+          )}
         </PillRow>
         <div className="orders-filters__right">
           <StaffFilterSelect value={person} onChange={setPerson} staff={staff} />
