@@ -128,6 +128,23 @@ describe('set meals with add-ons and skipped courses', () => {
     expect(Object.fromEntries(itemQuantities([line]))).toEqual({ chicken: 1, chips: 1, rice: 1, cake: 1 });
   });
 
+  it('takes several picks from one course, each with its own add-ons', () => {
+    const line = {
+      ...mealLine(lunch, [null, [chicken, cake], null], [[], [[side(chips, 0)], [side(rice, 1_000)]], []]),
+      qty: 1,
+    };
+    expect(line.parts?.map((p) => [p.itemId, p.course])).toEqual([
+      ['chicken', 'Main'],
+      ['cake', 'Main'],
+    ]);
+    expect(line.addOns?.map((a) => a.part)).toEqual([0, 1]);
+    expect(line.unitPrice).toBe(21_000);
+    // The same picks tapped in another order are the same meal.
+    expect(mealLine(lunch, [null, [chicken, cake], null]).key).toBe(
+      mealLine(lunch, [null, [cake, chicken], null]).key,
+    );
+  });
+
   it('sends a meal’s main to the kitchen with its sides', () => {
     const line = { ...mealLine(lunch, [null, chicken, cake], [[], [side(chips, 0)], []]), qty: 1 };
     expect(unsentLines([line], [], (id) => id === 'chicken')).toEqual([

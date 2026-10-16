@@ -1,11 +1,12 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import './Inventory.css';
 import './Deals.css';
 import { Button } from '../components/Button';
 import { Money, Mono } from '../components/Mono';
 import { StatusChip } from '../components/StatusChip';
 import { Switch } from '../components/Switch';
-import { mealWorth, type Course, type SetMeal } from '../data/deals';
+import { coursePicks, mealWorth, type Course, type SetMeal } from '../data/deals';
 import { activeCurrency, isAmountText } from '../lib/currency';
 import { usePos } from '../lib/store';
 import { useRevealPanel } from '../lib/useRevealPanel';
@@ -29,13 +30,15 @@ function Worth({ range }: { range: [number, number] | null }) {
 /**
  * Full meals sold at one price — a starter, main, dessert, and drink, say.
  * Each course offers a choice of catalog items; at the register the cashier
- * picks one from each course the guest wants — any can be skipped — and the
- * meal goes on the tab as a single line.
+ * picks from each course the guest wants — one, or up to the course's limit —
+ * any can be skipped, and the meal goes on the tab as a single line.
  */
 export function AdminMeals() {
   const { setMeals, createSetMeal, catalog, settings } = usePos();
   const [selectedId, setSelectedId] = useState<string | null>(setMeals[0]?.id ?? null);
   const panelRef = useRevealPanel<HTMLElement>(selectedId);
+  // Where the open meal's Save button goes, beside New set meal.
+  const [saveSlot, setSaveSlot] = useState<HTMLSpanElement | null>(null);
 
   function add() {
     const meal = createSetMeal({
@@ -66,11 +69,14 @@ export function AdminMeals() {
           </div>
         </div>
         <div className="head-actions">
-          <Button onClick={add}>New set meal</Button>
+          <span ref={setSaveSlot} style={{ display: 'contents' }} />
+          <Button variant={selected ? 'secondary' : 'primary'} onClick={add}>
+            New set meal
+          </Button>
         </div>
       </div>
 
-      <div className="inv-layout">
+      <div className="inv-layout inv-layout--wide">
         <section className="panel inv-table-wrap" aria-label="Set meals">
           {setMeals.length === 0 ? (
             <p className="inv-panel__placeholder">
@@ -143,7 +149,12 @@ export function AdminMeals() {
 
         <aside ref={panelRef} className="inv-panel" aria-label="Set meal details">
           {selected ? (
-            <MealPanel key={selected.id} meal={selected} onDeleted={() => setSelectedId(null)} />
+            <MealPanel
+              key={selected.id}
+              meal={selected}
+              saveSlot={saveSlot}
+              onDeleted={() => setSelectedId(null)}
+            />
           ) : (
             <p className="inv-panel__placeholder">Pick a set meal to edit it.</p>
           )}
@@ -153,7 +164,16 @@ export function AdminMeals() {
   );
 }
 
-function MealPanel({ meal, onDeleted }: { meal: SetMeal; onDeleted: () => void }) {
+function MealPanel({
+  meal,
+  saveSlot,
+  onDeleted,
+}: {
+  meal: SetMeal;
+  /** The page header spot its Save button shows in. */
+  saveSlot: HTMLElement | null;
+  onDeleted: () => void;
+}) {
   const { catalog, saveSetMeal, deleteSetMeal } = usePos();
   const currency = activeCurrency();
   const initial = {
@@ -208,6 +228,10 @@ function MealPanel({ meal, onDeleted }: { meal: SetMeal; onDeleted: () => void }
     if (courses.some((c) => c.itemIds.length === 0)) {
       return setError('Every course needs at least one item to pick from.');
     }
+    const tooMany = courses.find((c) => coursePicks(c) > c.itemIds.length);
+    if (tooMany) {
+      return setError(`${tooMany.name} lets the guest pick more items than it offers.`);
+    }
     const description = draft.description.trim();
     saveSetMeal({
       ...meal,
@@ -241,6 +265,24 @@ function MealPanel({ meal, onDeleted }: { meal: SetMeal; onDeleted: () => void }
           </div>
         </div>
       </div>
+
+      {saveSlot &&
+        createPortal(
+          <Button onClick={save} disabled={!dirty}>
+            Save changes
+          </Button>,
+          saveSlot,
+        )}
+      {error && (
+        <p className="inv-error" role="alert">
+          {error}
+        </p>
+      )}
+      {saved && !dirty && (
+        <p className="inv-note" role="status">
+          Saved.
+        </p>
+      )}
 
       <div className="inv-panel__section">
         <div className="inv-panel__head">
@@ -318,6 +360,20 @@ function MealPanel({ meal, onDeleted }: { meal: SetMeal; onDeleted: () => void }
                   onChange={(e) => setCourse(ci, { name: e.target.value })}
                   aria-label={`Course ${ci + 1} name`}
                 />
+                <label className="deal-course__limit">
+                  Guest picks up to
+                  <input
+                    className="inv-input inv-input--sm inv-input--num"
+                    type="number"
+                    min={1}
+                    max={Math.max(1, course.itemIds.length)}
+                    value={course.picks ?? 1}
+                    onChange={(e) => {
+                      const n = Math.floor(Number(e.target.value));
+                      setCourse(ci, { picks: n > 1 ? n : undefined });
+                    }}
+                  />
+                </label>
                 <button
                   type="button"
                   className="inv-remove"
@@ -365,19 +421,6 @@ function MealPanel({ meal, onDeleted }: { meal: SetMeal; onDeleted: () => void }
           </p>
         )}
 
-        {error && (
-          <p className="inv-error" role="alert">
-            {error}
-          </p>
-        )}
-        {saved && !dirty && (
-          <p className="inv-note" role="status">
-            Saved.
-          </p>
-        )}
-        <Button size="sm" onClick={save} disabled={!dirty}>
-          Save changes
-        </Button>
       </div>
 
       <div className="inv-panel__section">

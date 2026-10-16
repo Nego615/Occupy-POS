@@ -70,6 +70,11 @@
 /* Until something is picked, the panel only holds a hint. It sits above the
    list as one line instead of holding a column open, so the list gets the
    full width; picking a row opens the panel beside it. */
+/* For editors with a lot in the panel — a set meal's courses. */
+.inv-layout--wide {
+  grid-template-columns: minmax(0, 1fr) minmax(420px, 1.25fr);
+}
+
 .inv-layout:has(> .inv-panel > .inv-panel__placeholder:only-child) {
   grid-template-columns: minmax(0, 1fr);
   gap: 10px;

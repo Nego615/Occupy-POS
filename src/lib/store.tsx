@@ -264,11 +264,16 @@ type PosStore = {
   /** Rings up a one-off amount that isn't in the catalog. */
   addCustomAmount: (name: string, price: number) => void;
   /**
-   * Rings up one set meal made of `picks`, one per course — null for a course
-   * the guest skipped — with each course's `addOns`. Refused if nothing's
+   * Rings up one set meal made of `picks`, one entry per course — a pick,
+   * several, or null for a course the guest skipped — with each course's
+   * `addOns`, shaped like its picks (see `mealLine`). Refused if nothing's
    * picked, or the picks or add-ons aren't on hand.
    */
-  addMeal: (meal: SetMeal, picks: (CatalogItem | null)[], addOns?: CourseAddOn[][]) => boolean;
+  addMeal: (
+    meal: SetMeal,
+    picks: (CatalogItem | CatalogItem[] | null)[],
+    addOns?: (CourseAddOn[] | CourseAddOn[][])[],
+  ) => boolean;
   /** `key` is the cart line's. */
   setQty: (key: string, qty: number) => void;
   /** Sets a line's note (blank clears it) and manual discount (null takes it off). */
@@ -898,8 +903,13 @@ export function PosProvider({
   );
 
   const addMeal = useCallback(
-    (meal: SetMeal, picks: (CatalogItem | null)[], addOns: CourseAddOn[][] = []) => {
-      if (picks.length !== meal.courses.length || !picks.some(Boolean)) return false;
+    (
+      meal: SetMeal,
+      picks: (CatalogItem | CatalogItem[] | null)[],
+      addOns: (CourseAddOn[] | CourseAddOn[][])[] = [],
+    ) => {
+      const anyPicked = picks.some((p) => (Array.isArray(p) ? p.length > 0 : !!p));
+      if (picks.length !== meal.courses.length || !anyPicked) return false;
       const line = mealLine(meal, picks, addOns);
       if (!lineFits(cart, line, catalog)) return false;
       updateActiveCart((lines) => addLine(lines, line));

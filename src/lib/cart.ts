@@ -246,28 +246,37 @@ export function editLine(
 export type CourseAddOn = Omit<AddOnPick, 'part'>;
 
 /**
- * A line for one `meal` made of `picks`, one per course in order — null for a
- * course the guest skipped. It's rung up at the meal's price whatever's picked,
- * or skipped — the picks' own prices don't show as a list price or count as a
- * discount. `addOns` are each course's add-ons, also by course, and cost extra.
+ * A line for one `meal` made of `picks`, one entry per course in order: the
+ * course's pick, several picks where the course allows more than one, or
+ * null (or none) for a course the guest skipped. It's rung up at the meal's
+ * price whatever's picked, or skipped — the picks' own prices don't show as a
+ * list price or count as a discount. `addOns` are the add-ons by course, cost
+ * extra, and match the picks' shape: a course with several picks has a list
+ * of add-ons for each.
  */
 export function mealLine(
   meal: SetMeal,
-  picks: (CatalogItem | null)[],
-  addOns: CourseAddOn[][] = [],
+  picks: (CatalogItem | CatalogItem[] | null)[],
+  addOns: (CourseAddOn[] | CourseAddOn[][])[] = [],
 ): Omit<CartLine, 'qty'> {
   const parts: CartPart[] = [];
   const extras: AddOnPick[] = [];
   picks.forEach((p, i) => {
-    if (!p) return;
-    // Tied to the pick by where it sits in `parts`, which skipped courses don't take up.
-    for (const a of addOns[i] ?? []) extras.push({ ...a, part: parts.length });
-    parts.push({ itemId: p.id, name: p.name, course: meal.courses[i].name });
+    const several = Array.isArray(p);
+    const items = several ? p : p ? [p] : [];
+    items.forEach((item, j) => {
+      const own = (several ? (addOns[i] as CourseAddOn[][] | undefined)?.[j] : (addOns[i] as CourseAddOn[] | undefined)) ?? [];
+      // Tied to the pick by where it sits in `parts`, which skipped courses don't take up.
+      for (const a of own) extras.push({ ...a, part: parts.length });
+      parts.push({ itemId: item.id, name: item.name, course: meal.courses[i].name });
+    });
   });
+  const courseKey = (p: CatalogItem | CatalogItem[] | null) =>
+    Array.isArray(p) ? p.map((i) => i.id).sort().join(',') : (p?.id ?? '');
   return withAddOns(
     {
       // Skipped courses keep their place, so "main, no dessert" and "dessert, no main" sit apart.
-      key: `${meal.id}:${picks.map((p) => p?.id ?? '').join('+')}`,
+      key: `${meal.id}:${picks.map(courseKey).join('+')}`,
       itemId: meal.id,
       name: meal.name,
       unitPrice: meal.price,

@@ -181,3 +181,10 @@
   font-size: 12.5px;
   color: var(--ink-soft);
 }
+
+/* "· 1 of up to 2" — how many picks a course takes. */
+.meal-course__limit {
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}

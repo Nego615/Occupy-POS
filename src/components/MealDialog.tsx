@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import './MealDialog.css';
-import { courseOptions, type SetMeal } from '../data/deals';
+import { courseOptions, coursePicks, type SetMeal } from '../data/deals';
 import { STOCK_SLACK, addOnOptions, type CatalogItem } from '../data/catalog';
 import { itemQuantities, type CourseAddOn } from '../lib/cart';
 import { usePos } from '../lib/store';
@@ -9,9 +9,9 @@ import { Button } from './Button';
 import { Money, Mono } from './Mono';
 
 /**
- * Builds one set meal: a pick from each course the guest wants — any can be
- * skipped — then onto the tab as a single line at the meal's price, whichever
- * items are picked. A pick whose category
+ * Builds one set meal: a pick from each course the guest wants — or several,
+ * where the course allows — any can be skipped — then onto the tab as a single
+ * line at the meal's price, whichever items are picked. A pick whose category
  * offers sides or extras can have them too, at their add-on prices. Items
  * already on the tab count against what's on hand, so a pick or add-on that
  * would oversell is shown sold out.
@@ -19,23 +19,31 @@ import { Money, Mono } from './Mono';
 export function MealDialog({ meal, onClose }: { meal: SetMeal | null; onClose: () => void }) {
   const ref = useRef<HTMLDialogElement>(null);
   const { catalog, categories, cart, addMeal } = usePos();
-  const [picks, setPicks] = useState<(string | null)[]>([]);
-  // The add-ons picked with each course's pick, by item id.
-  const [extras, setExtras] = useState<string[][]>([]);
+  // Each course's picks, by item id, in the order they were tapped.
+  const [picks, setPicks] = useState<string[][]>([]);
+  // The add-ons picked with each pick, by course and then the pick's item id.
+  const [extras, setExtras] = useState<Record<string, string[]>[]>([]);
   const [error, setError] = useState<string | null>(null);
+
+  /** Every add-on picked in course `course`. */
+  const courseExtras = (course: number) => Object.values(extras[course] ?? {}).flat();
 
   const onTab = itemQuantities(cart);
   /**
    * How many of `item` are left, after the tab and this meal's picks and
-   * add-ons — leaving out course `course`'s own pick and add-ons, which are
+   * add-ons — leaving out course `course`'s own picks and add-ons, which are
    * what's being chosen.
    */
   function left(item: CatalogItem, course: number): number {
     if (item.untracked) return Infinity;
-    const picked = picks.filter((id, i) => i !== course && id === item.id).length;
-    const added = extras.filter((_, i) => i !== course).flat().filter((id) => id === item.id).length;
+    let used = 0;
+    picks.forEach((ids, i) => {
+      if (i === course) return;
+      used += ids.filter((id) => id === item.id).length;
+      used += courseExtras(i).filter((id) => id === item.id).length;
+    });
     // Meals take whole units — a half left over doesn't make one.
-    return Math.floor(item.stock - (onTab.get(item.id) ?? 0) - picked - added + STOCK_SLACK);
+    return Math.floor(item.stock - (onTab.get(item.id) ?? 0) - used + STOCK_SLACK);
   }
   const options = (course: number) =>
     meal ? courseOptions(meal.courses[course], catalog).filter((i) => i.available) : [];
@@ -46,54 +54,75 @@ export function MealDialog({ meal, onClose }: { meal: SetMeal | null; onClose: (
     if (meal && !dialog.open) dialog.showModal();
     if (!meal && dialog.open) dialog.close();
     // Nothing's picked to start with: every course is the guest's choice, skipping included.
-    setPicks(meal ? meal.courses.map(() => null) : []);
-    setExtras(meal ? meal.courses.map(() => []) : []);
+    setPicks(meal ? meal.courses.map(() => []) : []);
+    setExtras(meal ? meal.courses.map(() => ({})) : []);
     setError(null);
     // Reset only when a different meal opens, not as the tab changes underneath.
   }, [meal]);
 
-  const chosen = picks.map((id) => catalog.find((i) => i.id === id) ?? null);
-  const pickedCount = chosen.filter(Boolean).length;
-  const everyCourse = !!meal && pickedCount === meal.courses.length;
-  /** What course `course`'s pick can come with. */
-  const addOnsFor = (course: number) => {
-    const item = chosen[course];
-    return item ? addOnOptions(item, categories, catalog) : [];
-  };
-  const addOns: CourseAddOn[][] = chosen.map((_, ci) =>
-    addOnsFor(ci)
-      .filter((o) => extras[ci]?.includes(o.item.id))
-      .map((o) => ({ itemId: o.item.id, name: o.item.name, price: o.price })),
+  const chosen = picks.map((ids) =>
+    ids.map((id) => catalog.find((i) => i.id === id)).filter((i): i is CatalogItem => !!i),
   );
-  const extra = addOns.flat().reduce((sum, a) => sum + a.price, 0);
+  const coursesPicked = chosen.filter((items) => items.length > 0).length;
+  const everyCourse = !!meal && coursesPicked === meal.courses.length;
+  /** What `item`, picked in a course, can come with. */
+  const addOnsFor = (item: CatalogItem) => addOnOptions(item, categories, catalog);
+  const addOns: CourseAddOn[][][] = chosen.map((items, ci) =>
+    items.map((item) =>
+      addOnsFor(item)
+        .filter((o) => extras[ci]?.[item.id]?.includes(o.item.id))
+        .map((o) => ({ itemId: o.item.id, name: o.item.name, price: o.price })),
+    ),
+  );
+  const extra = addOns.flat(2).reduce((sum, a) => sum + a.price, 0);
 
   /**
-   * Whether one more of `item` fits as an add-on in course `course` — counting
-   * that course's pick and other add-ons too.
+   * Whether one more of `item` fits in course `course` — counting that
+   * course's picks and add-ons too.
    */
-  function addOnFits(item: CatalogItem, course: number): boolean {
-    const own = (picks[course] === item.id ? 1 : 0) + (extras[course] ?? []).filter((id) => id === item.id).length;
+  function fits(item: CatalogItem, course: number): boolean {
+    const own =
+      (picks[course] ?? []).filter((id) => id === item.id).length +
+      courseExtras(course).filter((id) => id === item.id).length;
     return left(item, course) - own > 0;
   }
 
-  /** Picks `itemId` for the course — or, tapped again, skips the course. */
+  /**
+   * Picks `itemId` for the course or, tapped again, takes it off. A course that
+   * allows one pick swaps it; one that allows more adds it, up to its limit.
+   */
   function pick(course: number, itemId: string) {
-    const next = picks[course] === itemId ? null : itemId;
-    // A different pick, or none, starts with no add-ons.
-    setExtras((prev) => prev.map((e, i) => (i === course ? [] : e)));
-    setPicks((prev) => prev.map((id, i) => (i === course ? next : id)));
+    if (!meal) return;
+    const current = picks[course] ?? [];
+    const max = coursePicks(meal.courses[course]);
+    let next: string[];
+    if (current.includes(itemId)) next = current.filter((id) => id !== itemId);
+    else if (max === 1) next = [itemId];
+    else if (current.length < max) next = [...current, itemId];
+    else return;
+    // A pick that's gone takes its add-ons with it.
+    setExtras((prev) =>
+      prev.map((e, i) =>
+        i === course ? Object.fromEntries(Object.entries(e).filter(([id]) => next.includes(id))) : e,
+      ),
+    );
+    setPicks((prev) => prev.map((ids, i) => (i === course ? next : ids)));
     setError(null);
   }
 
-  function toggleExtra(course: number, itemId: string) {
+  function toggleExtra(course: number, pickId: string, itemId: string) {
     setExtras((prev) =>
-      prev.map((e, i) => (i !== course ? e : e.includes(itemId) ? e.filter((id) => id !== itemId) : [...e, itemId])),
+      prev.map((e, i) => {
+        if (i !== course) return e;
+        const own = e[pickId] ?? [];
+        return { ...e, [pickId]: own.includes(itemId) ? own.filter((id) => id !== itemId) : [...own, itemId] };
+      }),
     );
     setError(null);
   }
 
   function add() {
-    if (!meal || pickedCount === 0) return;
+    if (!meal || coursesPicked === 0) return;
     if (addMeal(meal, chosen, addOns)) onClose();
     else setError('Not enough on hand for those picks — choose something else.');
   }
@@ -114,7 +143,8 @@ export function MealDialog({ meal, onClose }: { meal: SetMeal | null; onClose: (
                 {meal.name}
               </h2>
               <div className="meal-dialog__sub">
-                {meal.description ?? `Up to one from each of ${meal.courses.length} courses — skip any the guest doesn’t want`}
+                {meal.description ??
+                  `${meal.courses.some((c) => coursePicks(c) > 1) ? 'Picks' : 'Up to one'} from each of ${meal.courses.length} courses — skip any the guest doesn’t want`}
               </div>
             </div>
             <button
@@ -129,16 +159,27 @@ export function MealDialog({ meal, onClose }: { meal: SetMeal | null; onClose: (
 
           {meal.courses.map((course, ci) => {
             const opts = options(ci);
+            const max = coursePicks(course);
+            const mine = picks[ci] ?? [];
+            const full = max > 1 && mine.length >= max;
             return (
               <fieldset className="meal-course" key={ci}>
-                <legend className="meal-course__name">{course.name}</legend>
+                <legend className="meal-course__name">
+                  {course.name}
+                  {max > 1 && (
+                    <span className="meal-course__limit">
+                      {' '}
+                      · <Mono>{mine.length}</Mono> of up to <Mono>{max}</Mono>
+                    </span>
+                  )}
+                </legend>
                 {opts.length === 0 ? (
                   <p className="meal-course__empty">Nothing on offer for this course right now.</p>
                 ) : (
                   <div className="meal-course__options">
                     {opts.map((item) => {
-                      const selected = picks[ci] === item.id;
-                      const soldOut = !selected && left(item, ci) <= 0;
+                      const selected = mine.includes(item.id);
+                      const soldOut = !selected && !fits(item, ci);
                       return (
                         <button
                           key={item.id}
@@ -147,7 +188,7 @@ export function MealDialog({ meal, onClose }: { meal: SetMeal | null; onClose: (
                             selected ? 'meal-option meal-option--selected' : 'meal-option'
                           }
                           onClick={() => pick(ci, item.id)}
-                          disabled={soldOut}
+                          disabled={soldOut || (!selected && full)}
                           aria-pressed={selected}
                         >
                           <span className="meal-option__name">{item.name}</span>
@@ -158,32 +199,42 @@ export function MealDialog({ meal, onClose }: { meal: SetMeal | null; onClose: (
                     })}
                   </div>
                 )}
-                {addOnsFor(ci).length > 0 && (
-                  <div className="meal-course__addons" role="group" aria-label={`With ${chosen[ci]!.name}`}>
-                    <span className="meal-course__addons-label">With {chosen[ci]!.name}</span>
-                    <div className="meal-course__options">
-                      {addOnsFor(ci).map((o) => {
-                        const selected = !!extras[ci]?.includes(o.item.id);
-                        const soldOut = !selected && !addOnFits(o.item, ci);
-                        return (
-                          <button
-                            key={o.item.id}
-                            type="button"
-                            className={selected ? 'meal-option meal-option--selected' : 'meal-option'}
-                            onClick={() => toggleExtra(ci, o.item.id)}
-                            disabled={soldOut}
-                            aria-pressed={selected}
-                          >
-                            <span className="meal-option__name">{o.item.name}</span>
-                            <span className="meal-option__note">
-                              {soldOut ? 'Sold out' : <AddOnPrice price={o.price} />}
-                            </span>
-                          </button>
-                        );
-                      })}
+                {chosen[ci]?.map((picked) => {
+                  const offers = addOnsFor(picked);
+                  if (offers.length === 0) return null;
+                  const own = extras[ci]?.[picked.id] ?? [];
+                  return (
+                    <div
+                      key={picked.id}
+                      className="meal-course__addons"
+                      role="group"
+                      aria-label={`With ${picked.name}`}
+                    >
+                      <span className="meal-course__addons-label">With {picked.name}</span>
+                      <div className="meal-course__options">
+                        {offers.map((o) => {
+                          const selected = own.includes(o.item.id);
+                          const soldOut = !selected && !fits(o.item, ci);
+                          return (
+                            <button
+                              key={o.item.id}
+                              type="button"
+                              className={selected ? 'meal-option meal-option--selected' : 'meal-option'}
+                              onClick={() => toggleExtra(ci, picked.id, o.item.id)}
+                              disabled={soldOut}
+                              aria-pressed={selected}
+                            >
+                              <span className="meal-option__name">{o.item.name}</span>
+                              <span className="meal-option__note">
+                                {soldOut ? 'Sold out' : <AddOnPrice price={o.price} />}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  );
+                })}
               </fieldset>
             );
           })}
@@ -206,13 +257,13 @@ export function MealDialog({ meal, onClose }: { meal: SetMeal | null; onClose: (
                   )
                 ) : (
                   <>
-                    <Mono>{picks.filter(Boolean).length}</Mono> of{' '}
+                    <Mono>{coursesPicked}</Mono> of{' '}
                     <Mono>{meal.courses.length}</Mono> courses picked
                   </>
                 )}
               </span>
             </div>
-            <Button size="lg" onClick={add} disabled={pickedCount === 0}>
+            <Button size="lg" onClick={add} disabled={coursesPicked === 0}>
               Add to tab
             </Button>
           </footer>

@@ -10,7 +10,8 @@ import { usePos } from '../lib/store';
  * Picks catalog items — a set meal course's options, a category's add-ons —
  * grouped by category so a long catalog stays scannable. Every category starts
  * closed — tap its heading to open it, or pick it from the dropdown to see just
- * that one — and a whole category can go in in one tap, open or not.
+ * that one — and a whole category can go in in one tap, open or not. Typing in
+ * the search box narrows every category to the items whose names match, opened.
  */
 export function ItemPicker({
   catalog,
@@ -33,6 +34,8 @@ export function ItemPicker({
   const [show, setShow] = useState('all');
   // Categories opened by their heading, while showing all of them.
   const [open, setOpen] = useState<Set<string>>(() => new Set());
+  const [query, setQuery] = useState('');
+  const needle = query.trim().toLowerCase();
 
   function toggle(id: string) {
     setOpen((prev) => {
@@ -57,28 +60,41 @@ export function ItemPicker({
   const visible = groups
     .filter((g) => show === 'all' || show === 'picked' || g.id === show)
     .map((g) => (show === 'picked' ? { ...g, items: g.items.filter((i) => selected.includes(i.id)) } : g))
+    .map((g) => (needle ? { ...g, items: g.items.filter((i) => i.name.toLowerCase().includes(needle)) } : g))
     .filter((g) => g.items.length > 0);
 
   return (
     <div className="deal-course__items" role="group" aria-label={`${label} options`}>
-      {groups.length > 1 && (
-        <FilterSelect value={show} onChange={setShow} label={`Show ${label} options from`}>
-          <option value="all">All categories</option>
-          <option value="picked">Picked so far ({selected.length})</option>
-          {groups.map((g) => (
-            <option key={g.id} value={g.id}>
-              {g.label}
-            </option>
-          ))}
-        </FilterSelect>
+      <div className="deal-picker__bar">
+        <input
+          type="search"
+          className="inv-input inv-input--sm deal-picker__search"
+          placeholder="Search items"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          aria-label={`Search ${label} options`}
+        />
+        {groups.length > 1 && (
+          <FilterSelect value={show} onChange={setShow} label={`Show ${label} options from`}>
+            <option value="all">All categories</option>
+            <option value="picked">Picked so far ({selected.length})</option>
+            {groups.map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.label}
+              </option>
+            ))}
+          </FilterSelect>
+        )}
+      </div>
+      {visible.length === 0 && (
+        <p className="inv-note">{needle ? `No items match “${query.trim()}”.` : emptyNote}</p>
       )}
-      {visible.length === 0 && <p className="inv-note">{emptyNote}</p>}
       {visible.map((cat) => {
         const ids = cat.items.map((i) => i.id);
         const picked = ids.filter((id) => selected.includes(id)).length;
         const everything = picked === ids.length;
-        // Narrowed by the dropdown, what was asked for shows straight away.
-        const isOpen = show !== 'all' || open.has(cat.id);
+        // Narrowed by the dropdown or a search, what was asked for shows straight away.
+        const isOpen = show !== 'all' || !!needle || open.has(cat.id);
         const heading = (
           <>
             {cat.label}
@@ -93,7 +109,7 @@ export function ItemPicker({
         return (
           <div key={cat.id} className="deal-group">
             <span className="deal-group__label">
-              {show === 'all' ? (
+              {show === 'all' && !needle ? (
                 <button
                   type="button"
                   className="deal-group__toggle"
