@@ -1,0 +1,199 @@
+/* Portalled to <body>, hidden on screen, and the only thing that prints.
+   Full-page paper, unlike the receipt tape — see PrintableDocument. */
+.print-doc {
+  display: none;
+}
+
+@page document {
+  size: A4;
+  margin: 14mm 14mm 16mm;
+}
+
+@media print {
+  /* The app itself never prints. */
+  #root {
+    display: none !important;
+  }
+
+  .print-doc {
+    display: block;
+    page: document;
+    color: #000;
+    background: #fff;
+    font-family: var(--font-ui);
+    font-size: 12.5px;
+    line-height: 1.45;
+    /* Keep chart columns, share bars, and status fills — browsers drop backgrounds by default. */
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .print-doc__letterhead {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid #000;
+  }
+
+  .print-doc__logo {
+    max-width: 140px;
+    max-height: 56px;
+    object-fit: contain;
+  }
+
+  .print-doc__brand {
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+  }
+
+  .print-doc__location {
+    font-size: 12px;
+    color: #444;
+  }
+
+  .print-doc__title-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    margin-top: 18px;
+  }
+
+  .print-doc__title {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 800;
+  }
+
+  .print-doc__reference {
+    font-size: 18px;
+    font-weight: 700;
+  }
+
+  .print-doc__meta {
+    margin-top: 4px;
+    color: #333;
+  }
+
+  .print-doc__body {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin-top: 16px;
+  }
+
+  .print-doc__foot {
+    margin-top: 24px;
+    padding-top: 8px;
+    border-top: 1px solid #999;
+    font-size: 11px;
+    color: #444;
+  }
+
+  /* Report pieces: flat panels with a hairline instead of filled cards, and no controls. */
+  .print-doc .report-tile,
+  .print-doc .report-card,
+  .print-doc .report-table-wrap {
+    background: #fff;
+    border: 1px solid #bbb;
+    border-radius: 8px;
+    overflow: visible;
+    break-inside: avoid;
+  }
+
+  .print-doc .report-table-wrap {
+    break-inside: auto;
+  }
+
+  .print-doc tr {
+    break-inside: avoid;
+  }
+
+  .print-doc a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .print-doc button,
+  .print-doc .colchart__tip {
+    display: none !important;
+  }
+
+  /* ---------- Purchase order ---------- */
+
+  .print-doc__parties {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  .print-doc__label {
+    font-size: 10.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #555;
+    margin-bottom: 2px;
+  }
+
+  .print-doc__party-name {
+    font-weight: 700;
+  }
+
+  .print-doc__table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .print-doc__table th {
+    text-align: left;
+    font-size: 10.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    border-bottom: 1.5px solid #000;
+    padding: 6px 8px;
+  }
+
+  .print-doc__table td {
+    border-bottom: 1px solid #ccc;
+    padding: 6px 8px;
+  }
+
+  .print-doc__table .num {
+    text-align: right;
+  }
+
+  .print-doc__table tfoot td {
+    border-bottom: none;
+    border-top: 1.5px solid #000;
+    font-weight: 800;
+  }
+
+  .print-doc__table tfoot tr + tr td {
+    border-top: none;
+    font-weight: 600;
+  }
+
+  .print-doc__note {
+    padding: 8px 10px;
+    border: 1px solid #bbb;
+    border-radius: 6px;
+  }
+
+  .print-doc__signatures {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+    margin-top: 28px;
+  }
+
+  .print-doc__signature {
+    padding-top: 6px;
+    border-top: 1px solid #000;
+    font-size: 11px;
+    color: #444;
+  }
+}

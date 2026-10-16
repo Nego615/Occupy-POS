@@ -103,6 +103,29 @@ export function receivedTotal(order: PurchaseOrder): number {
   return round(order.lines.reduce((sum, l) => sum + l.received * l.unitCost, 0));
 }
 
+/** What's still to come on each line — the lines short, with how many short. */
+export function shortLines(order: PurchaseOrder): { itemId: string; name: string; qty: number; unitCost: number }[] {
+  return order.lines
+    .filter((l) => l.received < l.qty)
+    .map((l) => ({ itemId: l.itemId, name: l.name, qty: l.qty - l.received, unitCost: l.unitCost }));
+}
+
+/**
+ * Closes a part-received order whose remainder isn't coming. Stock and bills
+ * already cover only what arrived, so nothing moves — the order just stops
+ * being open, and its shortfall stops counting as on order. Null for any
+ * order that isn't part received: one with nothing in is cancelled instead.
+ */
+export function closeShort(
+  order: PurchaseOrder,
+  closedAt: string,
+  closedBy: string,
+  reason?: string,
+): PurchaseOrder | null {
+  if (order.status !== 'partial') return null;
+  return { ...order, status: 'closed', closedAt, closedBy, closeReason: reason?.trim() || undefined };
+}
+
 /** What `itemId` last cost on a delivery, in the cost currency — undefined if it's never come in. */
 export function lastPaid(orders: PurchaseOrder[], itemId: string): number | undefined {
   const received = orders

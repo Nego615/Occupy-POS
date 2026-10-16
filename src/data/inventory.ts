@@ -73,13 +73,15 @@ export type StockMovement = {
   time: string;
 };
 
-export type PurchaseStatus = 'draft' | 'ordered' | 'partial' | 'received' | 'cancelled';
+/** `closed` is part received, with the rest never coming — see closePurchaseOrder. */
+export type PurchaseStatus = 'draft' | 'ordered' | 'partial' | 'received' | 'closed' | 'cancelled';
 
 export const PURCHASE_STATUS_LABEL: Record<PurchaseStatus, string> = {
   draft: 'Draft',
   ordered: 'Ordered',
   partial: 'Part received',
   received: 'Received',
+  closed: 'Closed short',
   cancelled: 'Cancelled',
 };
 
@@ -103,7 +105,16 @@ export type PurchaseOrder = {
   /** When the supplier said it'd arrive. */
   expectedAt?: string;
   notes?: string;
+  /** Set when the order was closed short: the day, who closed it (name, frozen), and why. */
+  closedAt?: string;
+  closedBy?: string;
+  closeReason?: string;
+  /** The draft raised for what didn't come, when it was closed and reordered. */
+  reorderedAs?: string;
 };
+
+/** Orders still waiting on the supplier, or on being placed. */
+export const OPEN_PURCHASE_STATUSES: PurchaseStatus[] = ['draft', 'ordered', 'partial'];
 
 export type PaymentMethod = 'bank' | 'mobile' | 'cash';
 

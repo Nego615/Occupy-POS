@@ -4,6 +4,7 @@ import './Inventory.css';
 import { Button } from '../components/Button';
 import { CostMoney, Mono, formatCost } from '../components/Mono';
 import { Pill, PillRow } from '../components/Pill';
+import { PrintablePurchaseOrder } from '../components/PrintablePurchaseOrder';
 import { StatusChip } from '../components/StatusChip';
 import {
   PURCHASE_STATUS_LABEL,
@@ -13,7 +14,7 @@ import {
 } from '../data/inventory';
 import { exchangeRate } from '../data/settings';
 import { activeCurrency, costCurrency, isAmountText, toCost } from '../lib/currency';
-import { lastPaid, purchaseTotal } from '../lib/inventory';
+import { lastPaid, purchaseTotal, shortLines } from '../lib/inventory';
 import { usePos } from '../lib/store';
 import { useRevealPanel } from '../lib/useRevealPanel';
 
@@ -21,15 +22,15 @@ type Filter = 'open' | 'received' | 'cancelled' | 'all';
 
 const FILTERS: { id: Filter; label: string; statuses: PurchaseStatus[] }[] = [
   { id: 'open', label: 'Open', statuses: ['draft', 'ordered', 'partial'] },
-  { id: 'received', label: 'Received', statuses: ['received'] },
+  { id: 'received', label: 'Received', statuses: ['received', 'closed'] },
   { id: 'cancelled', label: 'Cancelled', statuses: ['cancelled'] },
-  { id: 'all', label: 'All', statuses: ['draft', 'ordered', 'partial', 'received', 'cancelled'] },
+  { id: 'all', label: 'All', statuses: ['draft', 'ordered', 'partial', 'received', 'closed', 'cancelled'] },
 ];
 
 /** Signal color only where there's a state to act on; drafts get a plain tag. */
 export function PurchaseStatusTag({ status }: { status: PurchaseStatus }) {
   if (status === 'draft') return <span className="inv-tag">Draft</span>;
-  const kind = status === 'received' ? 'open' : status === 'cancelled' ? 'refunded' : 'occupied';
+  const kind = status === 'received' ? 'open' : status === 'cancelled' || status === 'closed' ? 'refunded' : 'occupied';
   return (
     <StatusChip status={kind} size="sm">
       {PURCHASE_STATUS_LABEL[status]}
@@ -151,7 +152,7 @@ export function AdminPurchases() {
           ) : selected?.status === 'draft' ? (
             <PurchaseEditor key={selected.id} order={selected} onSaved={select} />
           ) : selected ? (
-            <OrderPanel key={selected.id} order={selected} />
+            <OrderPanel key={selected.id} order={selected} onOpen={select} />
           ) : (
             <p className="inv-panel__placeholder">
               Pick a purchase order to receive a delivery, or start a new one.
@@ -159,7 +160,19 @@ export function AdminPurchases() {
           )}
         </aside>
       </div>
+
+      {/* Off-screen until Print fires window.print(). */}
+      {selected && <PrintablePurchaseOrder order={selected} />}
     </>
+  );
+}
+
+/** Prints the order as last saved — a draft's unsaved edits aren't on it. */
+function PrintButton() {
+  return (
+    <Button variant="secondary" size="sm" onClick={() => window.print()}>
+      Print purchase order
+    </Button>
   );
 }
 
@@ -374,9 +387,12 @@ function PurchaseEditor({
           </Button>
         </div>
         {order && (
-          <Button variant="secondary" size="sm" onClick={() => cancelPurchaseOrder(order.id)}>
-            Cancel this draft
-          </Button>
+          <div className="inv-actions">
+            <PrintButton />
+            <Button variant="secondary" size="sm" onClick={() => cancelPurchaseOrder(order.id)}>
+              Cancel this draft
+            </Button>
+          </div>
         )}
       </div>
     </>
@@ -385,8 +401,12 @@ function PurchaseEditor({
 
 /* ---------- Placed orders: receive, or read ---------- */
 
-function OrderPanel({ order }: { order: PurchaseOrder }) {
-  const { suppliers, bills, settings, receiveDelivery, cancelPurchaseOrder } = usePos();
+function OrderPanel({ order, onOpen }: { order: PurchaseOrder; onOpen: (id: string) => void }) {
+  const { suppliers, bills, settings, receiveDelivery, cancelPurchaseOrder, closePurchaseOrder } = usePos();
+  const short = shortLines(order);
+  const unitsShort = short.reduce((sum, l) => sum + l.qty, 0);
+  const [closing, setClosing] = useState(false);
+  const [closeReason, setCloseReason] = useState('');
   const settingsRate = exchangeRate(settings);
   const [rateText, setRateText] = useState(settingsRate ? String(settingsRate) : '');
   const supplier = suppliers.find((s) => s.id === order.supplierId);
@@ -560,8 +580,83 @@ function OrderPanel({ order }: { order: PurchaseOrder }) {
         <p className="inv-note">
           Total <Mono>{formatCost(purchaseTotal(order))}</Mono>
           {order.status === 'cancelled' && ' — cancelled, nothing was received.'}
+          {order.status === 'closed' && (
+            <>
+              {' '}
+              — closed short{order.closedAt && <> {formatDay(order.closedAt)}</>}
+              {order.closedBy && <> by {order.closedBy}</>}, <Mono>{unitsShort}</Mono>{' '}
+              {unitsShort === 1 ? 'unit' : 'units'} never delivered
+              {order.closeReason && <> ({order.closeReason})</>}.
+              {order.reorderedAs && (
+                <>
+                  {' '}
+                  Reordered on{' '}
+                  <Link to={`/admin/purchases?po=${order.reorderedAs}`} replace>
+                    {order.reorderedAs}
+                  </Link>
+                  .
+                </>
+              )}
+            </>
+          )}
         </p>
       )}
+
+      {order.status === 'partial' && (
+        <div className="inv-panel__section">
+          <h3 className="inv-panel__section-title">The rest isn’t coming?</h3>
+          {closing ? (
+            <div className="inv-form">
+              <p className="inv-note">
+                Closes the order with <Mono>{unitsShort}</Mono> {unitsShort === 1 ? 'unit' : 'units'} not
+                delivered ({short.map((l) => `${l.qty} × ${l.name}`).join(', ')}). Stock and bills stay as
+                received — nothing is billed for what didn’t come — and the shortfall stops counting as on
+                order, so it shows in reorder suggestions again.
+              </p>
+              <label className="inv-field">
+                Reason <span className="inv-field__hint">(optional)</span>
+                <input
+                  className="inv-input"
+                  value={closeReason}
+                  onChange={(e) => setCloseReason(e.target.value)}
+                  placeholder="e.g. Supplier out of stock"
+                />
+              </label>
+              <div className="inv-actions">
+                <Button variant="secondary" size="sm" onClick={() => closePurchaseOrder(order.id, closeReason)}>
+                  Close short
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    const done = closePurchaseOrder(order.id, closeReason, true);
+                    if (done?.draftId) onOpen(done.draftId);
+                  }}
+                >
+                  Close &amp; reorder the rest
+                </Button>
+              </div>
+              <Button variant="secondary" size="sm" onClick={() => setClosing(false)}>
+                Keep it open
+              </Button>
+            </div>
+          ) : (
+            <div className="inv-form">
+              <p className="inv-note">
+                If the supplier won’t send the <Mono>{unitsShort}</Mono> outstanding{' '}
+                {unitsShort === 1 ? 'unit' : 'units'}, close the order so it stops waiting on them.
+              </p>
+              <Button variant="secondary" size="sm" onClick={() => setClosing(true)}>
+                Close order short…
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="inv-actions">
+        <PrintButton />
+      </div>
 
       {orderBills.length > 0 && (
         <div className="inv-panel__section">

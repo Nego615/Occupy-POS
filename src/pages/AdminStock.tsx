@@ -8,7 +8,7 @@ import { Pill, PillRow } from '../components/Pill';
 import { SearchField } from '../components/SearchField';
 import { StatusChip } from '../components/StatusChip';
 import { categoryPath, stockState, type CatalogItem } from '../data/catalog';
-import { ADJUST_REASONS, MOVEMENT_LABEL, formatDay } from '../data/inventory';
+import { ADJUST_REASONS, MOVEMENT_LABEL, OPEN_PURCHASE_STATUSES, formatDay } from '../data/inventory';
 import { money } from '../lib/analytics';
 import { round } from '../lib/cart';
 import { reorderSuggestions } from '../lib/inventory';
@@ -65,7 +65,7 @@ export function AdminStock() {
   const uncosted = catalog.filter((i) => i.cost === undefined).length;
 
   const openOrders = useMemo(
-    () => purchaseOrders.filter((p) => ['draft', 'ordered', 'partial'].includes(p.status)),
+    () => purchaseOrders.filter((p) => OPEN_PURCHASE_STATUSES.includes(p.status)),
     [purchaseOrders],
   );
   const suggestions = useMemo(

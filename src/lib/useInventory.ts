@@ -23,9 +23,11 @@ import {
   applyMovements,
   averagedCost,
   billStatus,
+  closeShort,
   newBill,
   openingMovements,
   receiveAgainst,
+  shortLines,
   type Receipt,
   type StockEntry,
 } from './inventory';
@@ -74,6 +76,12 @@ export type InventoryStore = {
   placePurchaseOrder: (id: string) => void;
   /** Refused once anything has been received against it. */
   cancelPurchaseOrder: (id: string) => boolean;
+  /**
+   * Part received → closed short: the rest isn't coming. With `reorder`, the
+   * shortfall goes on a new draft to the same supplier, whose id comes back.
+   * Refused (null) unless the order is part received.
+   */
+  closePurchaseOrder: (id: string, reason?: string, reorder?: boolean) => { draftId?: string } | null;
   /**
    * Takes a delivery: stock in, item costs re-averaged, and a bill for what
    * arrived, due on the supplier's terms. Returns the bill. `rate` converts
@@ -293,6 +301,34 @@ export function useInventory(
     [purchaseOrders],
   );
 
+  const closePurchaseOrder = useCallback(
+    (id: string, reason?: string, reorder = false) => {
+      const order = purchaseOrders.find((p) => p.id === id);
+      const closed = order && closeShort(order, todayIso(), me?.name ?? 'Unknown', reason);
+      if (!order || !closed) return null;
+      const short = shortLines(order);
+      const draft: PurchaseOrder | undefined =
+        reorder && short.length > 0
+          ? {
+              id: `PO-${nextPo()}`,
+              supplierId: order.supplierId,
+              status: 'draft',
+              lines: short.map((l) => ({ ...l, received: 0 })),
+              createdAt: todayIso(),
+              createdBy: me?.name ?? 'Unknown',
+              notes: `Rest of ${order.id}`,
+            }
+          : undefined;
+      const final = draft ? { ...closed, reorderedAs: draft.id } : closed;
+      setPurchaseOrders((prev) => {
+        const next = prev.map((p) => (p.id === id ? final : p));
+        return draft ? [draft, ...next] : next;
+      });
+      return { draftId: draft?.id };
+    },
+    [purchaseOrders, me],
+  );
+
   const receiveDelivery = useCallback(
     (poId: string, receipts: Receipt[], invoiceRef: string, rate?: number) => {
       const order = purchaseOrders.find((p) => p.id === poId);
@@ -440,6 +476,7 @@ export function useInventory(
       savePurchaseOrder,
       placePurchaseOrder,
       cancelPurchaseOrder,
+      closePurchaseOrder,
       receiveDelivery,
       recordBillPayment,
       countDraft,
@@ -464,6 +501,7 @@ export function useInventory(
       savePurchaseOrder,
       placePurchaseOrder,
       cancelPurchaseOrder,
+      closePurchaseOrder,
       receiveDelivery,
       recordBillPayment,
       countDraft,

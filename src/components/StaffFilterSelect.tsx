@@ -12,6 +12,13 @@ const EVERYONE_IN: Record<RoleId, string> = {
   cook: 'All cooks',
 };
 
+/** What a staff filter reads as in words — "All servers", "Dev Okafor". */
+export function staffFilterLabel(value: StaffFilter, staff: StaffMember[]): string {
+  if (value === 'all') return 'All staff';
+  if (value.startsWith('role:')) return EVERYONE_IN[value.slice(5) as RoleId] ?? 'All staff';
+  return staff.find((m) => m.id === value)?.name ?? 'Unknown staff member';
+}
+
 /**
  * Picks whose orders to show: everyone, a whole role ("All servers"), or one
  * person, listed under their main role. A role's "All" takes in everyone

@@ -5,7 +5,7 @@ import { Button } from '../components/Button';
 import { CostMoney, Mono } from '../components/Mono';
 import { StatusChip } from '../components/StatusChip';
 import { Switch } from '../components/Switch';
-import type { Supplier } from '../data/inventory';
+import { OPEN_PURCHASE_STATUSES, type Supplier } from '../data/inventory';
 import { billStatus } from '../lib/inventory';
 import { usePos } from '../lib/store';
 import { useRevealPanel } from '../lib/useRevealPanel';
@@ -89,7 +89,7 @@ function useAccount(supplierId: string) {
     overdue: mine.filter((s) => s.state === 'overdue').length,
     items: catalog.filter((i) => i.supplierId === supplierId).length,
     openOrders: purchaseOrders.filter(
-      (p) => p.supplierId === supplierId && ['draft', 'ordered', 'partial'].includes(p.status),
+      (p) => p.supplierId === supplierId && OPEN_PURCHASE_STATUSES.includes(p.status),
     ).length,
   };
 }

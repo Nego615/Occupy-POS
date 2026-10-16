@@ -5,7 +5,8 @@ import { Button } from '../components/Button';
 import { ColumnChart } from '../components/ColumnChart';
 import { Mono, formatCost } from '../components/Mono';
 import { Pill, PillRow } from '../components/Pill';
-import { StaffFilterSelect } from '../components/StaffFilterSelect';
+import { PrintableDocument } from '../components/PrintableDocument';
+import { StaffFilterSelect, staffFilterLabel } from '../components/StaffFilterSelect';
 import type { CatalogItem, Category } from '../data/catalog';
 import { dateOfDaysAgo } from '../data/history';
 import type { Expense } from '../data/expenses';
@@ -201,6 +202,9 @@ export function AdminReports() {
           >
             Export CSV
           </Button>
+          <Button variant="secondary" size="sm" onClick={() => window.print()}>
+            Print
+          </Button>
         </div>
       </div>
 
@@ -233,6 +237,23 @@ export function AdminReports() {
           {view.body}
         </section>
       </div>
+
+      {/* The same report on the letterhead, off-screen until Print. */}
+      <PrintableDocument
+        title={meta.label}
+        meta={[
+          [
+            rangeLabel(range, days, span),
+            report === 'inventory' && 'stock value is as of now',
+            byPerson && person !== 'all' && staffFilterLabel(person, staff),
+          ]
+            .filter(Boolean)
+            .join(' · '),
+          byPerson ? 'Paid orders only · open tabs excluded' : 'Whole shop',
+        ]}
+      >
+        {view.body}
+      </PrintableDocument>
     </>
   );
 }
