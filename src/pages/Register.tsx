@@ -6,6 +6,7 @@ import { ApprovalDialog } from '../components/ApprovalDialog';
 import { AssignTabDialog } from '../components/AssignTabDialog';
 import { Button } from '../components/Button';
 import { DocketDialog, LineDialog, PortionDialog, PriceDialog } from '../components/CounterDialogs';
+import { PrintableReceipt } from '../components/PrintableReceipt';
 import { PrintableDocket, type DocketKind } from '../components/PrintableSlip';
 import { ItemTile } from '../components/ItemTile';
 import { MealDialog } from '../components/MealDialog';
@@ -86,7 +87,9 @@ export function Register() {
   const [printAfterAssign, setPrintAfterAssign] = useState(false);
   // The docket being printed — on the page only while the print dialog is up. It keeps
   // its own copy of the tab, so a bill sent to the counter still prints once it's gone.
-  const [docket, setDocket] = useState<{ order: Order; kind: DocketKind } | null>(null);
+  // `full` is the whole tab's bill, for anyone on the register to print — it leaves
+  // what's been docketed alone.
+  const [docket, setDocket] = useState<{ order: Order; kind: DocketKind | 'full' } | null>(null);
   // The tab whose bill was just sent to the counter, for the note on the empty register.
   const [billSent, setBillSent] = useState<string | null>(null);
   const {
@@ -114,6 +117,7 @@ export function Register() {
     locations,
     tabs,
     canSeeTab,
+    orders,
   } = usePos();
 
   // Prints once the docket is on the page, then takes it off again.
@@ -290,6 +294,12 @@ export function Register() {
     if (placed && newCount > 0) setChoosingDocket(true);
   }, [assigning, printAfterAssign, placed, newCount]);
 
+  /** Prints the whole tab's bill as it stands, without marking anything docketed. */
+  function printBill() {
+    const order = orders.find((o) => o.id === tab.orderId && o.status === 'occupied');
+    if (order) setDocket({ order, kind: 'full' });
+  }
+
   /** Charges the open tab to its table or room, which sends its bill to the counter to be paid. */
   function charge() {
     if (!placed) {
@@ -459,7 +469,12 @@ export function Register() {
           }}
           onClose={() => setChoosingDocket(false)}
         />
-        {docket && <PrintableDocket order={docket.order} kind={docket.kind} />}
+        {docket &&
+          (docket.kind === 'full' ? (
+            <PrintableReceipt order={docket.order} />
+          ) : (
+            <PrintableDocket order={docket.order} kind={docket.kind} />
+          ))}
         <ApprovalDialog
           open={removal !== null}
           permission="editTabs"
@@ -664,16 +679,24 @@ export function Register() {
             </Button>
           )}
 
-          {newCount > 0 && (
-            <button type="button" className="cart__docket" onClick={startDocket}>
-              {printedBefore ? (
-                <>
-                  Print docket · <Mono>{newCount}</Mono> new
-                </>
-              ) : (
-                'Print docket'
+          {hasItems && (
+            <div className="cart__prints">
+              {/* The whole tab so far, with any discount and part payments. */}
+              <button type="button" className="cart__docket" onClick={printBill}>
+                Print bill
+              </button>
+              {newCount > 0 && (
+                <button type="button" className="cart__docket" onClick={startDocket}>
+                  {printedBefore ? (
+                    <>
+                      Print docket · <Mono>{newCount}</Mono> new
+                    </>
+                  ) : (
+                    'Print docket'
+                  )}
+                </button>
               )}
-            </button>
+            </div>
           )}
 
           <Button
