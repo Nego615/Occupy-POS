@@ -132,6 +132,44 @@
 }
 
 /* Destructive confirm step names the consequence in the state color. */
+/* The set meal editor pop-up — the register's meal dialog, wider for courses. */
+.meal-editor {
+  width: min(820px, calc(100vw - 32px));
+}
+
+.meal-editor .meal-dialog__body {
+  padding-bottom: 0;
+}
+
+/* Delete and Save stay in reach however long the courses run. */
+.meal-editor__foot {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  margin: 0 -24px;
+  padding: 14px 24px;
+  background: var(--paper);
+}
+
+.meal-editor__save {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+@media (max-width: 600px) {
+  .meal-editor__foot {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+
+  .meal-editor__save {
+    justify-content: space-between;
+  }
+}
+
 .deal-delete--confirm {
   border-color: var(--occupied) !important;
   color: var(--occupied) !important;
