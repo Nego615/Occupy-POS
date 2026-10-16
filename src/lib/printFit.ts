@@ -11,16 +11,16 @@ import { useLayoutEffect, type RefObject } from 'react';
 export const MAX_SCALE = 2;
 /** Never smaller than the receipt itself. */
 const MIN_SCALE = 1;
-/** The tape's printable width, as set on `.print-receipt` (~80mm). */
-export const TAPE_WIDTH = 302;
+/** The tape's printable width, as set on `.print-receipt`. */
+export const TAPE_WIDTH = 320;
 
 /** The receipt's own sizes and weights at scale 1, as in PrintableReceipt.css. */
 const FONTS = {
-  body: { size: 14, weight: 600 },
-  brand: { size: 18, weight: 800 },
-  small: { size: 13, weight: 600 },
-  head: { size: 13.5, weight: 600 },
-  total: { size: 17, weight: 800 },
+  body: { size: 13, weight: 600 },
+  brand: { size: 17, weight: 800 },
+  small: { size: 12, weight: 600 },
+  head: { size: 12.5, weight: 600 },
+  total: { size: 16, weight: 800 },
 };
 /** Gap between a row's label and amount, and before a line's "× 2". */
 const ROW_GAP = 12;
