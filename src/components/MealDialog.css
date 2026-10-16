@@ -182,7 +182,7 @@
   color: var(--ink-soft);
 }
 
-/* "· 1 of up to 2" — how many picks a course takes. */
+/* "· 2 picked" — how many items a course has picked. */
 .meal-course__limit {
   font-weight: 600;
   letter-spacing: 0;

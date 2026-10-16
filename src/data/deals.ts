@@ -33,18 +33,11 @@ export type Promotion = {
 export type Course = {
   name: string;
   itemIds: string[];
-  /** How many different items the guest can pick from it. Absent means 1. */
-  picks?: number;
 };
 
-/** How many different items a guest can pick from `course`. */
-export function coursePicks(course: Course): number {
-  return Math.max(1, course.picks ?? 1);
-}
-
 /**
- * A full meal sold at one price: up to `picks` items from each course — the
- * guest can skip any. On a tab it's a single line; its picks are what come out of
+ * A full meal sold at one price: any of the items in each course — one or
+ * several — and the guest can skip any course. On a tab it's a single line; its picks are what come out of
  * stock and go to the kitchen.
  */
 export type SetMeal = {
@@ -218,20 +211,17 @@ export function courseOptions(course: Course, catalog: CatalogItem[]): CatalogIt
 
 /**
  * The cheapest and dearest the picks could cost bought separately — what the
- * meal is "worth", one pick from every course up to every course's full
- * allowance. Null while a course has nothing to pick.
+ * meal is "worth", one pick from every course. Null while a course has
+ * nothing to pick.
  */
 export function mealWorth(meal: SetMeal, catalog: CatalogItem[]): [number, number] | null {
   let low = 0;
   let high = 0;
   for (const course of meal.courses) {
-    const prices = courseOptions(course, catalog)
-      .map((i) => i.price)
-      .sort((a, b) => b - a);
+    const prices = courseOptions(course, catalog).map((i) => i.price);
     if (prices.length === 0) return null;
-    // One pick at the cheapest; at the dearest, as many as the course allows.
-    low += prices[prices.length - 1];
-    high += prices.slice(0, coursePicks(course)).reduce((sum, p) => sum + p, 0);
+    low += Math.min(...prices);
+    high += Math.max(...prices);
   }
   return [low, high];
 }

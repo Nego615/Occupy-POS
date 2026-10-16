@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import './MealDialog.css';
-import { courseOptions, coursePicks, type SetMeal } from '../data/deals';
+import { courseOptions, type SetMeal } from '../data/deals';
 import { STOCK_SLACK, addOnOptions, type CatalogItem } from '../data/catalog';
 import { itemQuantities, type CourseAddOn } from '../lib/cart';
 import { usePos } from '../lib/store';
@@ -9,8 +9,8 @@ import { Button } from './Button';
 import { Money, Mono } from './Mono';
 
 /**
- * Builds one set meal: a pick from each course the guest wants — or several,
- * where the course allows — any can be skipped — then onto the tab as a single
+ * Builds one set meal: one or more picks from each course the guest wants —
+ * any can be skipped — then onto the tab as a single
  * line at the meal's price, whichever items are picked. A pick whose category
  * offers sides or extras can have them too, at their add-on prices. Items
  * already on the tab count against what's on hand, so a pick or add-on that
@@ -87,19 +87,10 @@ export function MealDialog({ meal, onClose }: { meal: SetMeal | null; onClose: (
     return left(item, course) - own > 0;
   }
 
-  /**
-   * Picks `itemId` for the course or, tapped again, takes it off. A course that
-   * allows one pick swaps it; one that allows more adds it, up to its limit.
-   */
+  /** Adds `itemId` to the course's picks or, tapped again, takes it off. */
   function pick(course: number, itemId: string) {
-    if (!meal) return;
     const current = picks[course] ?? [];
-    const max = coursePicks(meal.courses[course]);
-    let next: string[];
-    if (current.includes(itemId)) next = current.filter((id) => id !== itemId);
-    else if (max === 1) next = [itemId];
-    else if (current.length < max) next = [...current, itemId];
-    else return;
+    const next = current.includes(itemId) ? current.filter((id) => id !== itemId) : [...current, itemId];
     // A pick that's gone takes its add-ons with it.
     setExtras((prev) =>
       prev.map((e, i) =>
@@ -144,7 +135,7 @@ export function MealDialog({ meal, onClose }: { meal: SetMeal | null; onClose: (
               </h2>
               <div className="meal-dialog__sub">
                 {meal.description ??
-                  `${meal.courses.some((c) => coursePicks(c) > 1) ? 'Picks' : 'Up to one'} from each of ${meal.courses.length} courses — skip any the guest doesn’t want`}
+                  `Pick from each of ${meal.courses.length} courses — skip any the guest doesn’t want`}
               </div>
             </div>
             <button
@@ -159,17 +150,15 @@ export function MealDialog({ meal, onClose }: { meal: SetMeal | null; onClose: (
 
           {meal.courses.map((course, ci) => {
             const opts = options(ci);
-            const max = coursePicks(course);
             const mine = picks[ci] ?? [];
-            const full = max > 1 && mine.length >= max;
             return (
               <fieldset className="meal-course" key={ci}>
                 <legend className="meal-course__name">
                   {course.name}
-                  {max > 1 && (
+                  {mine.length > 0 && (
                     <span className="meal-course__limit">
                       {' '}
-                      · <Mono>{mine.length}</Mono> of up to <Mono>{max}</Mono>
+                      · <Mono>{mine.length}</Mono> picked
                     </span>
                   )}
                 </legend>
@@ -188,7 +177,7 @@ export function MealDialog({ meal, onClose }: { meal: SetMeal | null; onClose: (
                             selected ? 'meal-option meal-option--selected' : 'meal-option'
                           }
                           onClick={() => pick(ci, item.id)}
-                          disabled={soldOut || (!selected && full)}
+                          disabled={soldOut}
                           aria-pressed={selected}
                         >
                           <span className="meal-option__name">{item.name}</span>

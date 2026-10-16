@@ -6,7 +6,7 @@ import { Button } from '../components/Button';
 import { Money, Mono } from '../components/Mono';
 import { StatusChip } from '../components/StatusChip';
 import { Switch } from '../components/Switch';
-import { coursePicks, mealWorth, type Course, type SetMeal } from '../data/deals';
+import { mealWorth, type Course, type SetMeal } from '../data/deals';
 import { activeCurrency, isAmountText } from '../lib/currency';
 import { usePos } from '../lib/store';
 import { useRevealPanel } from '../lib/useRevealPanel';
@@ -30,8 +30,8 @@ function Worth({ range }: { range: [number, number] | null }) {
 /**
  * Full meals sold at one price — a starter, main, dessert, and drink, say.
  * Each course offers a choice of catalog items; at the register the cashier
- * picks from each course the guest wants — one, or up to the course's limit —
- * any can be skipped, and the meal goes on the tab as a single line.
+ * picks from each course the guest wants — one item or several — any can be
+ * skipped, and the meal goes on the tab as a single line.
  */
 export function AdminMeals() {
   const { setMeals, createSetMeal, catalog, settings } = usePos();
@@ -227,12 +227,7 @@ function MealPanel({
     if (courses.some((c) => !c.name)) return setError('Every course needs a name.');
     if (courses.some((c) => c.itemIds.length === 0)) {
       return setError('Every course needs at least one item to pick from.');
-    }
-    const tooMany = courses.find((c) => coursePicks(c) > c.itemIds.length);
-    if (tooMany) {
-      return setError(`${tooMany.name} lets the guest pick more items than it offers.`);
-    }
-    const description = draft.description.trim();
+    }    const description = draft.description.trim();
     saveSetMeal({
       ...meal,
       name,
@@ -360,20 +355,6 @@ function MealPanel({
                   onChange={(e) => setCourse(ci, { name: e.target.value })}
                   aria-label={`Course ${ci + 1} name`}
                 />
-                <label className="deal-course__limit">
-                  Guest picks up to
-                  <input
-                    className="inv-input inv-input--sm inv-input--num"
-                    type="number"
-                    min={1}
-                    max={Math.max(1, course.itemIds.length)}
-                    value={course.picks ?? 1}
-                    onChange={(e) => {
-                      const n = Math.floor(Number(e.target.value));
-                      setCourse(ci, { picks: n > 1 ? n : undefined });
-                    }}
-                  />
-                </label>
                 <button
                   type="button"
                   className="inv-remove"
