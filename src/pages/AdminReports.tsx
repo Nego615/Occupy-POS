@@ -8,7 +8,7 @@ import { Pill, PillRow } from '../components/Pill';
 import { PrintableDocument } from '../components/PrintableDocument';
 import { StaffFilterSelect, staffFilterLabel } from '../components/StaffFilterSelect';
 import type { CatalogItem, Category } from '../data/catalog';
-import { dateOfDaysAgo } from '../data/history';
+import { dateOfDaysAgo, isoDate } from '../data/history';
 import type { Expense } from '../data/expenses';
 import type { StockMovement, Supplier, SupplierBill } from '../data/inventory';
 import { exchangeRate } from '../data/settings';
@@ -24,6 +24,7 @@ import {
   byPayment,
   byStaff,
   byTab,
+  customWindow,
   daysSpanned,
   inLastDays,
   ledger,
@@ -100,9 +101,17 @@ export function AdminReports() {
   const [params, setParams] = useSearchParams();
 
   const report = (REPORTS.find((r) => r.id === params.get('report'))?.id ?? 'summary') as ReportId;
-  const range = (REPORT_RANGES.find((r) => r.id === params.get('range'))?.id ??
-    'week') as ReportRangeId;
-  const days = REPORT_RANGES.find((r) => r.id === range)!.days;
+  // A preset, or `?range=custom&from=2026-10-01&to=2026-10-10`.
+  const from = params.get('from');
+  const to = params.get('to');
+  const custom = params.get('range') === 'custom' ? customWindow(from, to) : null;
+  const range: ReportRangeId = custom
+    ? 'custom'
+    : (REPORT_RANGES.find((r) => r.id === params.get('range'))?.id ?? 'week');
+  const days = custom ? custom.days : REPORT_RANGES.find((r) => r.id === range)!.days;
+  // Days ago the window ends — today, unless the dates were picked.
+  const end = custom?.end ?? 0;
+  const today = isoDate(new Date());
   // All time has no cutoff, but the sales summary still needs a first day to chart from.
   const span = useMemo(
     () => (Number.isFinite(days) ? days : daysSpanned(orders)),
@@ -115,7 +124,7 @@ export function AdminReports() {
   // Profit and the stock reports cover the whole shop, so they aren't split by person.
   const byPerson = !SHOP_WIDE.includes(report);
 
-  function setParam(key: 'report' | 'range' | 'staff', value: string) {
+  function setParam(key: 'report' | 'range' | 'staff' | 'from' | 'to', value: string) {
     setParams(
       (prev) => {
         const next = new URLSearchParams(prev);
@@ -126,10 +135,25 @@ export function AdminReports() {
     );
   }
 
+  /** Switches to picked dates, starting from the range on screen so nothing jumps. */
+  function pickDates() {
+    const reach = Number.isFinite(days) ? days : span;
+    setParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.set('range', 'custom');
+        next.set('from', isoDate(dateOfDaysAgo(end + reach - 1)));
+        next.set('to', isoDate(dateOfDaysAgo(end)));
+        return next;
+      },
+      { replace: true },
+    );
+  }
+
   const windowed = useMemo(() => {
-    const inRange = inLastDays(orders, days);
+    const inRange = inLastDays(orders, days, end);
     return byPerson && person !== 'all' ? inRange.filter((o) => matchesStaff(o, person, allStaff)) : inRange;
-  }, [orders, days, byPerson, person, allStaff]);
+  }, [orders, days, end, byPerson, person, allStaff]);
   const items = useMemo(() => byItem(windowed, catalog, categories), [windowed, catalog, categories]);
 
   const view = useMemo(
@@ -146,12 +170,14 @@ export function AdminReports() {
         allStaff,
         canRecordExpenses: can('expenses'),
         rate: exchangeRate(settings),
+        end,
       }),
     // The view holds formatted money, so a currency switch has to rebuild it.
     [
       report,
       windowed,
       days,
+      end,
       span,
       items,
       settings.tipsEnabled,
@@ -172,7 +198,9 @@ export function AdminReports() {
   function exportCsv() {
     downloadCsv(
       toCsv(view.csv),
-      `occupy-${report}-${range}-${new Date().toISOString().slice(0, 10)}.csv`,
+      custom
+        ? `occupy-${report}-${isoDate(dateOfDaysAgo(end + days - 1))}-to-${isoDate(dateOfDaysAgo(end))}.csv`
+        : `occupy-${report}-${range}-${new Date().toISOString().slice(0, 10)}.csv`,
     );
   }
 
@@ -193,7 +221,35 @@ export function AdminReports() {
                 {r.label}
               </Pill>
             ))}
+            <Pill active={custom !== null} onClick={pickDates}>
+              Pick dates
+            </Pill>
           </PillRow>
+          {custom && (
+            <div className="report-dates" role="group" aria-label="Report dates">
+              <label className="report-dates__field">
+                <span>From</span>
+                <input
+                  type="date"
+                  className="report-dates__input mono"
+                  value={from ?? ''}
+                  max={to ?? today}
+                  onChange={(e) => e.target.value && setParam('from', e.target.value)}
+                />
+              </label>
+              <label className="report-dates__field">
+                <span>To</span>
+                <input
+                  type="date"
+                  className="report-dates__input mono"
+                  value={to ?? ''}
+                  min={from ?? undefined}
+                  max={today}
+                  onChange={(e) => e.target.value && setParam('to', e.target.value)}
+                />
+              </label>
+            </div>
+          )}
           <Button
             variant="secondary"
             size="sm"
@@ -230,7 +286,7 @@ export function AdminReports() {
               {meta.label}
             </h2>
             <span className="report-head__range">
-              {rangeLabel(range, days, span)}
+              {rangeLabel(range, days, span, end)}
               {report === 'inventory' && ' · stock value is as of now'}
             </span>
           </div>
@@ -243,7 +299,7 @@ export function AdminReports() {
         title={meta.label}
         meta={[
           [
-            rangeLabel(range, days, span),
+            rangeLabel(range, days, span, end),
             report === 'inventory' && 'stock value is as of now',
             byPerson && person !== 'all' && staffFilterLabel(person, staff),
           ]
@@ -289,18 +345,21 @@ type CostContext = {
   canRecordExpenses: boolean;
   /** Cost-currency units to one sales unit, when the shop buys in another currency. */
   rate?: number;
+  /** Days ago the window ends; 0 is today. */
+  end: number;
 };
 
-/** "Today", "Last 7 days", or "All time · since Mar 29, 2026". */
-function rangeLabel(range: ReportRangeId, days: number, span: number): string {
+const longDay = (daysAgo: number) =>
+  dateOfDaysAgo(daysAgo).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+/** "Today", "Last 7 days", "Oct 1, 2026 – Oct 10, 2026", or "All time · since Mar 29, 2026". */
+function rangeLabel(range: ReportRangeId, days: number, span: number, end: number): string {
+  if (range === 'custom') {
+    return days === 1 ? longDay(end) : `${longDay(end + days - 1)} – ${longDay(end)} · ${days} days`;
+  }
   if (range === 'today') return 'Today';
   if (range !== 'all') return `Last ${days} days`;
-  const since = dateOfDaysAgo(span - 1).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
-  return `All time · since ${since}`;
+  return `All time · since ${longDay(span - 1)}`;
 }
 
 function buildReport(
@@ -316,7 +375,7 @@ function buildReport(
 ): ReportView {
   switch (report) {
     case 'summary':
-      return summaryReport(orders, span, tipsEnabled);
+      return summaryReport(orders, span, ctx.end, tipsEnabled);
     case 'items':
       return itemsReport(items);
     case 'categories':
@@ -348,14 +407,15 @@ const DAILY_LIMIT = 62;
 function summaryReport(
   orders: ReturnType<typeof inLastDays>,
   days: number,
+  end: number,
   tipsEnabled: boolean,
 ): ReportView {
   const total = ledger(orders);
   const monthly = days > DAILY_LIMIT;
   const unit = monthly ? 'month' : 'day';
   const periods: (Ledger & { key: string | number; label: string })[] = monthly
-    ? byMonth(orders, days)
-    : byDay(orders, days).map((d) => ({ ...d, key: d.daysAgo }));
+    ? byMonth(orders, days, end)
+    : byDay(orders, days, end).map((d) => ({ ...d, key: d.daysAgo }));
   const labelEvery = monthly
     ? Math.ceil(periods.length / 12)
     : days > 31 ? 10 : days > 7 ? 5 : 1;
@@ -626,6 +686,7 @@ function profitReport(
     orders,
     days,
     span,
+    end: ctx.end,
     movements: ctx.movements,
     payrollRuns: ctx.payrollRuns,
     expenses: ctx.expenses,
@@ -820,7 +881,7 @@ function marginsReport(orders: ReturnType<typeof inLastDays>): ReportView {
 
 function inventoryReport(ctx: CostContext, days: number): ReportView {
   const value = valuation(ctx.catalog, ctx.categories);
-  const loss = losses(ctx.movements, days);
+  const loss = losses(ctx.movements, days, ctx.end);
   const stockValue = value.reduce((s, r) => s + r.value, 0);
 
   const csv: ReportView['csv'] = [
@@ -920,7 +981,7 @@ function inventoryReport(ctx: CostContext, days: number): ReportView {
 /* ---------- Purchasing ---------- */
 
 function purchasingReport(ctx: CostContext, days: number): ReportView {
-  const rows = supplierSpend(ctx.bills, ctx.suppliers, days);
+  const rows = supplierSpend(ctx.bills, ctx.suppliers, days, ctx.end);
   // Bills are in what the shop buys in.
   const money = formatCost;
   const csv: ReportView['csv'] = [

@@ -9,7 +9,7 @@ import {
   refundedQty,
   type Order,
 } from '../data/orders';
-import { dateOfDaysAgo } from '../data/history';
+import { dateOfDaysAgo, daysAgoOfIsoDate } from '../data/history';
 import { round } from './cart';
 
 /**
@@ -18,18 +18,38 @@ import { round } from './cart';
  * a partial refund comes off its order) and are also tallied on their own.
  */
 
-export type ReportRangeId = 'today' | 'week' | 'month' | 'all';
+/** A preset, or `custom` — dates picked by hand. */
+export type ReportRangeId = 'today' | 'week' | 'month' | 'all' | 'custom';
 
 /** `days` is Infinity for All time — every filter below reads it as "no cutoff". */
-export const REPORT_RANGES: { id: ReportRangeId; label: string; days: number }[] = [
+export const REPORT_RANGES: { id: Exclude<ReportRangeId, 'custom'>; label: string; days: number }[] = [
   { id: 'today', label: 'Today', days: 1 },
   { id: 'week', label: '7 days', days: 7 },
   { id: 'month', label: '30 days', days: 30 },
   { id: 'all', label: 'All time', days: Infinity },
 ];
 
-export function inLastDays(orders: Order[], days: number): Order[] {
-  return orders.filter((o) => o.daysAgo < days);
+/**
+ * Orders in a window of `days` days ending `end` days ago — 0, the default,
+ * ends today. Oct 1 to Oct 10 is 10 days ending Oct 10.
+ */
+export function inLastDays(orders: Order[], days: number, end = 0): Order[] {
+  return orders.filter((o) => o.daysAgo >= end && o.daysAgo < end + days);
+}
+
+/**
+ * A hand-picked range of ISO days, inclusive, as a window: `days` long,
+ * ending `end` days ago. Either order works; days after today are cut off.
+ * Null when a date is missing or unreadable, or the whole range is ahead.
+ */
+export function customWindow(from: string | null, to: string | null): { days: number; end: number } | null {
+  const iso = /^\d{4}-\d{2}-\d{2}$/;
+  if (!from || !to || !iso.test(from) || !iso.test(to)) return null;
+  const [a, b] = [daysAgoOfIsoDate(from), daysAgoOfIsoDate(to)];
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
+  const [oldest, newest] = [Math.max(a, b), Math.max(0, Math.min(a, b))];
+  if (oldest < 0) return null;
+  return { days: oldest - newest + 1, end: newest };
 }
 
 /** Days from the oldest order through today — how far back All time reaches. */
@@ -85,10 +105,10 @@ export function ledger(orders: Order[]): Ledger {
 
 export type DayRow = Ledger & { daysAgo: number; label: string };
 
-/** One ledger per day in the window, oldest first. */
-export function byDay(orders: Order[], days: number): DayRow[] {
+/** One ledger per day in the window ending `end` days ago, oldest first. */
+export function byDay(orders: Order[], days: number, end = 0): DayRow[] {
   const rows: DayRow[] = [];
-  for (let daysAgo = days - 1; daysAgo >= 0; daysAgo--) {
+  for (let daysAgo = end + days - 1; daysAgo >= end; daysAgo--) {
     rows.push({
       daysAgo,
       label: dayLabel(daysAgo),
@@ -102,10 +122,10 @@ export type MonthRow = Ledger & { key: string; label: string };
 
 /**
  * One ledger per calendar month, oldest first, from the month `days` back
- * through this one — quiet months still get a row. For spans too long to
- * read day by day.
+ * through the month `end` days back — this one, by default. Quiet months
+ * still get a row. For spans too long to read day by day.
  */
-export function byMonth(orders: Order[], days: number): MonthRow[] {
+export function byMonth(orders: Order[], days: number, end = 0): MonthRow[] {
   const keyOf = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   const groups = new Map<string, Order[]>();
   for (const order of orders) {
@@ -114,10 +134,10 @@ export function byMonth(orders: Order[], days: number): MonthRow[] {
   }
 
   const rows: MonthRow[] = [];
-  const first = dateOfDaysAgo(days - 1);
+  const first = dateOfDaysAgo(end + days - 1);
   const cursor = new Date(first.getFullYear(), first.getMonth(), 1);
-  const now = new Date();
-  while (cursor <= now) {
+  const last = dateOfDaysAgo(end);
+  while (cursor <= last) {
     const key = keyOf(cursor);
     rows.push({
       key,

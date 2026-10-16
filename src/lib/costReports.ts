@@ -16,10 +16,10 @@ import { billStatus } from './inventory';
  * before tax and tips — the part cost of goods is set against.
  */
 
-/** Whether an ISO day falls in the last `days` days, today included. */
-export function isoInLastDays(iso: string, days: number): boolean {
+/** Whether an ISO day falls in the `days` days ending `end` days ago — by default, ending today. */
+export function isoInLastDays(iso: string, days: number, end = 0): boolean {
   const ago = daysBetween(iso, todayIso());
-  return ago >= 0 && ago < days;
+  return ago >= end && ago < end + days;
 }
 
 /* ---------- Margins ---------- */
@@ -154,10 +154,10 @@ export type Losses = {
  * counts found missing (or extra), and hand corrections — each valued at the
  * cost when it was logged.
  */
-export function losses(movements: StockMovement[], days: number): Losses {
+export function losses(movements: StockMovement[], days: number, end = 0): Losses {
   const rows = new Map<string, LossRow>();
   for (const m of movements) {
-    if (!['waste', 'count', 'correction'].includes(m.reason) || !isoInLastDays(m.date, days)) continue;
+    if (!['waste', 'count', 'correction'].includes(m.reason) || !isoInLastDays(m.date, days, end)) continue;
     const row =
       rows.get(m.itemId) ??
       {
@@ -224,11 +224,12 @@ export function supplierSpend(
   bills: SupplierBill[],
   suppliers: Supplier[],
   days: number,
+  end = 0,
 ): SupplierSpendRow[] {
   return suppliers
     .map((s) => {
       const mine = bills.filter((b) => b.supplierId === s.id);
-      const inWindow = mine.filter((b) => isoInLastDays(b.issuedAt, days));
+      const inWindow = mine.filter((b) => isoInLastDays(b.issuedAt, days, end));
       const status = mine.map((b) => billStatus(b));
       return {
         supplierId: s.id,
@@ -238,7 +239,7 @@ export function supplierSpend(
         paid: round(
           mine
             .flatMap((b) => b.payments)
-            .filter((p) => isoInLastDays(p.date, days))
+            .filter((p) => isoInLastDays(p.date, days, end))
             .reduce((sum, p) => sum + p.amount, 0),
         ),
         owed: round(status.reduce((sum, st) => sum + st.balance, 0)),

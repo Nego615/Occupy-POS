@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { dateOfDaysAgo } from '../data/history';
+import { dateOfDaysAgo, isoDate } from '../data/history';
 import { hydrateOrder, type OrderRecord } from '../data/orders';
 import { statCards, topItems } from './analytics';
-import { byMonth, daysSpanned, inLastDays } from './reports';
+import { byDay, byMonth, customWindow, daysSpanned, inLastDays } from './reports';
 
 /** A paid 10,000 latte order, `daysAgo` days back. */
 function paidOn(daysAgo: number, id = daysAgo): ReturnType<typeof hydrateOrder> {
@@ -47,5 +47,32 @@ describe('All time', () => {
     expect(count.value).toBe('3');
     expect(net.delta).toBeUndefined();
     expect(topItems(orders, 'all')[0]).toMatchObject({ name: 'Latte', sold: 3 });
+  });
+});
+
+describe('Picked dates', () => {
+  const orders = [paidOn(0), paidOn(3), paidOn(5), paidOn(9)];
+  const day = (ago: number) => isoDate(dateOfDaysAgo(ago));
+
+  it('reads a from–to range as a window ending on the last day, both days included', () => {
+    expect(customWindow(day(9), day(3))).toEqual({ days: 7, end: 3 });
+    // Picked backwards, it's the same range.
+    expect(customWindow(day(3), day(9))).toEqual({ days: 7, end: 3 });
+    expect(customWindow(day(5), day(5))).toEqual({ days: 1, end: 5 });
+  });
+
+  it('cuts off days after today, and refuses a range wholly ahead or unreadable', () => {
+    expect(customWindow(day(2), day(-4))).toEqual({ days: 3, end: 0 });
+    expect(customWindow(day(-2), day(-4))).toBeNull();
+    expect(customWindow('2026-13', day(0))).toBeNull();
+    expect(customWindow(null, day(0))).toBeNull();
+  });
+
+  it('keeps only orders inside the picked days, and charts just those days', () => {
+    const w = customWindow(day(9), day(3))!;
+    expect(inLastDays(orders, w.days, w.end).map((o) => o.daysAgo)).toEqual([3, 5, 9]);
+    const days = byDay(orders, w.days, w.end);
+    expect(days.map((d) => d.daysAgo)).toEqual([9, 8, 7, 6, 5, 4, 3]);
+    expect(days.reduce((sum, d) => sum + d.orders, 0)).toBe(3);
   });
 });

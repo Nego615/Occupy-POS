@@ -320,3 +320,37 @@
   background: var(--occupied-soft);
   box-shadow: inset 3px 0 0 var(--occupied);
 }
+
+/* ---------- Picked dates ---------- */
+
+.report-dates {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.report-dates__field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.report-dates__input {
+  min-height: var(--hit-area);
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.report-dates__input:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
+}

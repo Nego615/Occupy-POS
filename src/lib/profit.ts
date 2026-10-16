@@ -54,6 +54,8 @@ export type ProfitInput = {
   days: number;
   /** The window in whole days back to the oldest order — finite even for all time. */
   span: number;
+  /** Days ago the window ends; 0, the default, is today. */
+  end?: number;
   movements: StockMovement[];
   payrollRuns: PayrollRun[];
   expenses: Expense[];
@@ -70,22 +72,22 @@ export type ProfitInput = {
 const inSales = (amount: number, rate?: number) => (rate ? amount / rate : amount);
 
 export function profitAndLoss(input: ProfitInput): ProfitLoss {
-  const { orders, days, span, movements, payrollRuns, expenses, staff, rate } = input;
+  const { orders, days, span, end = 0, movements, payrollRuns, expenses, staff, rate } = input;
 
   const sales = ledger(orders).itemSales;
   const m = margins(orders);
   const grossProfit = round(sales - m.cost);
-  const stockLosses = round(-losses(movements, days).net);
+  const stockLosses = round(-losses(movements, days, end).net);
 
-  const { wages, covered } = wagesIn(payrollRuns, days, rate);
+  const { wages, covered } = wagesIn(payrollRuns, days, rate, end);
   const lines = expensesByCategory(
-    expenses.filter((e) => isoInLastDays(e.date, days)),
+    expenses.filter((e) => isoInLastDays(e.date, days, end)),
     rate,
   );
   const expenseTotal = round(lines.reduce((s, l) => s + l.amount, 0));
   const net = round(grossProfit - stockLosses - wages - expenseTotal);
 
-  const unpaid = unpaidWages(covered, Math.min(days, span), staff, rate);
+  const unpaid = unpaidWages(covered, Math.min(days, span), staff, rate, end);
 
   return {
     sales,
@@ -152,6 +154,7 @@ export function wagesIn(
   runs: PayrollRun[],
   days: number,
   rate?: number,
+  end = 0,
 ): { wages: number; covered: Set<string> } {
   let wages = 0;
   const covered = new Set<string>();
@@ -161,18 +164,19 @@ export function wagesIn(
     const perDay = (rate ? inSales(run.gross, run.rate ?? rate) : run.gross) / span.length;
     for (const day of span) {
       covered.add(day);
-      if (isoInLastDays(day, days)) wages += perDay;
+      if (isoInLastDays(day, days, end)) wages += perDay;
     }
   }
   return { wages: round(wages), covered };
 }
 
-/** Days in the last `days` (today included) no run pays for, priced at today's salaries. */
+/** Days in the window (`days` ending `end` days ago) no run pays for, priced at today's salaries. */
 function unpaidWages(
   covered: Set<string>,
   days: number,
   staff: StaffMember[],
   rate?: number,
+  end = 0,
 ): { days: number; estimate: number } {
   const monthly = staff
     .filter((m) => m.active && !m.deleted && m.monthlySalary)
@@ -181,7 +185,7 @@ function unpaidWages(
 
   let count = 0;
   let estimate = 0;
-  for (let ago = 0; ago < days; ago++) {
+  for (let ago = end; ago < end + days; ago++) {
     const iso = isoDaysAgo(ago);
     if (covered.has(iso)) continue;
     const [y, m] = iso.split('-').map(Number);
