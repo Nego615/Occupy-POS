@@ -655,6 +655,82 @@ button.cart-line__info:hover .cart-line__name {
   }
 }
 
+/* Short screens (landscape tablets, small laptops): the card and the summary
+   tighten up so the lines on the tab keep room to show. */
+@media (max-height: 820px) and (min-width: 601px) {
+  .cart__head {
+    padding-top: 12px;
+  }
+
+  .tab-stack {
+    margin-top: 8px;
+  }
+
+  .tab-card--front {
+    min-height: 0;
+    padding: 12px 18px 18px;
+  }
+
+  .tab-card__amount {
+    padding-top: 8px;
+    font-size: 34px;
+  }
+
+  .tab-card__meta {
+    margin-top: 4px;
+  }
+
+  .cart-line {
+    padding: 8px 0;
+  }
+
+  .cart__summary {
+    padding-top: 10px;
+    padding-bottom: 12px;
+  }
+
+  .cart__send,
+  .cart__charge {
+    margin-top: 10px;
+  }
+
+  .cart__docket {
+    margin-top: 6px;
+  }
+
+  .cart__charge-sub {
+    margin-top: 6px;
+  }
+}
+
+/* Very short screens: the whole rail scrolls as one, so the card scrolls away
+   to give the lines room, while the summary and charge button stay pinned. */
+@media (max-height: 640px) and (min-width: 601px) {
+  .cart {
+    overflow-y: auto;
+  }
+
+  .cart__items {
+    flex: 1 0 auto;
+    min-height: 120px;
+    overflow: visible;
+  }
+
+  .cart__summary {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    background: var(--paper);
+  }
+}
+
+/* Stacked under the menu on a short screen, the tab gets more of the height. */
+@media (max-height: 640px) and (min-width: 601px) and (max-width: 900px) {
+  .cart {
+    max-height: 72vh;
+  }
+}
+
 /* Phones: menu, then the tab, scrolling as one page. */
 @media (max-width: 600px) {
   .register__body {
