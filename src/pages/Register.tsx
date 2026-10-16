@@ -106,7 +106,6 @@ export function Register() {
     printDocket,
     openTab,
     assignTab,
-    can,
     promotions,
     setMeals,
     categories,
@@ -198,11 +197,12 @@ export function Register() {
     setConfirmingClear(false);
   }
 
-  // Anyone on the register can add to a tab, but only those whose role lets
-  // them take things off it see the −, the × and Clear tab — servers don't.
-  const editsTab = can('editTabs');
+  // Anyone on the register can add to a tab, and change a new one freely. Once
+  // a tab has been charged, docketed or left to come back to, the −, the × and
+  // Clear tab are gone for everyone.
+  const editsTab = !Object.values(tab.printed ?? {}).some((n) => n > 0);
 
-  /** The stepper and the × — going up always works, coming down only for those who edit tabs. */
+  /** The stepper and the × — going up always works, coming down only on a new tab. */
   function changeQty(line: CartLine, qty: number) {
     if (qty >= line.qty || editsTab) setQty(line.key, qty);
   }
