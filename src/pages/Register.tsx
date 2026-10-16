@@ -47,6 +47,8 @@ import {
   itemQuantities,
   lineCap,
   lineDishes,
+  lineFits,
+  portionLine,
   round,
   unprintedLines,
   type CartLine,
@@ -390,7 +392,16 @@ export function Register() {
               })}
           {showItems &&
             visibleItems.map((item) => {
-                const stock = tileStock(item, onTab.get(item.id) ?? 0, settings.lowStockDefault);
+                // A cocktail's stock is its ingredients': sold out once one more won't pour.
+                const poured = !!item.recipe?.length;
+                const stock = poured
+                  ? lineFits(cart, portionLine(item, null, null, catalog), catalog)
+                    ? { soldOut: false }
+                    : { note: 'Sold out', soldOut: true }
+                  : tileStock(item, onTab.get(item.id) ?? 0, settings.lowStockDefault);
+                const count = poured
+                  ? cart.reduce((sum, l) => sum + (l.itemId === item.id && !l.parts ? l.qty * (l.units ?? 1) : 0), 0)
+                  : (onTab.get(item.id) ?? 0);
                 const openPrice = item.openPrice && settings.openPriceEnabled;
                 const promo = bestPromo(promotions, item, at, categories);
                 const price = promo ? itemPrice(item, promo) : item.price;
@@ -404,7 +415,7 @@ export function Register() {
                     color={item.color}
                     note={stock.note}
                     disabled={stock.soldOut}
-                    count={onTab.get(item.id) ?? 0}
+                    count={count}
                     onClick={() =>
                       openPrice
                         ? setPricing(item)

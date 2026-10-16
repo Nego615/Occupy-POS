@@ -48,7 +48,7 @@ export function AddOnDialog({ item, onClose }: { item: CatalogItem | null; onClo
   const lineFor = (servingId: string, ids: string[]) =>
     item &&
     withAddOns(
-      portionLine(item, portions?.find((s) => s.id === servingId) ?? null, promo),
+      portionLine(item, portions?.find((s) => s.id === servingId) ?? null, promo, catalog),
       options
         .filter((o) => ids.includes(o.item.id))
         .map((o): AddOnPick => ({ itemId: o.item.id, name: o.item.name, price: o.price })),

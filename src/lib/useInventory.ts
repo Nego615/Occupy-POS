@@ -21,6 +21,7 @@ import type { PosRepository, Snapshot } from './persist';
 import { nextSeq, restored, useNextId, usePersist, useRemote } from './usePersist';
 import {
   applyMovements,
+  averagedCost,
   billStatus,
   newBill,
   openingMovements,
@@ -59,6 +60,12 @@ export type InventoryStore = {
     reason: 'waste' | 'correction' | 'count',
     note?: string,
   ) => void;
+  /**
+   * Stock bought outside a purchase order: `qty` units in, logged as received.
+   * With `unitCost` (in the sales currency), the item's cost is re-averaged
+   * the way a delivery's is.
+   */
+  receiveStock: (itemId: string, qty: number, unitCost?: number, note?: string) => void;
   addSupplier: (data: Omit<Supplier, 'id'>) => Supplier;
   updateSupplier: (id: string, patch: Partial<Omit<Supplier, 'id'>>) => void;
   /** Creates a draft purchase order, or updates one that's still a draft. */
@@ -203,6 +210,26 @@ export function useInventory(
       logStock([{ itemId, change, reason, note: note?.trim() || undefined }]);
     },
     [catalog, logStock],
+  );
+
+  const receiveStock = useCallback(
+    (itemId: string, qty: number, unitCost?: number, note?: string) => {
+      const item = catalog.find((i) => i.id === itemId);
+      if (!item || !(qty > 0)) return;
+      // Cost first, then stock through the ledger — both from the same snapshot.
+      const costed =
+        unitCost === undefined
+          ? catalog
+          : catalog.map((i) => (i.id === itemId ? { ...i, cost: averagedCost(i, qty, unitCost) } : i));
+      const moved = applyMovements(
+        costed,
+        [{ itemId, change: qty, reason: 'received', note: note?.trim() || undefined, unitCost: unitCost ?? item.cost }],
+        me?.id,
+      );
+      setCatalog(moved.catalog);
+      setMovements((prev) => [...moved.movements.reverse(), ...prev]);
+    },
+    [catalog, me, setCatalog],
   );
 
   const addSupplier = useCallback((data: Omit<Supplier, 'id'>) => {
@@ -407,6 +434,7 @@ export function useInventory(
       logStock,
       logNewItem,
       adjustStock,
+      receiveStock,
       addSupplier,
       updateSupplier,
       savePurchaseOrder,
@@ -430,6 +458,7 @@ export function useInventory(
       logStock,
       logNewItem,
       adjustStock,
+      receiveStock,
       addSupplier,
       updateSupplier,
       savePurchaseOrder,

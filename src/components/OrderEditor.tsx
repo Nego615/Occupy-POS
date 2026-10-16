@@ -3,7 +3,7 @@ import './OrderEditor.css';
 import { Button } from './Button';
 import { Money } from './Mono';
 import { Stepper } from './Stepper';
-import { lineContents } from '../data/catalog';
+import { lineContents, recipePours } from '../data/catalog';
 import {
   TENDER_LABEL,
   orderTotal,
@@ -82,12 +82,21 @@ export function OrderEditor({ order, onDone }: { order: Order; onDone: () => voi
   function addItem(itemId: string) {
     const item = catalog.find((i) => i.id === itemId);
     if (!item) return;
+    // A cocktail pours its recipe, and costs what its ingredients do.
+    const pours = item.recipe?.length ? recipePours(item, catalog) : undefined;
+    const pourCosts = pours?.map((p) => catalog.find((i) => i.id === p.itemId)?.cost);
+    const unitCost = pours
+      ? pourCosts!.every((c) => c !== undefined)
+        ? roundMoney(pourCosts!.reduce((sum: number, c, i) => sum + c! * pours[i].units, 0))
+        : undefined
+      : item.cost;
     const line: OrderLine = {
       itemId: item.id,
       name: item.name,
       qty: 1,
       unitPrice: item.price,
-      ...(item.cost !== undefined ? { unitCost: item.cost } : {}),
+      ...(pours ? { pours } : {}),
+      ...(unitCost !== undefined ? { unitCost } : {}),
     };
     setRows((prev) => [...prev, { key: nextKey(), line, qty: 1, price: String(item.price) }]);
     setAdding('');

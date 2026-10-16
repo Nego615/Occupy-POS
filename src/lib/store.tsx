@@ -569,6 +569,7 @@ function toOrderLines(cart: CartLine[], catalog?: CatalogItem[]): OrderLine[] {
         : {}),
       ...(l.note ? { note: l.note } : {}),
       ...(l.units !== undefined ? { units: l.units } : {}),
+      ...(l.pours ? { pours: l.pours } : {}),
       ...(l.addOns ? { addOns: l.addOns } : {}),
       ...(catalog && unitCost !== undefined ? { unitCost } : {}),
     };
@@ -869,7 +870,7 @@ export function PosProvider({
   const addItem = useCallback(
     (item: CatalogItem, portion?: Portion, addOns: AddOnPick[] = []) => {
       const promo = bestPromo(promotions, item, new Date(), categories);
-      const line = withAddOns(portionLine(item, portion ?? null, promo), addOns);
+      const line = withAddOns(portionLine(item, portion ?? null, promo, catalog), addOns);
       if (!lineFits(cart, line, catalog)) return false;
       updateActiveCart((lines) => (lineFits(lines, line, catalog) ? addLine(lines, line) : lines));
       return true;

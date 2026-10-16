@@ -38,7 +38,34 @@ export type CatalogItem = {
    * Never held back or shown as low or sold out, and sales leave its stock alone.
    */
   untracked?: boolean;
+  /**
+   * What one is made from — a cocktail's spirits and mixers. Selling it pours
+   * these off their own stock instead of its own, so it's kept untracked.
+   */
+  recipe?: RecipePart[];
 };
+
+/**
+ * One ingredient of a recipe: `amount` millilitres when the ingredient has a
+ * `unitSize` (a bottle of spirits), otherwise that many of its units (a can).
+ */
+export type RecipePart = { itemId: string; amount: number };
+
+/** How much of one ingredient one serving takes off its stock. */
+export type Pour = { itemId: string; name: string; units: number };
+
+/**
+ * What one of `item` pours off stock, by its recipe, against the ingredients
+ * as they are now. Ingredients that have left the catalog are skipped.
+ */
+export function recipePours(item: CatalogItem, catalog: CatalogItem[]): Pour[] {
+  return (item.recipe ?? []).flatMap((part) => {
+    const ingredient = catalog.find((i) => i.id === part.itemId);
+    if (!ingredient) return [];
+    const units = ingredient.unitSize ? part.amount / ingredient.unitSize : part.amount;
+    return [{ itemId: ingredient.id, name: ingredient.name, units: roundStock(units) }];
+  });
+}
 
 /** A serving of an item sold at its own price, drawing `units` of its stock. */
 export type Portion = {

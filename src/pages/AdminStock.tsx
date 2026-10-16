@@ -9,6 +9,7 @@ import { SearchField } from '../components/SearchField';
 import { StatusChip } from '../components/StatusChip';
 import { categoryPath, stockState, type CatalogItem } from '../data/catalog';
 import { ADJUST_REASONS, MOVEMENT_LABEL, formatDay } from '../data/inventory';
+import { money } from '../lib/analytics';
 import { round } from '../lib/cart';
 import { reorderSuggestions } from '../lib/inventory';
 import { usePos } from '../lib/store';
@@ -236,9 +237,11 @@ export function AdminStock() {
 
 function ItemPanel({ item, supplierName }: { item: CatalogItem; supplierName: string }) {
   const navigate = useNavigate();
-  const { movements, allStaff: staff, adjustStock, settings } = usePos();
-  const [reason, setReason] = useState<'count' | 'waste' | 'correction'>('count');
+  const { movements, allStaff: staff, adjustStock, receiveStock, settings } = usePos();
+  const [reason, setReason] = useState<'received' | 'count' | 'waste' | 'correction'>('received');
   const [amount, setAmount] = useState('');
+  // What one unit cost, for stock received — starts at the item's current cost.
+  const [unitCost, setUnitCost] = useState(item.cost !== undefined ? String(item.cost) : '');
   const [note, setNote] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
@@ -250,7 +253,14 @@ function ItemPanel({ item, supplierName }: { item: CatalogItem; supplierName: st
   function save() {
     const text = amount.trim();
     const n = Number(text);
-    if (reason === 'count') {
+    if (reason === 'received') {
+      if (!/^\d+(\.\d+)?$/.test(text) || n === 0) return setError('Enter how many units came in, like 24.');
+      const costText = unitCost.trim();
+      const cost = costText === '' ? undefined : Number(costText);
+      if (cost !== undefined && !(cost >= 0)) return setError('Enter what one unit cost, like 1500 — or leave it blank.');
+      receiveStock(item.id, n, cost, note);
+      setDone(`+${n} received${cost !== undefined ? ` at ${money(cost)} each` : ''}.`);
+    } else if (reason === 'count') {
       if (!/^\d+$/.test(text)) return setError('Enter the number counted, like 12.');
       if (n === item.stock) return setError('That’s already the number on hand.');
       adjustStock(item.id, { mode: 'count', counted: n }, 'count', note);
@@ -316,7 +326,13 @@ function ItemPanel({ item, supplierName }: { item: CatalogItem; supplierName: st
             <span className="inv-field__hint">{hint}</span>
           </label>
           <label className="inv-field">
-            {reason === 'count' ? 'Counted on the shelf' : reason === 'waste' ? 'Units lost' : 'Units to add (or -remove)'}
+            {reason === 'received'
+              ? 'Units received'
+              : reason === 'count'
+                ? 'Counted on the shelf'
+                : reason === 'waste'
+                  ? 'Units lost'
+                  : 'Units to add (or -remove)'}
             <input
               className="inv-input inv-input--num"
               inputMode="numeric"
@@ -329,13 +345,28 @@ function ItemPanel({ item, supplierName }: { item: CatalogItem; supplierName: st
               aria-invalid={error !== null}
             />
           </label>
+          {reason === 'received' && (
+            <label className="inv-field">
+              Cost per unit <span className="inv-field__hint">(optional — blank keeps the current cost)</span>
+              <input
+                className="inv-input inv-input--num"
+                inputMode="decimal"
+                value={unitCost}
+                onChange={(e) => {
+                  setUnitCost(e.target.value);
+                  setError(null);
+                  setDone(null);
+                }}
+              />
+            </label>
+          )}
           <label className="inv-field">
-            Note {reason === 'count' && <span className="inv-field__hint">(optional)</span>}
+            Note {(reason === 'count' || reason === 'received') && <span className="inv-field__hint">(optional)</span>}
             <input
               className="inv-input"
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              placeholder={reason === 'waste' ? 'e.g. dropped tray' : ''}
+              placeholder={reason === 'waste' ? 'e.g. dropped tray' : reason === 'received' ? 'e.g. Bought at the market, cash' : ''}
             />
           </label>
           {error && (
@@ -349,7 +380,7 @@ function ItemPanel({ item, supplierName }: { item: CatalogItem; supplierName: st
             </p>
           )}
           <Button size="sm" onClick={save}>
-            Save adjustment
+            {reason === 'received' ? 'Add stock' : 'Save adjustment'}
           </Button>
         </div>
       </div>

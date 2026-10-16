@@ -41,7 +41,12 @@ export const MOVEMENT_LABEL: Record<MovementReason, string> = {
 };
 
 /** Reasons a person can pick when adjusting stock by hand. */
-export const ADJUST_REASONS: { id: 'waste' | 'correction' | 'count'; label: string; hint: string }[] = [
+export const ADJUST_REASONS: { id: 'received' | 'waste' | 'correction' | 'count'; label: string; hint: string }[] = [
+  {
+    id: 'received',
+    label: 'Stock received',
+    hint: 'Bought outside a purchase order — adds the units and updates the item’s cost.',
+  },
   { id: 'count', label: 'Stock count', hint: 'Set to what’s physically on the shelf.' },
   { id: 'waste', label: 'Waste or damage', hint: 'Spoiled, broken, expired, or given away.' },
   { id: 'correction', label: 'Correction', hint: 'Fix a mistake in the number.' },

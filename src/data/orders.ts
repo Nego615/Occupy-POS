@@ -1,4 +1,4 @@
-import { CATALOG, TAX_RATE, type AddOnPick } from './catalog';
+import { CATALOG, TAX_RATE, type AddOnPick, type Pour } from './catalog';
 import { HISTORY_DAYS, dateOfDaysAgo, daysAgoOf } from './history';
 import { currencyOf, roundMoney, type CurrencyCode } from '../lib/currency';
 
@@ -81,6 +81,8 @@ export type OrderLine = {
   note?: string;
   /** Stock one of it used, for a portion — 0.5 for a half. Absent means 1. */
   units?: number;
+  /** What one poured off stock, from its recipe — stock moved on these, not the item. */
+  pours?: Pour[];
   /** Sides and extras it went out with, their prices in `unitPrice`. On a set meal, by pick. */
   addOns?: AddOnPick[];
   /**
@@ -326,7 +328,9 @@ export function orderItems(
     const picks = [
       ...(line.parts
         ? line.parts.map((name, j) => ({ itemId: line.partIds?.[j], name, units: 1 }))
-        : [{ itemId: line.itemId, name: line.name, units: line.units ?? 1 }]),
+        : line.pours
+          ? line.pours.map((p) => ({ itemId: p.itemId, name: p.name, units: p.units * (line.units ?? 1) }))
+          : [{ itemId: line.itemId, name: line.name, units: line.units ?? 1 }]),
       ...(line.addOns ?? []).map((a) => ({ itemId: a.itemId, name: a.name, units: 1 })),
     ];
     for (const { units, ...pick } of picks) {

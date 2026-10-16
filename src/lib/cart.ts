@@ -1,4 +1,4 @@
-import { STOCK_SLACK, WHOLE, stockFits, type AddOnPick, type CatalogItem, type Portion } from '../data/catalog';
+import { STOCK_SLACK, WHOLE, recipePours, stockFits, type AddOnPick, type CatalogItem, type Portion, type Pour } from '../data/catalog';
 import { discounted, type Promotion, type SetMeal } from '../data/deals';
 import { formatCurrency, roundMoney } from './currency';
 
@@ -35,6 +35,11 @@ export type CartLine = {
   manual?: LineDiscount;
   /** Stock one of it uses, for a portion — 0.5 for a half. Absent means 1. */
   units?: number;
+  /**
+   * What one pours off stock, from its recipe as it stood when rung up —
+   * stock draws on these instead of the item itself.
+   */
+  pours?: Pour[];
   /**
    * Sides and extras rung up with it — chips with a main — their prices in
    * `unitPrice`. On a set meal, each names which pick it goes with.
@@ -80,24 +85,30 @@ export function itemLine(item: CatalogItem, promo: Promotion | null): Omit<CartL
 
 /**
  * A line for one `portion` of `item` — "Roast Chicken (Half)" — priced by
- * `promo` if one's running. A null or whole portion is the plain item.
+ * `promo` if one's running. A null or whole portion is the plain item. Given
+ * the `catalog`, an item with a recipe carries what it pours.
  */
 export function portionLine(
   item: CatalogItem,
   portion: Portion | null,
   promo: Promotion | null,
+  catalog?: CatalogItem[],
 ): Omit<CartLine, 'qty'> {
   const whole = !portion || portion.id === WHOLE;
   const listPrice = whole ? item.price : portion.price;
-  const base: Omit<CartLine, 'qty'> = whole
-    ? { key: item.id, itemId: item.id, name: item.name, unitPrice: item.price }
-    : {
-        key: `${item.id}#${portion.id}`,
-        itemId: item.id,
-        name: `${item.name} (${portion.label})`,
-        unitPrice: portion.price,
-        units: portion.units,
-      };
+  const pours = item.recipe?.length && catalog ? recipePours(item, catalog) : undefined;
+  const base: Omit<CartLine, 'qty'> = {
+    ...(whole
+      ? { key: item.id, itemId: item.id, name: item.name, unitPrice: item.price }
+      : {
+          key: `${item.id}#${portion.id}`,
+          itemId: item.id,
+          name: `${item.name} (${portion.label})`,
+          unitPrice: portion.price,
+          units: portion.units,
+        }),
+    ...(pours ? { pours } : {}),
+  };
   if (!promo) return base;
   const price = round(discounted(promo, listPrice));
   if (price >= listPrice) return base;
@@ -331,7 +342,7 @@ export function setLineQty(lines: CartLine[], key: string, qty: number): CartLin
     : lines.map((l) => (l.key === key ? { ...l, qty } : l));
 }
 
-type LineShape = Pick<CartLine, 'itemId' | 'name' | 'parts' | 'units' | 'addOns'>;
+type LineShape = Pick<CartLine, 'itemId' | 'name' | 'parts' | 'units' | 'addOns' | 'pours'>;
 
 /**
  * What one of `line` is made of — itself, or a set meal's picks — each with
@@ -348,11 +359,14 @@ export function lineDishes(
 
 /**
  * Catalog items one of `line` uses — itself or a set meal's picks, and their
- * add-ons — and how much stock of each: a portion's share, otherwise 1.
+ * add-ons — and how much stock of each: a portion's share, otherwise 1. An
+ * item with a recipe uses its ingredients instead, a portion pouring its share.
  */
 export function lineItems(line: LineShape): { itemId: string; name: string; units: number }[] {
   return lineDishes(line).flatMap((d) => [
-    { itemId: d.itemId, name: d.name, units: d.units },
+    ...(line.pours && !line.parts
+      ? line.pours.map((p) => ({ itemId: p.itemId, name: p.name, units: p.units * d.units }))
+      : [{ itemId: d.itemId, name: d.name, units: d.units }]),
     ...d.addOns.map((a) => ({ itemId: a.itemId, name: a.name, units: 1 })),
   ]);
 }

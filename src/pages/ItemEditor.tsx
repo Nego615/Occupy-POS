@@ -17,6 +17,7 @@ import {
   unitsLabel,
   type CategoryId,
   type Portion,
+  type RecipePart,
   type StockState,
 } from '../data/catalog';
 import { exchangeRate } from '../data/settings';
@@ -49,7 +50,12 @@ type ItemDraft = {
   measure: Measure;
   /** Millilitres in one unit, when portions are measured in ml. */
   unitSize: string;
+  /** What it's made from, for an untracked item — poured off each ingredient's stock. */
+  recipe: RecipeDraft[];
 };
+
+/** A recipe row as typed: the ingredient, and how much — ml for a sized bottle, else units. */
+type RecipeDraft = { id: string; itemId: string; amount: string };
 
 /** A portion's size as a share of one unit ("1/2"), or — for drinks — millilitres poured ("25"). */
 type Measure = 'share' | 'ml';
@@ -79,6 +85,7 @@ const BLANK: ItemDraft = {
   portions: [],
   measure: 'share',
   unitSize: '',
+  recipe: [],
 };
 
 /** Millilitres as typed — "25", "25 ml", "5 cl", "1 l"; null unless it's above 0. */
@@ -137,6 +144,23 @@ function portionError(
   return null;
 }
 
+/** A recipe row's amount — ml from a sized bottle, else units; null unless it's above 0. */
+function recipeAmount(text: string, ml: boolean): number | null {
+  if (ml) return parseMl(text);
+  const t = text.trim();
+  return /^\d*\.?\d+$/.test(t) && Number(t) > 0 ? Number(t) : parseUnits(t);
+}
+
+/** Why a recipe row can't be saved, or null if it can. `ml` is whether its ingredient pours in ml. */
+function recipeError(row: RecipeDraft, others: RecipeDraft[], ml: boolean): string | null {
+  if (!row.itemId) return 'Pick the ingredient.';
+  if (others.some((o) => o.itemId === row.itemId)) return 'That ingredient is already in the recipe.';
+  const amount = recipeAmount(row.amount, ml);
+  if (amount === null) return ml ? 'Enter how much it pours in ml, like 60.' : 'Enter how many it uses, like 1.';
+  if (ml ? amount > 10_000 : amount > 10) return ml ? 'A recipe can’t pour more than 10 litres.' : 'A recipe can’t use more than ten.';
+  return null;
+}
+
 /** Stock counts: whole units, no sign, up to 9999. */
 const WHOLE_NUMBER = /^\d{1,4}$/;
 
@@ -185,6 +209,7 @@ export function ItemEditor() {
             })),
             measure: item.unitSize ? 'ml' : 'share',
             unitSize: item.unitSize !== undefined ? String(item.unitSize) : '',
+            recipe: (item.recipe ?? []).map((r) => ({ id: r.itemId, itemId: r.itemId, amount: String(r.amount) })),
           }
         : { ...BLANK, category: editable[0]?.id ?? '', lowStockAt: String(settings.lowStockDefault) },
     // Categories are read once, for a new item's starting pick.
@@ -216,6 +241,14 @@ export function ItemEditor() {
     portionError(row, draft.portions.filter((_, j) => j !== i), draft.measure, unitSize),
   );
   const portionsValid = unitSizeValid && portionErrors.every((e) => e === null);
+  // Recipes pour from stock that's counted, and not from another recipe.
+  const ingredients = catalog.filter((i) => !i.untracked && !i.recipe?.length && i.id !== item?.id);
+  const pourMl = (row: RecipeDraft) => !!catalog.find((i) => i.id === row.itemId)?.unitSize;
+  const recipeRows = draft.tracked ? [] : draft.recipe;
+  const recipeErrors = recipeRows.map((row, i) =>
+    recipeError(row, recipeRows.filter((_, j) => j !== i), pourMl(row)),
+  );
+  const recipeValid = recipeErrors.every((e) => e === null);
   const dirty = JSON.stringify(draft) !== JSON.stringify(saved);
   const canSave =
     (creating || dirty) &&
@@ -226,7 +259,18 @@ export function ItemEditor() {
     lowValid &&
     costValid &&
     parValid &&
-    portionsValid;
+    portionsValid &&
+    recipeValid;
+
+  const setRecipeRow = (index: number, patch: Partial<RecipeDraft>) =>
+    set(
+      'recipe',
+      draft.recipe.map((row, i) => (i === index ? { ...row, ...patch } : row)),
+    );
+
+  function addRecipeRow() {
+    set('recipe', [...draft.recipe, { id: `r${Date.now().toString(36)}${++portionSeq}`, itemId: '', amount: '' }]);
+  }
 
   const setPortion = (index: number, patch: Partial<PortionDraft>) =>
     set(
@@ -368,6 +412,9 @@ export function ItemEditor() {
           )
         : undefined,
       unitSize,
+      recipe: recipeRows.length
+        ? recipeRows.map((r): RecipePart => ({ itemId: r.itemId, amount: recipeAmount(r.amount, pourMl(r))! }))
+        : undefined,
       // Left at the Settings default, it stays unset so it keeps following the default.
       lowStockAt:
         item?.lowStockAt === undefined && lowValue === settings.lowStockDefault
@@ -572,10 +619,76 @@ export function ItemEditor() {
             )}
             </>
             ) : (
+              <>
               <p className="stock-panel__help" id="stock-heading">
                 Stock isn’t counted for this item. Sales and refunds leave it alone, and it stays off
                 the Stock page and stock counts.
               </p>
+
+              <div className="recipe" role="group" aria-labelledby="recipe-heading">
+                <span className="field__label" id="recipe-heading">
+                  Recipe <span className="field__optional">(optional)</span>
+                </span>
+                <p className="portions__help">
+                  What one is made from — a cocktail’s spirits and mixers. Each sale pours these off
+                  their own stock, and a refund puts them back. Bottles with a size in ml pour in ml.
+                </p>
+                {draft.recipe.map((row, i) => {
+                  const ml = pourMl(row);
+                  return (
+                    <div key={row.id} className="portions__item">
+                      <div className="recipe__row">
+                        <select
+                          value={row.itemId}
+                          onChange={(e) => setRecipeRow(i, { itemId: e.target.value })}
+                          aria-label={`Ingredient ${i + 1}`}
+                          aria-invalid={recipeErrors[i] !== null}
+                        >
+                          <option value="">Pick an ingredient</option>
+                          {/* One already picked stays listed even if it's since stopped counting stock. */}
+                          {[...ingredients, ...catalog.filter((c) => c.id === row.itemId && !ingredients.includes(c))]
+                            .sort((a, b) => a.name.localeCompare(b.name))
+                            .map((c) => (
+                              <option key={c.id} value={c.id}>
+                                {c.name}
+                                {c.unitSize ? ` · ${c.unitSize} ml` : ''}
+                              </option>
+                            ))}
+                        </select>
+                        <div className="price-input">
+                          <input
+                            className="mono"
+                            type="text"
+                            inputMode="decimal"
+                            value={row.amount}
+                            placeholder={ml ? '60' : '1'}
+                            onChange={(e) => setRecipeRow(i, { amount: e.target.value })}
+                            aria-label={`Ingredient ${i + 1} ${ml ? 'millilitres' : 'units'}`}
+                          />
+                          <span className="price-input__symbol mono" aria-hidden="true">
+                            {ml ? 'ml' : 'units'}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          className="portions__remove"
+                          onClick={() => set('recipe', draft.recipe.filter((_, j) => j !== i))}
+                          aria-label={`Remove ingredient ${i + 1}`}
+                        >
+                          <span aria-hidden="true">×</span>
+                        </button>
+                      </div>
+                      {recipeErrors[i] && <p className="field__error">{recipeErrors[i]}</p>}
+                    </div>
+                  );
+                })}
+                <div>
+                  <Button variant="secondary" size="sm" onClick={addRecipeRow} disabled={ingredients.length === 0}>
+                    Add an ingredient
+                  </Button>
+                </div>
+              </div>
+              </>
             )}
 
             <div className="stock-panel__buying">

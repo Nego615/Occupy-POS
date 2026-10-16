@@ -133,17 +133,9 @@ export function receiveAgainst(
   const complete = lines.every((l) => l.received >= l.qty);
   const status: PurchaseStatus = complete ? 'received' : 'partial';
 
-  // Weighted average: what's on the shelf at its old cost, plus what arrived at its cost.
   const costed = catalog.map((item) => {
     const r = arrived.find((x) => x.itemId === item.id);
-    if (!r) return item;
-    const unitCost = toSales(r.unitCost, rate);
-    const onHand = Math.max(0, item.stock);
-    const cost =
-      item.cost === undefined || onHand === 0
-        ? unitCost
-        : round((onHand * item.cost + r.qty * unitCost) / (onHand + r.qty));
-    return { ...item, cost };
+    return r ? { ...item, cost: averagedCost(item, r.qty, toSales(r.unitCost, rate)) } : item;
   });
 
   return {
@@ -158,6 +150,17 @@ export function receiveAgainst(
     })),
     amount: round(arrived.reduce((sum, r) => sum + r.qty * r.unitCost, 0)),
   };
+}
+
+/**
+ * An item's cost once `qty` more arrive at `unitCost` each: a weighted
+ * average of what's on the shelf at its old cost and what came in at its own.
+ */
+export function averagedCost(item: Pick<CatalogItem, 'stock' | 'cost'>, qty: number, unitCost: number): number {
+  const onHand = Math.max(0, item.stock);
+  return item.cost === undefined || onHand === 0
+    ? unitCost
+    : round((onHand * item.cost + qty * unitCost) / (onHand + qty));
 }
 
 /**

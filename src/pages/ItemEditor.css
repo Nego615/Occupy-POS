@@ -535,3 +535,22 @@
     padding: 20px 16px;
   }
 }
+
+/* A cocktail's pours, under the untracked stock note. */
+.recipe {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.recipe__row {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) var(--hit-area);
+  gap: 8px;
+  align-items: center;
+}
+
+.recipe__row select {
+  min-width: 0;
+}
