@@ -36,6 +36,11 @@ export const ORDER_CHIP: Record<OrderStatus, { status: StatusKind; label: string
   charged: { status: 'occupied', label: 'On room bill' },
 };
 
+/** The chip for an order — a deleted open tab reads as deleted, not open. */
+export function orderChip(order: Pick<Order, 'status' | 'deleted'>): { status: StatusKind; label: string } {
+  return order.deleted && order.status === 'occupied' ? { status: 'refunded', label: 'Deleted tab' } : ORDER_CHIP[order.status];
+}
+
 export type OrderDetailProps = {
   order: Order;
   /** Replaces the bare time in the subline, e.g. "Yesterday · 4:38 PM". */
@@ -82,7 +87,7 @@ export function OrderDetail({
   const [changing, setChanging] = useState<'edit' | 'delete' | null>(null);
 
   const discount = orderDiscount(order);
-  const chip = ORDER_CHIP[order.status];
+  const chip = orderChip(given);
   const closedLabel = order.status === 'occupied' ? 'Opened' : 'Closed';
   const canRefund = can('refunds');
   const nameOf = (id?: string) => (id ? staff.find((m) => m.id === id)?.name : undefined);
@@ -348,6 +353,13 @@ export function OrderDetail({
           </Button>
           <Button variant="secondary" onClick={() => setChanging('delete')}>
             Delete order
+          </Button>
+        </div>
+      )}
+      {can('editOrders') && order.status === 'occupied' && !given.deleted && (
+        <div className="detail__actions">
+          <Button variant="secondary" onClick={() => setChanging('delete')}>
+            Delete tab
           </Button>
         </div>
       )}

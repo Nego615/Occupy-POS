@@ -309,19 +309,25 @@ export function OrderEditor({ order, onDone }: { order: Order; onDone: () => voi
 
 /**
  * Deletes a closed order, with a reason. What's left of its items can go back
- * in stock — off by default, as most of what's sold can't be put back.
+ * in stock — off by default, as most of what's sold can't be put back. An
+ * open tab is deleted outright: nothing came out of stock while it was open.
  */
 export function DeleteOrderPanel({ order, onDone }: { order: Order; onDone: () => void }) {
-  const { deleteOrder, catalog } = usePos();
+  const { deleteOrder, deleteTab, catalog } = usePos();
+  const openTab = order.status === 'occupied';
   const [reason, setReason] = useState('');
   const [restock, setRestock] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const restockable = heldItems(order).filter((l) =>
-    catalog.some((c) => (l.itemId ? c.id === l.itemId : c.name === l.name) && !c.untracked),
-  );
+  const restockable = openTab
+    ? []
+    : heldItems(order).filter((l) =>
+        catalog.some((c) => (l.itemId ? c.id === l.itemId : c.name === l.name) && !c.untracked),
+      );
 
   function confirm() {
-    const refused = deleteOrder(order.id, { reason, restock: restock && restockable.length > 0 });
+    const refused = openTab
+      ? deleteTab(order.id, reason)
+      : deleteOrder(order.id, { reason, restock: restock && restockable.length > 0 });
     if (refused) return setError(refused);
     onDone();
   }
@@ -330,8 +336,9 @@ export function DeleteOrderPanel({ order, onDone }: { order: Order; onDone: () =
     <>
       <div className="order-edit">
         <p className="order-edit__lead">
-          Deleting takes this order out of sales, reports, and the open shift’s cash-up. It stays under
-          Deleted in Orders, where it can be restored.
+          {openTab
+            ? 'Deleting closes this tab without payment and frees its table or room. Nothing was taken from stock while it was open. It’s kept under Deleted in Orders, with who deleted it and why.'
+            : 'Deleting takes this order out of sales, reports, and the open shift’s cash-up. It stays under Deleted in Orders, where it can be restored.'}
         </p>
         <label className="order-edit__field order-edit__field--stacked">
           <span>Why is it being deleted?</span>
@@ -368,7 +375,7 @@ export function DeleteOrderPanel({ order, onDone }: { order: Order; onDone: () =
           Cancel
         </Button>
         <Button onClick={confirm} disabled={!reason.trim()}>
-          Delete order
+          {openTab ? 'Delete tab' : 'Delete order'}
         </Button>
       </div>
     </>

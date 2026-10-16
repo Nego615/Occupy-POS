@@ -4,7 +4,7 @@ import './AdminOrders.css';
 import { Button } from '../components/Button';
 import { FilterSelect } from '../components/FilterSelect';
 import { Money, Mono } from '../components/Mono';
-import { ORDER_CHIP, OrderDetail } from '../components/OrderDetail';
+import { OrderDetail, orderChip } from '../components/OrderDetail';
 import { Pill, PillRow } from '../components/Pill';
 import { PrintableReceipt } from '../components/PrintableReceipt';
 import { SearchField } from '../components/SearchField';
@@ -264,7 +264,7 @@ export function AdminOrders() {
               <tbody>
                 {shown.map((order) => {
                   const isSelected = order.id === selectedId;
-                  const chip = ORDER_CHIP[order.status];
+                  const chip = orderChip(order);
                   return (
                     <tr
                       key={order.id}

@@ -194,16 +194,25 @@ export function Register() {
       setConfirmingClear(true);
       return;
     }
-    takeOff({ action: `Clear ${tab.name}`, key: null, qty: 0 });
+    takeOff({ action: `Clear ${tab.name}`, key: null, qty: 0 }, cart.every((l) => lineLocked(l) === 0));
     setConfirmingClear(false);
   }
 
-  // Anyone on the register can add to a tab; taking things off needs the right
-  // role, or a manager's PIN for whoever's signed in.
+  // Anyone on the register can add to a tab, and take back what they've rung
+  // up since it was last charged. Once items are charged — on a docket or
+  // bill — or sent to the kitchen, taking them off needs the right role, or a
+  // manager's PIN for whoever's signed in.
   const editsTab = can('editTabs');
 
-  function takeOff(r: NonNullable<typeof removal>) {
-    if (editsTab) applyRemoval(r);
+  /** How many on the line are charged or sent, and so can't come off freely. */
+  function lineLocked(line: CartLine): number {
+    const unsentHere = lineUnsent(line);
+    const sent = unsentHere === null ? 0 : line.qty - unsentHere;
+    return Math.min(line.qty, Math.max(tab.printed?.[line.key] ?? 0, sent));
+  }
+
+  function takeOff(r: NonNullable<typeof removal>, free: boolean) {
+    if (editsTab || free) applyRemoval(r);
     else setRemoval(r);
   }
 
@@ -219,7 +228,7 @@ export function Register() {
       qty === 0
         ? `Remove ${line.qty} × ${line.name} from ${tab.name}`
         : `Take ${line.qty - qty} × ${line.name} off ${tab.name}`;
-    takeOff({ action, key: line.key, qty });
+    takeOff({ action, key: line.key, qty }, qty >= lineLocked(line));
   }
 
   // The register never takes payment or gives discounts — that's the counter's job.

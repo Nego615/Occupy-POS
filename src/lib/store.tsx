@@ -296,6 +296,12 @@ type PosStore = {
   /** Empties the register's tab. Refused once part of it has been paid. */
   clearTab: () => boolean;
   /**
+   * Deletes any open tab outright, with `reason` — an admin's call (`editOrders`).
+   * It's kept as a deleted order for the record. Returns why it was refused —
+   * a part-paid tab, say — or null once it's gone.
+   */
+  deleteTab: (orderId: number, reason: string) => string | null;
+  /**
    * Puts a location's tab on the register — its open tab if it has one,
    * otherwise a fresh one. `null` starts a new walk-in.
    */
@@ -1182,6 +1188,44 @@ export function PosProvider({
     [tabs, activeId, settings.taxRate, isKitchenItem, fireTicket, logStock, catalog, me],
   );
 
+  const deleteTab = useCallback(
+    (orderId: number, reason: string) => {
+      if (!me || !hasPermission(me, 'editOrders', settings)) return 'You can’t delete tabs.';
+      const doomed = tabs.find((t) => t.orderId === orderId);
+      if (!doomed) return 'That tab isn’t open any more.';
+      if (doomed.payments.length > 0) return 'Part of this tab is paid — take those payments back first.';
+      if (!reason.trim()) return 'Say why it’s being deleted.';
+
+      // Kept as a deleted order, so who deleted what, and why, can be looked up.
+      // Nothing was drawn from stock while it was open, so none goes back.
+      const totalsHere = computeTotals(doomed.cart, settings.taxRate, doomed.discount);
+      const record: OrderRecord = {
+        id: orderId,
+        name: doomed.name,
+        locationId: doomed.locationId ?? undefined,
+        status: 'occupied',
+        at: doomed.openedIso,
+        ...(doomed.openedBy ? { servedBy: doomed.openedBy } : {}),
+        lines: toOrderLines(doomed.cart, catalog),
+        tax: totalsHere.tax,
+        tip: 0,
+        payments: [],
+        deleted: { at: new Date().toISOString(), by: me.id, reason: reason.trim(), restocked: false },
+      };
+      if (doomed.cart.length > 0) setClosedOrders((prev) => [record, ...prev]);
+
+      if (orderId !== activeId) {
+        setTabs((prev) => prev.filter((t) => t.orderId !== orderId));
+        return null;
+      }
+      const fresh = freshTab(draftId(), null);
+      setTabs((prev) => [...pruneIdle(prev.filter((t) => t.orderId !== orderId), fresh.orderId), fresh]);
+      setActiveId(fresh.orderId);
+      return null;
+    },
+    [me, settings, tabs, activeId, catalog],
+  );
+
   const takePayment = useCallback(
     (payment: Payment, tipIfFirst: number) => {
       if (cart.length === 0 || !(payment.amount > 0)) return null;
@@ -1876,6 +1920,7 @@ export function PosProvider({
       createSetMeal,
       deleteSetMeal,
       clearTab,
+      deleteTab,
       openTab,
       switchTab,
       canSeeTab,
@@ -1967,6 +2012,7 @@ export function PosProvider({
       createSetMeal,
       deleteSetMeal,
       clearTab,
+      deleteTab,
       openTab,
       switchTab,
       canSeeTab,
