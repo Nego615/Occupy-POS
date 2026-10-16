@@ -103,7 +103,7 @@ export const ROLES: { id: RoleId; label: string; can: Permission[] }[] = [
   // charges tabs to tables and rooms and sends the bills there.
   { id: 'frontdesk', label: 'Counter', can: ['payments', 'discounts', 'allTabs'] },
   { id: 'barista', label: 'Barista', can: ['register', 'kitchen', 'editTabs', 'allTabs'] },
-  // Servers only add to tabs; taking anything off needs a manager's PIN. They
+  // Servers only add to tabs; the register hides taking anything off from them. They
   // see only the tabs they opened.
   { id: 'server', label: 'Server', can: ['register', 'kitchen'] },
   // Cooks can also be let manage items and set meals — see KITCHEN_MENU_ROLES.

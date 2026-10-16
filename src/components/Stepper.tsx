@@ -9,6 +9,8 @@ export type StepperProps = {
   step?: number;
   /** What is being counted, for screen readers. e.g. "Oat Latte". */
   label: string;
+  /** Off leaves out the − entirely, for someone who may only add. */
+  canDecrease?: boolean;
   className?: string;
 };
 
@@ -20,6 +22,7 @@ export function Stepper({
   max = 99,
   step = 1,
   label,
+  canDecrease = true,
   className,
 }: StepperProps) {
   const clamp = (n: number) => Math.min(max, Math.max(min, n));
@@ -30,15 +33,17 @@ export function Stepper({
       role="group"
       aria-label={`Quantity, ${label}`}
     >
-      <button
-        type="button"
-        className="stepper__btn"
-        onClick={() => onChange(clamp(value - step))}
-        disabled={value <= min}
-        aria-label={`Remove one ${label}`}
-      >
-        <span aria-hidden="true">–</span>
-      </button>
+      {canDecrease && (
+        <button
+          type="button"
+          className="stepper__btn"
+          onClick={() => onChange(clamp(value - step))}
+          disabled={value <= min}
+          aria-label={`Remove one ${label}`}
+        >
+          <span aria-hidden="true">–</span>
+        </button>
+      )}
       <Mono className="stepper__qty">
         <span aria-live="polite">{value}</span>
       </Mono>

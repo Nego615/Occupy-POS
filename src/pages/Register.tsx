@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import './Register.css';
 import { AddOnDialog } from '../components/AddOnDialog';
-import { ApprovalDialog } from '../components/ApprovalDialog';
 import { AssignTabDialog } from '../components/AssignTabDialog';
 import { Button } from '../components/Button';
 import { DocketDialog, LineDialog, PortionDialog, PriceDialog } from '../components/CounterDialogs';
@@ -71,9 +70,6 @@ export function Register() {
   const [assigning, setAssigning] = useState(false);
   const [browsingTabs, setBrowsingTabs] = useState(false);
   const [confirmingClear, setConfirmingClear] = useState(false);
-  // Something being taken off the tab that's waiting on a manager's PIN: a line
-  // brought down to `qty`, or — with no `key` — the whole tab cleared.
-  const [removal, setRemoval] = useState<{ action: string; key: string | null; qty: number } | null>(null);
   const [query, setQuery] = useState('');
   // The open-price item being priced, or 'custom' for a custom amount.
   const [pricing, setPricing] = useState<CatalogItem | 'custom' | null>(null);
@@ -198,41 +194,17 @@ export function Register() {
       setConfirmingClear(true);
       return;
     }
-    takeOff({ action: `Clear ${tab.name}`, key: null, qty: 0 }, cart.every((l) => lineLocked(l) === 0));
+    clearTab();
     setConfirmingClear(false);
   }
 
-  // Anyone on the register can add to a tab, and take back what they've rung
-  // up since it was last charged. Once items are charged — on a docket or
-  // bill — or sent to the kitchen, taking them off needs the right role, or a
-  // manager's PIN for whoever's signed in.
+  // Anyone on the register can add to a tab, but only those whose role lets
+  // them take things off it see the −, the × and Clear tab — servers don't.
   const editsTab = can('editTabs');
 
-  /** How many on the line are charged or sent, and so can't come off freely. */
-  function lineLocked(line: CartLine): number {
-    const unsentHere = lineUnsent(line);
-    const sent = unsentHere === null ? 0 : line.qty - unsentHere;
-    return Math.min(line.qty, Math.max(tab.printed?.[line.key] ?? 0, sent));
-  }
-
-  function takeOff(r: NonNullable<typeof removal>, free: boolean) {
-    if (editsTab || free) applyRemoval(r);
-    else setRemoval(r);
-  }
-
-  function applyRemoval(r: NonNullable<typeof removal>) {
-    if (r.key === null) clearTab();
-    else setQty(r.key, r.qty);
-  }
-
-  /** The stepper and the × — going up always works, coming down is a removal. */
+  /** The stepper and the × — going up always works, coming down only for those who edit tabs. */
   function changeQty(line: CartLine, qty: number) {
-    if (qty >= line.qty) return setQty(line.key, qty);
-    const action =
-      qty === 0
-        ? `Remove ${line.qty} × ${line.name} from ${tab.name}`
-        : `Take ${line.qty - qty} × ${line.name} off ${tab.name}`;
-    takeOff({ action, key: line.key, qty }, qty >= lineLocked(line));
+    if (qty >= line.qty || editsTab) setQty(line.key, qty);
   }
 
   // The register never takes payment or gives discounts — that's the counter's job.
@@ -475,16 +447,6 @@ export function Register() {
           ) : (
             <PrintableDocket order={docket.order} kind={docket.kind} />
           ))}
-        <ApprovalDialog
-          open={removal !== null}
-          permission="editTabs"
-          action={removal?.action ?? ''}
-          onApproved={() => {
-            if (removal) applyRemoval(removal);
-            setRemoval(null);
-          }}
-          onClose={() => setRemoval(null)}
-        />
       </main>
 
       <aside className="cart" aria-label="Current tab">
@@ -564,7 +526,7 @@ export function Register() {
               ) : (
                 <span>New tab</span>
               )}
-              {hasItems && !partPaid && (
+              {hasItems && !partPaid && editsTab && (
                 <button
                   type="button"
                   className={confirmingClear ? 'tab-card__clear tab-card__clear--confirm' : 'tab-card__clear'}
@@ -631,16 +593,19 @@ export function Register() {
                     label={line.name}
                     min={0}
                     max={lineMax(line)}
+                    canDecrease={editsTab}
                   />
                   <Money value={line.unitPrice * line.qty} className="cart-line__price" />
-                  <button
-                    type="button"
-                    className="cart-line__remove"
-                    onClick={() => changeQty(line, 0)}
-                    aria-label={`Remove ${line.name} from tab`}
-                  >
-                    <span aria-hidden="true">×</span>
-                  </button>
+                  {editsTab && (
+                    <button
+                      type="button"
+                      className="cart-line__remove"
+                      onClick={() => changeQty(line, 0)}
+                      aria-label={`Remove ${line.name} from tab`}
+                    >
+                      <span aria-hidden="true">×</span>
+                    </button>
+                  )}
                 </motion.div>
               );
             })}
