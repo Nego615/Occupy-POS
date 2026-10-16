@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { createPortal } from 'react-dom';
 import './PrintableReceipt.css';
 import { formatMoney } from './Mono';
@@ -14,6 +15,7 @@ import {
 import { stationLabel } from '../data/settings';
 import { currencyOf, formatAmount, formatCurrency } from '../lib/currency';
 import { receiptCurrency } from '../lib/currencySwitch';
+import { usePrintFit } from '../lib/printFit';
 import { usePos } from '../lib/store';
 
 /**
@@ -23,6 +25,10 @@ import { usePos } from '../lib/store';
  */
 export function PrintableReceipt({ order: given }: { order: Order }) {
   const { settings, allStaff: staff, locations } = usePos();
+  // An open tab's bill prints large, like the register's dockets; a paid receipt stays receipt-sized.
+  const large = given.status === 'occupied';
+  const slip = useRef<HTMLDivElement>(null);
+  usePrintFit(slip, large);
   // An order from before the shop switched currencies prints as it was taken.
   const order = given.recordedIn?.original ?? given;
   const currency = receiptCurrency(given);
@@ -36,7 +42,7 @@ export function PrintableReceipt({ order: given }: { order: Order }) {
   // Whoever served the tab; older orders only know who took payment.
   const cashier = staff.find((m) => m.id === (order.servedBy ?? order.staffId))?.name;
   return createPortal(
-    <div className="print-receipt">
+    <div ref={slip} className={large ? 'print-receipt print-receipt--large' : 'print-receipt'}>
       {settings.logo && <img className="print-receipt__logo" src={settings.logo} alt="" />}
       <div className="print-receipt__brand">{settings.businessName}</div>
       <div className="print-receipt__station">{stationLabel(settings)}</div>
@@ -60,8 +66,8 @@ export function PrintableReceipt({ order: given }: { order: Order }) {
         {order.lines.map((line, i) => (
           <div key={i}>
             <div className="print-receipt__row">
-              <span>
-                {line.name}
+              <span className="print-receipt__item">
+                <span className="print-receipt__name">{line.name}</span>
                 <span className="mono print-receipt__qty">× {line.qty}</span>
               </span>
               <span className="mono">{money(line.unitPrice * line.qty)}</span>

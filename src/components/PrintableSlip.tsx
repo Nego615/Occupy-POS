@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import './PrintableReceipt.css';
 import { formatMoney } from './Mono';
@@ -15,6 +15,7 @@ import {
 } from '../data/orders';
 import { stationLabel } from '../data/settings';
 import { currencyOf, type Currency } from '../lib/currency';
+import { usePrintFit } from '../lib/printFit';
 import { usePos } from '../lib/store';
 
 /**
@@ -22,11 +23,26 @@ import { usePos } from '../lib/store';
  * hands over or files — a room's bill and a shift's cash-up. Same portal and print styles as PrintableReceipt, so
  * whichever one is on the page is the only thing that prints.
  */
-/** `brand` off leaves out the logo and shop name — a kitchen docket is for the kitchen, not the guest. */
-function Slip({ head, children, brand = true }: { head: ReactNode; children: ReactNode; brand?: boolean }) {
+/**
+ * `brand` off leaves out the logo and shop name — a kitchen docket is for the
+ * kitchen, not the guest. `large` prints up to twice the size, for tabs — see printFit.
+ */
+function Slip({
+  head,
+  children,
+  brand = true,
+  large = false,
+}: {
+  head: ReactNode;
+  children: ReactNode;
+  brand?: boolean;
+  large?: boolean;
+}) {
   const { settings } = usePos();
+  const slip = useRef<HTMLDivElement>(null);
+  usePrintFit(slip, large);
   return createPortal(
-    <div className="print-receipt">
+    <div ref={slip} className={large ? 'print-receipt print-receipt--large' : 'print-receipt'}>
       {brand && settings.logo && <img className="print-receipt__logo" src={settings.logo} alt="" />}
       {brand && <div className="print-receipt__brand">{settings.businessName}</div>}
       {brand && <div className="print-receipt__station">{stationLabel(settings)}</div>}
@@ -77,6 +93,7 @@ export function PrintableDocket({ order, kind }: { order: Order; kind: DocketKin
   const kitchen = kind === 'kitchen';
   return (
     <Slip
+      large
       brand={!kitchen}
       head={
         <>
@@ -95,9 +112,9 @@ export function PrintableDocket({ order, kind }: { order: Order; kind: DocketKin
         {order.lines.map((line, i) => (
           <div key={i}>
             <div className="print-receipt__row">
-              <span>
-                {kitchen && <span className="mono">{line.qty} × </span>}
-                {line.name}
+              <span className="print-receipt__item">
+                {kitchen && <span className="mono print-receipt__lead">{line.qty} ×&nbsp;</span>}
+                <span className="print-receipt__name">{line.name}</span>
                 {!kitchen && <span className="mono print-receipt__qty">× {line.qty}</span>}
               </span>
               {!kitchen && <span className="mono">{formatMoney(line.unitPrice * line.qty)}</span>}
