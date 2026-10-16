@@ -113,6 +113,7 @@ export function Register() {
     tabs,
     canSeeTab,
     orders,
+    me,
   } = usePos();
 
   // Prints once the docket is on the page, then takes it off again.
@@ -197,10 +198,13 @@ export function Register() {
     setConfirmingClear(false);
   }
 
-  // Anyone on the register can add to a tab, and change a new one freely. Once
-  // a tab has been charged, docketed or left to come back to, the −, the × and
-  // Clear tab are gone for everyone.
-  const editsTab = !Object.values(tab.printed ?? {}).some((n) => n > 0);
+  // Anyone on the register can add to a tab, and change one they've just
+  // started. Once a tab has been charged, docketed or left to come back to —
+  // or it's someone else's — the −, the × and Clear tab are gone for everyone,
+  // owners included.
+  const editsTab =
+    !Object.values(tab.printed ?? {}).some((n) => n > 0) &&
+    (cart.length === 0 || (!!me && tab.openedBy === me.id));
 
   /** The stepper and the × — going up always works, coming down only on a new tab. */
   function changeQty(line: CartLine, qty: number) {
