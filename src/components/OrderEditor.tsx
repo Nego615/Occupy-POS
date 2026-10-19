@@ -15,6 +15,7 @@ import {
 } from '../data/orders';
 import { TENDER_METHODS } from '../data/cashup';
 import { editProblem, editedPayment, hasLocalCash, heldItems, withLines } from '../lib/orderEdits';
+import { computeTotals } from '../lib/cart';
 import { roundMoney } from '../lib/currency';
 import { usePos } from '../lib/store';
 
@@ -302,6 +303,126 @@ export function OrderEditor({ order, onDone }: { order: Order; onDone: () => voi
           Cancel
         </Button>
         <Button onClick={save}>Save changes</Button>
+      </div>
+    </>
+  );
+}
+
+/**
+ * Takes items off an open tab — for managers, once the register won't let
+ * anyone: it's been docketed, or it's someone else's. Only lowers quantities;
+ * anything already sent to the kitchen is voided. Stock isn't touched, as
+ * nothing leaves stock until the tab is paid.
+ */
+export function TabRemovePanel({ order, onDone }: { order: Order; onDone: () => void }) {
+  const { tabs, settings, removeFromTab } = usePos();
+  const tab = tabs.find((t) => t.orderId === order.id);
+  const [qty, setQty] = useState<Record<string, number>>({});
+  const [reason, setReason] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  if (!tab) {
+    return (
+      <div className="detail__actions">
+        <p className="order-edit__note">This tab isn’t open any more.</p>
+        <Button variant="secondary" onClick={onDone}>
+          Back
+        </Button>
+      </div>
+    );
+  }
+
+  const cart = tab.cart.flatMap((l) => {
+    const to = qty[l.key] ?? l.qty;
+    return to > 0 ? [{ ...l, qty: to }] : [];
+  });
+  const newTotal = computeTotals(cart, settings.taxRate, tab.discount).total;
+  const changed = tab.cart.some((l) => (qty[l.key] ?? l.qty) !== l.qty);
+
+  function save() {
+    const refused = removeFromTab(order.id, qty, reason);
+    if (refused) return setError(refused);
+    onDone();
+  }
+
+  return (
+    <>
+      <div className="order-edit">
+        <section className="order-edit__section" aria-labelledby="remove-lines">
+          <h3 className="order-edit__heading" id="remove-lines">
+            Take items off
+          </h3>
+          {tab.payments.length > 0 && (
+            <p className="order-edit__note">
+              Part of this tab is paid, so nothing can come off it until those payments are taken back.
+            </p>
+          )}
+          {tab.cart.map((l) => {
+            const to = qty[l.key] ?? l.qty;
+            const parts = lineContents(l).join(' · ');
+            return (
+              <div className={to === 0 ? 'edit-line edit-line--removed' : 'edit-line'} key={l.key}>
+                <span className="edit-line__name">
+                  {l.name}
+                  {parts && <span className="edit-line__parts">{parts}</span>}
+                  {to === 0 ? (
+                    <span className="edit-line__parts">Coming off</span>
+                  ) : (
+                    to < l.qty && <span className="edit-line__parts">{l.qty - to} coming off</span>
+                  )}
+                </span>
+                <Stepper
+                  value={to}
+                  onChange={(n) => {
+                    setQty((prev) => ({ ...prev, [l.key]: n }));
+                    setError(null);
+                  }}
+                  label={l.name}
+                  min={0}
+                  max={l.qty}
+                />
+                <Money value={l.unitPrice * to} className="edit-line__amount" />
+              </div>
+            );
+          })}
+        </section>
+        <section className="order-edit__section">
+          <label className="order-edit__field order-edit__field--stacked">
+            <span>Why are they coming off?</span>
+            <input
+              type="text"
+              value={reason}
+              onChange={(e) => {
+                setReason(e.target.value);
+                setError(null);
+              }}
+              placeholder="e.g. Rung up twice, sent back, never served"
+            />
+          </label>
+          <p className="order-edit__note">
+            Anything the kitchen was sent is voided there. It’s kept in this tab’s log with who took it off and why.
+          </p>
+        </section>
+        <div className="order-edit__total">
+          <span>
+            New total · was <Money value={orderTotal(order)} />
+          </span>
+          <Money value={newTotal} className="order-edit__total-value" />
+        </div>
+        {error && (
+          <p className="order-edit__error" role="alert">
+            {error}
+          </p>
+        )}
+      </div>
+
+      <div className="detail__actions">
+        <Button variant="secondary" onClick={onDone}>
+          Cancel
+        </Button>
+        <Button onClick={save} disabled={!changed || tab.payments.length > 0}>
+          Take off
+        </Button>
       </div>
     </>
   );

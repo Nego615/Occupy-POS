@@ -188,3 +188,8 @@
   background: var(--surface);
   color: var(--ink);
 }
+
+/* Taking items off an open tab: what the line comes to, in place of a price box. */
+.edit-line__amount {
+  text-align: right;
+}

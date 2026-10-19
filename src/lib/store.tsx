@@ -149,6 +149,8 @@ type StoredTab = {
   tip?: number;
   /** ISO timestamp the bill was sent to the counter to be paid. */
   billRequestedAt?: string;
+  /** Items taken off it from Orders by a manager — joins the order's edit log when it closes. */
+  edits?: OrderEdit[];
 };
 
 export type OpenTab = StoredTab & {
@@ -301,6 +303,14 @@ type PosStore = {
    * a part-paid tab, say — or null once it's gone.
    */
   deleteTab: (orderId: number, reason: string) => string | null;
+  /**
+   * Takes items off any open tab — `qty` is what each line (by key) comes
+   * down to, 0 to drop it — with `reason`. An admin's call (`editOrders`),
+   * for tabs the register no longer lets anyone change. Sent kitchen items
+   * are voided. Only lowers: adding stays on the register. Returns why it
+   * was refused, or null once done.
+   */
+  removeFromTab: (orderId: number, qty: Record<string, number>, reason: string) => string | null;
   /**
    * Puts a location's tab on the register — its open tab if it has one,
    * otherwise a fresh one. `null` starts a new walk-in.
@@ -625,6 +635,7 @@ function tabAsOrder(tab: OpenTab, taxRate: number): Order {
     tax: totals.tax,
     tip: 0,
     payments: tab.payments,
+    ...(tab.edits?.length ? { edits: tab.edits } : {}),
   });
 }
 
@@ -1114,6 +1125,7 @@ export function PosProvider({
                   // What the kitchen already has from either tab stays sent.
                   sent: addSent(t.sent, source.sent),
                   printed: addPrinted(t.printed, source.printed),
+                  ...(t.edits || source.edits ? { edits: [...(t.edits ?? []), ...(source.edits ?? [])] } : {}),
                 }
               : t,
           ),
@@ -1172,6 +1184,7 @@ export function PosProvider({
         tip: onRoom ? 0 : close.tip,
         payments: onRoom ? [] : close.payments,
         ...(onRoom ? { roomId: close.roomId } : {}),
+        ...(closing.edits?.length ? { edits: closing.edits } : {}),
       };
       setClosedOrders((prev) => [record, ...prev]);
 
@@ -1215,6 +1228,7 @@ export function PosProvider({
         tip: 0,
         payments: [],
         deleted: { at: new Date().toISOString(), by: me.id, reason: reason.trim(), restocked: false },
+        ...(doomed.edits?.length ? { edits: doomed.edits } : {}),
       };
       if (doomed.cart.length > 0) setClosedOrders((prev) => [record, ...prev]);
 
@@ -1228,6 +1242,51 @@ export function PosProvider({
       return null;
     },
     [me, settings, tabs, activeId, catalog],
+  );
+
+  const removeFromTab = useCallback(
+    (orderId: number, qty: Record<string, number>, reason: string) => {
+      if (!me || !hasPermission(me, 'editOrders', settings)) return 'You can’t change tabs.';
+      const target = tabs.find((t) => t.orderId === orderId);
+      if (!target) return 'That tab isn’t open any more.';
+      if (target.payments.length > 0) return 'Part of this tab is paid — take those payments back first.';
+      if (!reason.trim()) return 'Say why they’re coming off.';
+      const taken: string[] = [];
+      let cart = target.cart;
+      for (const line of target.cart) {
+        const to = qty[line.key] ?? line.qty;
+        if (!Number.isInteger(to) || to < 0 || to > line.qty) return 'Items can only come off here — add on the register.';
+        if (to === line.qty) continue;
+        taken.push(`${line.qty - to} × ${line.name}`);
+        cart = setLineQty(cart, line.key, to);
+      }
+      if (taken.length === 0) return 'Nothing’s been taken off.';
+
+      const entry: OrderEdit = {
+        at: new Date().toISOString(),
+        by: me.id,
+        note: `Took off ${taken.join(', ')} · ${reason.trim()}`,
+        before: orderSnapshot(tabAsOrder(target, settings.taxRate)),
+      };
+      // The kitchen stops on anything it was sent that's no longer on the tab.
+      const { sent, voids } = takeVoids(cart, target.sent);
+      setTabs((prev) =>
+        prev.map((t) =>
+          t.orderId === orderId
+            ? {
+                ...t,
+                cart,
+                sent,
+                ...(t.printed ? { printed: trimPrinted(cart, t.printed) } : {}),
+                edits: [...(t.edits ?? []), entry],
+              }
+            : t,
+        ),
+      );
+      if (voids.length > 0) fireTicket(target, voids, 'void');
+      return null;
+    },
+    [me, settings, tabs, fireTicket],
   );
 
   const takePayment = useCallback(
@@ -1939,6 +1998,7 @@ export function PosProvider({
       deleteSetMeal,
       clearTab,
       deleteTab,
+      removeFromTab,
       openTab,
       switchTab,
       canSeeTab,
@@ -2031,6 +2091,7 @@ export function PosProvider({
       deleteSetMeal,
       clearTab,
       deleteTab,
+      removeFromTab,
       openTab,
       switchTab,
       canSeeTab,

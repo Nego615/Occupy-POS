@@ -3,7 +3,7 @@ import './OrderDetail.css';
 import { ApprovalDialog } from './ApprovalDialog';
 import { Button } from './Button';
 import { InCurrency, Money, Mono, formatMoney } from './Mono';
-import { DeleteOrderPanel, OrderEditor } from './OrderEditor';
+import { DeleteOrderPanel, OrderEditor, TabRemovePanel } from './OrderEditor';
 import { SummaryRow } from './Receipt';
 import { StatusChip, type StatusKind } from './StatusChip';
 import { Stepper } from './Stepper';
@@ -84,7 +84,7 @@ export function OrderDetail({
   const [restock, setRestock] = useState(false);
   const [approving, setApproving] = useState(false);
   // Editing or deleting the order, in place of its receipt.
-  const [changing, setChanging] = useState<'edit' | 'delete' | null>(null);
+  const [changing, setChanging] = useState<'edit' | 'delete' | 'remove' | null>(null);
 
   const discount = orderDiscount(order);
   const chip = orderChip(given);
@@ -178,6 +178,8 @@ export function OrderDetail({
         <OrderEditor order={order} onDone={() => setChanging(null)} />
       ) : changing === 'delete' ? (
         <DeleteOrderPanel order={order} onDone={() => setChanging(null)} />
+      ) : changing === 'remove' ? (
+        <TabRemovePanel order={order} onDone={() => setChanging(null)} />
       ) : (
       <>
       <div className="detail__items">
@@ -358,6 +360,11 @@ export function OrderDetail({
       )}
       {can('editOrders') && order.status === 'occupied' && !given.deleted && (
         <div className="detail__actions">
+          {order.lines.length > 0 && (
+            <Button variant="secondary" onClick={() => setChanging('remove')}>
+              Take items off
+            </Button>
+          )}
           <Button variant="secondary" onClick={() => setChanging('delete')}>
             Delete tab
           </Button>
