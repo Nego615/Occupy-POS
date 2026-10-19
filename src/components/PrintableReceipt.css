@@ -16,6 +16,8 @@
     padding: 8px 0 24px;
     color: #000;
     font-family: var(--font-ui);
+    /* Archivo's condensed width — more of each line fits the tape. */
+    font-stretch: condensed;
     /* Thermal print comes out faint at thin weights — everything sets heavier and larger. */
     font-size: 13px;
     font-weight: 600;
@@ -95,65 +97,5 @@
     text-align: center;
     font-size: 12px;
     line-height: 1.6;
-  }
-
-  /* Tabs — dockets and unpaid bills — print large, to read at a glance. Every
-     size is the receipt's own times --print-scale, so the slip keeps its
-     proportions; printFit sets the scale, up to 2, to the largest at which
-     every line still fits on one line. */
-  .print-receipt--large {
-    --print-scale: 2;
-    font-size: calc(13px * var(--print-scale));
-  }
-
-  .print-receipt--large .print-receipt__brand {
-    font-size: calc(17px * var(--print-scale));
-  }
-
-  .print-receipt--large .print-receipt__station,
-  .print-receipt--large .print-receipt__foot {
-    font-size: calc(12px * var(--print-scale));
-  }
-
-  .print-receipt--large .print-receipt__head {
-    font-size: calc(12.5px * var(--print-scale));
-  }
-
-  .print-receipt--large .print-receipt__total {
-    font-size: calc(16px * var(--print-scale));
-  }
-
-  /* Every line stays one line. Should one still not fit at the smallest
-     scale, its name is cut short — the count and the amount print whole. */
-  .print-receipt--large .print-receipt__brand,
-  .print-receipt--large .print-receipt__station,
-  .print-receipt--large .print-receipt__head > div,
-  .print-receipt--large .print-receipt__foot,
-  .print-receipt--large .print-receipt__row > span {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  /* Amounts never shrink; the item beside them takes what's left. */
-  .print-receipt--large .print-receipt__row > span.mono {
-    flex: none;
-  }
-
-  .print-receipt--large .print-receipt__item {
-    display: flex;
-    flex: 1 1 auto;
-    min-width: 0;
-  }
-
-  .print-receipt--large .print-receipt__name {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .print-receipt--large .print-receipt__lead,
-  .print-receipt--large .print-receipt__qty {
-    flex: none;
   }
 }

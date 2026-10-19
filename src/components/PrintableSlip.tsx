@@ -1,4 +1,4 @@
-import { useRef, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import './PrintableReceipt.css';
 import { formatMoney } from './Mono';
@@ -15,7 +15,6 @@ import {
 } from '../data/orders';
 import { stationLabel } from '../data/settings';
 import { currencyOf, type Currency } from '../lib/currency';
-import { usePrintFit } from '../lib/printFit';
 import { usePos } from '../lib/store';
 
 /**
@@ -25,24 +24,20 @@ import { usePos } from '../lib/store';
  */
 /**
  * `brand` off leaves out the logo and shop name — a kitchen docket is for the
- * kitchen, not the guest. `large` prints up to twice the size, for tabs — see printFit.
+ * kitchen, not the guest.
  */
 function Slip({
   head,
   children,
   brand = true,
-  large = false,
 }: {
   head: ReactNode;
   children: ReactNode;
   brand?: boolean;
-  large?: boolean;
 }) {
   const { settings } = usePos();
-  const slip = useRef<HTMLDivElement>(null);
-  usePrintFit(slip, large);
   return createPortal(
-    <div ref={slip} className={large ? 'print-receipt print-receipt--large' : 'print-receipt'}>
+    <div className="print-receipt">
       {brand && settings.logo && <img className="print-receipt__logo" src={settings.logo} alt="" />}
       {brand && <div className="print-receipt__brand">{settings.businessName}</div>}
       {brand && <div className="print-receipt__station">{stationLabel(settings)}</div>}
@@ -93,7 +88,6 @@ export function PrintableDocket({ order, kind }: { order: Order; kind: DocketKin
   const kitchen = kind === 'kitchen';
   return (
     <Slip
-      large
       brand={!kitchen}
       head={
         <>
