@@ -359,12 +359,16 @@ type PosStore = {
   /** Closed counter shifts, newest first. */
   cashUps: CashUp[];
   /** Closes the current shift with the drawer count, and starts the next. */
-  /** `local` counts the drawer of cash taken in the cost currency, when the shop takes it. */
+  /**
+   * `local` counts the drawer of cash taken in the cost currency, when the shop takes it.
+   * `stock` is what was counted on the shelf, by item id — posted as a stock count before it closes.
+   */
   closeShift: (count: {
     float: number;
     countedCash: number;
     note?: string;
     local?: { float: number; counted: number };
+    stock?: Record<string, number>;
   }) => CashUp;
   /** Whether `itemId` is made in the kitchen, per Settings' kitchen categories. */
   isKitchenItem: (itemId: string) => boolean;
@@ -1304,9 +1308,21 @@ export function PosProvider({
   );
 
   const closeShift = useCallback(
-    (count: { float: number; countedCash: number; note?: string; local?: { float: number; counted: number } }) => {
+    (count: {
+      float: number;
+      countedCash: number;
+      note?: string;
+      local?: { float: number; counted: number };
+      stock?: Record<string, number>;
+    }) => {
       const openedAt = shiftStart(cashUps);
+      // The count goes in first, so its corrections fall inside the shift it closes.
+      const stockCount = count.stock ? inventory.postShiftCount(count.stock) : null;
       const closedAt = new Date().toISOString();
+      // What's on the shelf as the next shift opens: the count where there was one.
+      const closingStock = Object.fromEntries(
+        catalog.filter((i) => !i.untracked).map((i) => [i.id, count.stock?.[i.id] ?? i.stock]),
+      );
       const totals = shiftTotals(
         liveRecords,
         storedTabs.flatMap((t) => t.payments),
@@ -1337,11 +1353,13 @@ export function PosProvider({
             }
           : {}),
         ...(count.note?.trim() ? { note: count.note.trim() } : {}),
+        closingStock,
+        ...(stockCount ? { countId: stockCount.id } : {}),
       };
       setCashUps((prev) => [cashUp, ...prev]);
       return cashUp;
     },
-    [cashUps, liveRecords, storedTabs, me, rate, settings.costCurrency],
+    [cashUps, liveRecords, storedTabs, me, rate, settings.costCurrency, inventory, catalog],
   );
 
   const removePayment = useCallback(

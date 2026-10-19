@@ -52,6 +52,7 @@ type Draft = {
   paymentMethods: PaymentMethodId[];
   openPriceEnabled: boolean;
   lowStockDefault: string;
+  shiftCountCategories: CategoryId[];
   kitchenCategories: CategoryId[];
   kitchenLateMinutes: string;
   kitchenMenu: boolean;
@@ -83,6 +84,7 @@ function toDraft(s: Settings): Draft {
     paymentMethods: [...s.paymentMethods],
     openPriceEnabled: s.openPriceEnabled,
     lowStockDefault: String(s.lowStockDefault),
+    shiftCountCategories: [...(s.shiftCountCategories ?? [])],
     kitchenCategories: [...s.kitchenCategories],
     kitchenLateMinutes: String(s.kitchenLateMinutes),
     kitchenMenu: s.kitchenMenu,
@@ -193,6 +195,7 @@ function fromDraft(d: Draft, current: Settings): { settings: Settings } | { erro
       ),
       openPriceEnabled: d.openPriceEnabled,
       lowStockDefault: lowStock!,
+      shiftCountCategories: [...d.shiftCountCategories],
       kitchenCategories: [...d.kitchenCategories],
       kitchenLateMinutes: late!,
       kitchenMenu: d.kitchenMenu,
@@ -660,6 +663,40 @@ export function AdminSettings() {
             />
           </Affix>
         </Row>
+      </Section>
+
+      <Section
+        title="Count at cash-up"
+        note="Stock counted on the shelf every time a shift closes — without showing what the system expects."
+      >
+        {categories.length === 0 && (
+          <p className="settings-empty">No categories yet — create them under Categories.</p>
+        )}
+        {categoryTree(categories).map(({ category: c }) => {
+          const via = switchedOnAbove(categories, c.id, draft.shiftCountCategories);
+          return (
+            <Row
+              key={c.id}
+              id={`shift-count-${c.id}`}
+              label={categoryPath(categories, c.id)}
+              hint={via ? `Goes with ${categoryLabel(categories, via)}.` : undefined}
+            >
+              <Switch
+                checked={!!via || draft.shiftCountCategories.includes(c.id)}
+                disabled={!!via}
+                onChange={(on) =>
+                  set(
+                    'shiftCountCategories',
+                    on
+                      ? [...draft.shiftCountCategories, c.id]
+                      : draft.shiftCountCategories.filter((id) => id !== c.id),
+                  )
+                }
+                label={`Count ${c.label.toLowerCase()} at every cash-up`}
+              />
+            </Row>
+          );
+        })}
       </Section>
 
       <Section title="Kitchen" note="Which items show up on the kitchen screen.">

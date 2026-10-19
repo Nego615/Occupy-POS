@@ -10,7 +10,8 @@ import { StaffFilterSelect, staffFilterLabel } from '../components/StaffFilterSe
 import type { CatalogItem, Category } from '../data/catalog';
 import { dateOfDaysAgo, isoDate } from '../data/history';
 import type { Expense } from '../data/expenses';
-import type { StockMovement, Supplier, SupplierBill } from '../data/inventory';
+import { shiftStart } from '../data/cashup';
+import type { StockCount, StockMovement, Supplier, SupplierBill } from '../data/inventory';
 import { exchangeRate } from '../data/settings';
 import { rolesLabel, type StaffMember } from '../data/staff';
 import { downloadCsv, money } from '../lib/analytics';
@@ -37,7 +38,17 @@ import { losses, margins, supplierSpend, valuation } from '../lib/costReports';
 import type { PayrollRun } from '../lib/payroll';
 import { profitAndLoss } from '../lib/profit';
 import { matchesStaff } from '../lib/orderFilters';
+import {
+  countResult,
+  formatUnits,
+  rowMoved,
+  shiftStock,
+  shiftWindows,
+  type ShiftStockRow,
+  type ShiftWindow,
+} from '../lib/shiftStock';
 import { usePos } from '../lib/store';
+import { useNow } from '../lib/useClock';
 
 type ReportId =
   | 'summary'
@@ -50,7 +61,8 @@ type ReportId =
   | 'staff'
   | 'margins'
   | 'inventory'
-  | 'purchasing';
+  | 'purchasing'
+  | 'shifts';
 
 const REPORTS: { id: ReportId; label: string; blurb: string }[] = [
   { id: 'summary', label: 'Sales summary', blurb: 'What came in, day by day' },
@@ -64,12 +76,13 @@ const REPORTS: { id: ReportId; label: string; blurb: string }[] = [
   { id: 'margins', label: 'Margins', blurb: 'What each item earns after its cost' },
   { id: 'inventory', label: 'Stock & losses', blurb: 'What stock is worth, and what went missing' },
   { id: 'purchasing', label: 'Purchasing', blurb: 'Deliveries, payments, and what’s owed' },
+  { id: 'shifts', label: 'Shift stock', blurb: 'Opening and closing stock, shift by shift' },
 ];
 
 const pct = (fraction: number) => `${(fraction * 100).toFixed(1)}%`;
 
 /** Reports over the whole shop, which a staff filter doesn't apply to. */
-const SHOP_WIDE: ReportId[] = ['profit', 'inventory', 'purchasing'];
+const SHOP_WIDE: ReportId[] = ['profit', 'inventory', 'purchasing', 'shifts'];
 
 /** "Dev Okafor · Server" for the Staff report. */
 const staffName = (people: StaffMember[]) => (id: string | undefined) => {
@@ -97,8 +110,11 @@ export function AdminReports() {
     staff,
     allStaff,
     can,
+    cashUps,
+    stockCounts,
   } = usePos();
   const [params, setParams] = useSearchParams();
+  const now = useNow(60_000);
 
   const report = (REPORTS.find((r) => r.id === params.get('report'))?.id ?? 'summary') as ReportId;
   // A preset, or `?range=custom&from=2026-10-01&to=2026-10-10`.
@@ -124,7 +140,7 @@ export function AdminReports() {
   // Profit and the stock reports cover the whole shop, so they aren't split by person.
   const byPerson = !SHOP_WIDE.includes(report);
 
-  function setParam(key: 'report' | 'range' | 'staff' | 'from' | 'to', value: string) {
+  function setParam(key: 'report' | 'range' | 'staff' | 'from' | 'to' | 'shift', value: string) {
     setParams(
       (prev) => {
         const next = new URLSearchParams(prev);
@@ -160,6 +176,17 @@ export function AdminReports() {
   }, [orders, days, end, byPerson, person, allStaff]);
   const items = useMemo(() => byItem(windowed, catalog, categories), [windowed, catalog, categories]);
 
+  // Shifts that closed in the range — and the one still open, when the range runs to today.
+  const shifts = useMemo(() => {
+    const first = Number.isFinite(days) ? isoDate(dateOfDaysAgo(end + days - 1)) : '';
+    const last = isoDate(dateOfDaysAgo(end));
+    return shiftWindows(cashUps, shiftStart(cashUps, new Date(now)), new Date(now).toISOString()).filter((w) => {
+      const day = isoDate(new Date(w.to));
+      return day >= first && day <= last;
+    });
+  }, [cashUps, now, days, end]);
+  const shift = shifts.find((w) => w.id === params.get('shift')) ?? shifts[0];
+
   const view = useMemo(
     () =>
       buildReport(report, windowed, days, span, items, settings.tipsEnabled, {
@@ -175,6 +202,8 @@ export function AdminReports() {
         canRecordExpenses: can('expenses'),
         rate: exchangeRate(settings),
         end,
+        shift,
+        stockCounts,
       }),
     // The view holds formatted money, so a currency switch has to rebuild it.
     [
@@ -196,6 +225,8 @@ export function AdminReports() {
       allStaff,
       can,
       settings,
+      shift,
+      stockCounts,
     ],
   );
 
@@ -218,6 +249,15 @@ export function AdminReports() {
         <div className="head-actions">
           {byPerson && (
             <StaffFilterSelect value={person} onChange={(v) => setParam('staff', v)} staff={staff} />
+          )}
+          {report === 'shifts' && shift && (
+            <FilterSelect value={shift.id} onChange={(v) => setParam('shift', v)} label="Shift">
+              {shifts.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {shiftLabel(w)}
+                </option>
+              ))}
+            </FilterSelect>
           )}
           <FilterSelect value={range} onChange={(v) => setParam('range', v)} label="Date range">
             {REPORT_RANGES.map((r) => (
@@ -299,7 +339,7 @@ export function AdminReports() {
         title={meta.label}
         meta={[
           [
-            rangeLabel(range, days, span, end),
+            report === 'shifts' && shift ? shiftLabel(shift) : rangeLabel(range, days, span, end),
             report === 'inventory' && 'stock value is as of now',
             byPerson && person !== 'all' && staffFilterLabel(person, staff),
           ]
@@ -347,6 +387,9 @@ type CostContext = {
   rate?: number;
   /** Days ago the window ends; 0 is today. */
   end: number;
+  /** The shift the Shift stock report is on; none when no shift falls in the range. */
+  shift?: ShiftWindow;
+  stockCounts: StockCount[];
 };
 
 const longDay = (daysAgo: number) =>
@@ -396,6 +439,8 @@ function buildReport(
       return inventoryReport(ctx, days);
     case 'purchasing':
       return purchasingReport(ctx, days);
+    case 'shifts':
+      return shiftStockReport(ctx);
   }
 }
 
@@ -1039,6 +1084,126 @@ function purchasingReport(ctx: CostContext, days: number): ReportView {
       <p className="report-note">
         Received and paid fall in the date range; owed and overdue are as of today, whenever
         the delivery was.
+      </p>
+    </>
+  );
+  return { body, csv };
+}
+
+/* ---------- Shift stock ---------- */
+
+const shortWhen = (iso: string) =>
+  new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+
+/** "Oct 19, 2:00 PM – Oct 19, 10:05 PM", or "This shift · since Oct 19, 2:00 PM". */
+function shiftLabel(shift: ShiftWindow): string {
+  return shift.cashUp
+    ? `${shortWhen(shift.from)} – ${shortWhen(shift.to)}`
+    : `This shift · since ${shortWhen(shift.from)}`;
+}
+
+function shiftStockReport(ctx: CostContext): ReportView {
+  const csvHead = ['item', 'opening', 'received', 'sold', 'waste', 'adjusted', 'closing', 'counted', 'variance', 'variance_value'];
+  if (!ctx.shift) {
+    return {
+      body: <p className="report-empty">No shifts closed in this range. Close one from the cash-up on the front desk.</p>,
+      csv: [csvHead],
+    };
+  }
+  const shift = ctx.shift;
+  const rows = shiftStock(ctx.catalog, ctx.movements, ctx.stockCounts, shift).sort((a, b) =>
+    a.name.localeCompare(b.name),
+  );
+  const moved = rows.filter(rowMoved);
+  const costs = new Map(ctx.catalog.map((i) => [i.id, i.cost ?? 0]));
+  const atCost = (pick: (r: ShiftStockRow) => number) =>
+    rows.reduce((s, r) => s + pick(r) * (costs.get(r.itemId) ?? 0), 0);
+  const counted = countResult(rows);
+  const by = shift.cashUp ? staffName(ctx.allStaff)(shift.cashUp.by) : null;
+
+  const csv: ReportView['csv'] = [
+    csvHead,
+    ...rows.map((r) => [
+      r.name,
+      r.opening,
+      r.received,
+      -r.sold,
+      -r.wasted,
+      r.adjusted,
+      r.expected,
+      r.counted ?? '',
+      r.counted === undefined ? '' : r.variance,
+      r.counted === undefined ? '' : r.varianceValue.toFixed(2),
+    ]),
+  ];
+
+  const units = (n: number) => (n === 0 ? <Muted /> : <Mono>{formatUnits(n)}</Mono>);
+  const signed = (n: number) => (n === 0 ? <Muted /> : <Mono>{formatUnits(n, true)}</Mono>);
+
+  const body = (
+    <>
+      <div className="report-tiles">
+        <Tile label="Opening stock" value={money(atCost((r) => r.opening))} note="at cost" />
+        <Tile label="Sold" value={money(-atCost((r) => r.sold))} note="at cost, less refunds" />
+        <Tile label="Closing stock" value={money(atCost((r) => r.closing))} note="at cost, after the count" />
+        <Tile
+          label="Count variance"
+          value={counted.counted === 0 ? '—' : `${counted.value > 0 ? '+' : ''}${money(counted.value)}`}
+          note={
+            counted.counted === 0
+              ? shift.cashUp
+                ? 'nothing counted at close'
+                : 'counted when the shift closes'
+              : `${counted.off} of ${counted.counted} counted items off`
+          }
+        />
+      </div>
+      {by && <p className="report-note">Closed by {by}.</p>}
+
+      {moved.length === 0 ? (
+        <p className="report-empty">No stock moved in this shift.</p>
+      ) : (
+        <ReportTable
+          head={['Item', 'Opening', 'Received', 'Sold', 'Waste', 'Adjusted', 'Closing', 'Counted', 'Variance', 'Value']}
+          numericFrom={1}
+          rows={moved.map((r) => ({
+            key: r.itemId,
+            cells: [
+              <span className="report-table__strong">{r.name}</span>,
+              <Mono>{formatUnits(r.opening)}</Mono>,
+              units(r.received),
+              units(-r.sold),
+              units(-r.wasted),
+              signed(r.adjusted),
+              <Mono>{formatUnits(r.expected)}</Mono>,
+              r.counted === undefined ? <Muted /> : <Mono className="report-table__strong">{formatUnits(r.counted)}</Mono>,
+              r.counted === undefined ? <Muted /> : signed(r.variance),
+              r.counted === undefined || r.varianceValue === 0 ? (
+                <Muted />
+              ) : (
+                <Mono>{`${r.varianceValue > 0 ? '+' : ''}${money(r.varianceValue)}`}</Mono>
+              ),
+            ],
+          }))}
+          foot={[
+            'Total',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            counted.value === 0 ? <Muted /> : <Mono>{`${counted.value > 0 ? '+' : ''}${money(counted.value)}`}</Mono>,
+          ]}
+        />
+      )}
+      <p className="report-note">
+        Closing is what the stock ledger says was left; Counted is what was on the shelf when the
+        shift closed, and the difference went into the ledger as a count.
+        {rows.length > moved.length &&
+          ` ${rows.length - moved.length} other ${rows.length - moved.length === 1 ? 'item' : 'items'} didn’t move — Export CSV lists every item.`}
       </p>
     </>
   );

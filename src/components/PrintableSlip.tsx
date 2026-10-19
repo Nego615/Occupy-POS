@@ -15,6 +15,7 @@ import {
 } from '../data/orders';
 import { stationLabel } from '../data/settings';
 import { currencyOf, type Currency } from '../lib/currency';
+import { cashUpStock, countResult, formatUnits } from '../lib/shiftStock';
 import { usePos } from '../lib/store';
 
 /**
@@ -233,8 +234,41 @@ export function PrintableCashUp({ cashUp, currency }: { cashUp: CashUp; currency
         />
       </div>
       {cashUp.local && <LocalDrawerRows drawer={cashUp.local} />}
+      {cashUp.countId && <ShelfCountRows cashUp={cashUp} />}
       {cashUp.note && <div className="print-receipt__part">{cashUp.note}</div>}
     </Slip>
+  );
+}
+
+/** The shelf count taken at close: each counted item against what the ledger expected. */
+function ShelfCountRows({ cashUp }: { cashUp: CashUp }) {
+  const { cashUps, catalog, movements, stockCounts } = usePos();
+  const rows = cashUpStock(cashUp, cashUps, catalog, movements, stockCounts).filter((r) => r.counted !== undefined);
+  const result = countResult(rows);
+  return (
+    <div className="print-receipt__lines">
+      <div className="print-receipt__row">
+        <span>Shelf count</span>
+        <span className="mono">{result.counted} items</span>
+      </div>
+      {rows.map((r) => (
+        <div key={r.itemId}>
+          <div className="print-receipt__row">
+            <span className="print-receipt__name">{r.name}</span>
+            <span className="mono">{r.variance === 0 ? 'OK' : formatUnits(r.variance, true)}</span>
+          </div>
+          <div className="print-receipt__part">
+            Open {formatUnits(r.opening)} · in {formatUnits(r.received)} · sold {formatUnits(-r.sold)} · expected{' '}
+            {formatUnits(r.expected)} · counted {formatUnits(r.counted!)}
+          </div>
+        </div>
+      ))}
+      <Row
+        label={result.value < 0 ? 'Stock short, at cost' : result.value > 0 ? 'Stock over, at cost' : 'Stock as expected'}
+        value={Math.abs(result.value)}
+        total
+      />
+    </div>
   );
 }
 

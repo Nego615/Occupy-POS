@@ -48,7 +48,9 @@ export function applyMovements(
   const untracked = new Set(catalog.filter((i) => i.untracked).map((i) => i.id));
   const movements: StockMovement[] = [];
   const date = todayIso();
-  const time = formatTime(new Date());
+  const now = new Date();
+  const time = formatTime(now);
+  const at = now.toISOString();
 
   for (const entry of entries) {
     if (!stock.has(entry.itemId) || entry.change === 0) continue;
@@ -69,6 +71,7 @@ export function applyMovements(
       staffId,
       date,
       time,
+      at,
     });
   }
 

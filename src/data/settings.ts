@@ -92,6 +92,8 @@ export type Settings = {
 
   /** Low-stock warning for items that don't set their own. */
   lowStockDefault: number;
+  /** Categories whose stock is counted at every cash-up — spirits, beers, whatever walks. */
+  shiftCountCategories: CategoryId[];
 
   /** Categories whose items go to the kitchen screen. Everything else is made at the counter. */
   kitchenCategories: CategoryId[];
@@ -126,6 +128,7 @@ export const DEFAULT_SETTINGS: Settings = {
   paymentMethods: ['card', 'cash', 'mobile', 'split'],
   openPriceEnabled: false,
   lowStockDefault: LOW_STOCK_DEFAULT,
+  shiftCountCategories: [],
   kitchenCategories: ['food'],
   kitchenLateMinutes: 10,
   kitchenMenu: false,

@@ -71,6 +71,8 @@ export type StockMovement = {
   staffId?: string;
   date: string;
   time: string;
+  /** ISO timestamp, to place it in a shift. Older movements only have `date` and `time`. */
+  at?: string;
 };
 
 /** `closed` is part received, with the rest never coming — see closePurchaseOrder. */

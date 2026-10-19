@@ -102,6 +102,11 @@ export type InventoryStore = {
    * stock-count movement. Uncounted items are left alone. Returns the record.
    */
   postCount: () => StockCount | null;
+  /**
+   * Posts what was counted as a shift closed, the same way a stock count
+   * posts, without touching a count in progress. Null if nothing was counted.
+   */
+  postShiftCount: (counted: Record<string, number>) => StockCount | null;
   discardCount: () => void;
   /**
    * The shop now sells in `to`, at `rate` old units to one: the stock ledger
@@ -203,6 +208,7 @@ export function useInventory(
           staffId: me?.id,
           date: todayIso(),
           time: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+          at: new Date().toISOString(),
         },
         ...prev,
       ]);
@@ -382,50 +388,64 @@ export function useInventory(
     });
   }, []);
 
+  /** Posts counted numbers for `itemIds` — the shared half of a stock count and a shift's closing count. */
+  const recordCount = useCallback(
+    (scope: string, itemIds: string[], counted: Record<string, number>): StockCount | null => {
+      const id = `COUNT-${nextCount()}`;
+      // Compared with stock as it is now, so sales during the count don't show as losses.
+      const lines = itemIds
+        .filter((itemId) => counted[itemId] !== undefined)
+        .map((itemId) => {
+          const item = catalog.find((i) => i.id === itemId);
+          return item
+            ? {
+                itemId,
+                name: item.name,
+                expected: item.stock,
+                counted: counted[itemId],
+                unitCost: item.cost,
+              }
+            : null;
+        })
+        .filter((l): l is NonNullable<typeof l> => l !== null);
+      if (lines.length === 0) return null;
+
+      logStock(
+        lines
+          .filter((l) => l.counted !== l.expected)
+          .map((l) => ({
+            itemId: l.itemId,
+            change: l.counted - l.expected,
+            reason: 'count' as const,
+            ref: id,
+          })),
+      );
+      const record: StockCount = {
+        id,
+        scope,
+        date: todayIso(),
+        time: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+        by: me?.name ?? 'Unknown',
+        lines,
+        skipped: itemIds.length - lines.length,
+      };
+      setStockCounts((prev) => [record, ...prev]);
+      return record;
+    },
+    [catalog, logStock, me],
+  );
+
   const postCount = useCallback(() => {
     if (!countDraft) return null;
-    const id = `COUNT-${nextCount()}`;
-    // Compared with stock as it is now, so sales during the count don't show as losses.
-    const lines = countDraft.itemIds
-      .filter((itemId) => countDraft.counted[itemId] !== undefined)
-      .map((itemId) => {
-        const item = catalog.find((i) => i.id === itemId);
-        return item
-          ? {
-              itemId,
-              name: item.name,
-              expected: item.stock,
-              counted: countDraft.counted[itemId],
-              unitCost: item.cost,
-            }
-          : null;
-      })
-      .filter((l): l is NonNullable<typeof l> => l !== null);
-    if (lines.length === 0) return null;
-
-    logStock(
-      lines
-        .filter((l) => l.counted !== l.expected)
-        .map((l) => ({
-          itemId: l.itemId,
-          change: l.counted - l.expected,
-          reason: 'count' as const,
-          ref: id,
-        })),
-    );
-    const record: StockCount = {
-      id,
-      scope: countDraft.scope,
-      date: todayIso(),
-      time: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
-      by: me?.name ?? 'Unknown',
-      lines,
-      skipped: countDraft.itemIds.length - lines.length,
-    };
-    setStockCounts((prev) => [record, ...prev]);
-    setCountDraft(null);
+    const record = recordCount(countDraft.scope, countDraft.itemIds, countDraft.counted);
+    if (record) setCountDraft(null);
     return record;
-  }, [countDraft, catalog, logStock, me]);
+  }, [countDraft, recordCount]);
+
+  const postShiftCount = useCallback(
+    (counted: Record<string, number>) => recordCount('Shift close', Object.keys(counted), counted),
+    [recordCount],
+  );
 
   const discardCount = useCallback(() => setCountDraft(null), []);
 
@@ -484,6 +504,7 @@ export function useInventory(
       startCount,
       setCounted,
       postCount,
+      postShiftCount,
       discardCount,
       convertForSwitch,
     }),
@@ -509,6 +530,7 @@ export function useInventory(
       startCount,
       setCounted,
       postCount,
+      postShiftCount,
       discardCount,
       convertForSwitch,
     ],

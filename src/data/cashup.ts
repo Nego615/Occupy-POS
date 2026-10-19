@@ -27,6 +27,10 @@ export type CashUp = {
   /** The drawer of cash taken in the cost currency, when the shop takes it — counted on its own. */
   local?: LocalDrawer;
   note?: string;
+  /** Each tracked item's stock once it closed — the next shift's opening stock. */
+  closingStock?: Record<string, number>;
+  /** The stock count taken as it closed, when anything was counted. */
+  countId?: string;
 };
 
 /** Cash in the cost currency, in its own drawer: amounts in that currency. */

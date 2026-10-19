@@ -18,6 +18,7 @@ import { ReceiptEdge, SummaryRow } from '../components/Receipt';
 import { StatusChip } from '../components/StatusChip';
 import { TopBar } from '../components/TopBar';
 import { TENDER_METHODS, expectedCash, expectedLocalCash, shiftStart, shiftTotals, type CashUp } from '../data/cashup';
+import { inAnyCategory } from '../data/catalog';
 import {
   TENDER_LABEL,
   orderItemCount,
@@ -41,6 +42,7 @@ import {
 } from '../lib/currency';
 import { beforeSwitch } from '../lib/currencySwitch';
 import { swapIn } from '../lib/motion';
+import { cashUpStock, countResult } from '../lib/shiftStock';
 import { usePos } from '../lib/store';
 import { formatTime, useNow } from '../lib/useClock';
 import { OrderHistory } from './OrderHistory';
@@ -619,6 +621,25 @@ function DrawerResult({ counted, expected }: { counted: number; expected: number
   );
 }
 
+/** What the shelf count at close found, once the shift's closed. */
+function StockResult({ cashUp }: { cashUp: CashUp }) {
+  const { cashUps, catalog, movements, stockCounts } = usePos();
+  if (!cashUp.countId) return null;
+  const result = countResult(cashUpStock(cashUp, cashUps, catalog, movements, stockCounts));
+  return (
+    <p className="desk__hint">
+      Shelf · <Mono>{result.counted}</Mono> counted ·{' '}
+      {result.off === 0 ? (
+        'all as expected'
+      ) : (
+        <>
+          <Mono>{result.off}</Mono> off, <Money value={result.value} /> at cost
+        </>
+      )}
+    </p>
+  );
+}
+
 function computeOpenTotal(orders: OrderRecord[], orderId: number): number {
   const order = orders.find((o) => o.id === orderId);
   return order ? round(orderTotal(order) - paidAmount(order.payments)) : 0;
@@ -626,12 +647,15 @@ function computeOpenTotal(orders: OrderRecord[], orderId: number): number {
 
 /* ---------- Cash-up ---------- */
 
+/** A shelf count: whole units, or part of one to two places — 2.5 bottles. */
+const STOCK_COUNT = /^\d{1,5}(\.\d{1,2})?$/;
+
 /**
  * The shift so far — money in and out by method since the last cash-up — and
  * the drawer count that closes it. Closed shifts are listed for reprinting.
  */
 function CashUpView() {
-  const { orders, tabs, cashUps, closeShift, allStaff, settings } = usePos();
+  const { orders, tabs, cashUps, closeShift, allStaff, settings, catalog, categories } = usePos();
   const currency = activeCurrency();
   // A second drawer for cash taken in what the shop buys in, when it does.
   const local = exchangeRate(settings) ? costCurrency() : null;
@@ -665,7 +689,30 @@ function CashUpView() {
   const localCounted = local ? parseAmount(localCountedText, local) : null;
   const localExpected = expectedLocalCash(localFloat ?? 0, totals);
   const localVariance = local && localCounted !== null ? roundMoney(localCounted - localExpected, local) : null;
-  const valid = float !== null && counted !== null && (!local || (localFloat !== null && localCounted !== null));
+  // The shelf count, for the categories Settings says to count at every cash-up.
+  const toCount = useMemo(
+    () =>
+      catalog.filter(
+        (i) => !i.untracked && inAnyCategory(categories, i.category, settings.shiftCountCategories ?? []),
+      ),
+    [catalog, categories, settings.shiftCountCategories],
+  );
+  const [stockText, setStockText] = useState<Record<string, string>>({});
+  const stockCounted: Record<string, number> = {};
+  let stockInvalid = false;
+  for (const item of toCount) {
+    const v = (stockText[item.id] ?? '').trim();
+    if (!v) continue;
+    if (STOCK_COUNT.test(v)) stockCounted[item.id] = Number(v);
+    else stockInvalid = true;
+  }
+  const stockDone = Object.keys(stockCounted).length;
+
+  const valid =
+    float !== null &&
+    counted !== null &&
+    (!local || (localFloat !== null && localCounted !== null)) &&
+    !stockInvalid;
 
   function close() {
     if (!valid) return;
@@ -678,8 +725,10 @@ function CashUpView() {
       countedCash: counted!,
       note,
       ...(local ? { local: { float: localFloat!, counted: localCounted! } } : {}),
+      ...(stockDone > 0 ? { stock: stockCounted } : {}),
     });
     setPrinting(cashUp);
+    setStockText({});
     setCountedText('');
     setLocalCountedText('');
     setNote('');
@@ -809,6 +858,7 @@ function CashUpView() {
                   <DrawerResult counted={printing.local.counted} expected={printing.local.expected} />
                 </InCurrency>
               )}
+              <StockResult cashUp={printing} />
               <div className="desk__row">
                 <Button variant="secondary" onClick={() => window.print()}>
                   Print cash-up
@@ -932,6 +982,37 @@ function CashUpView() {
                     )}
                   </label>
                 </InCurrency>
+              )}
+              {toCount.length > 0 && (
+                <>
+                  <h3 className="desk__drawer-title">Count the shelf</h3>
+                  <p className="desk__hint desk__stock-hint">
+                    What’s actually there — half a bottle is 0.5. Blank means not counted.{' '}
+                    <Mono>{stockDone}</Mono> of <Mono>{toCount.length}</Mono> counted.
+                  </p>
+                  <div className="desk__stock">
+                    {toCount.map((item) => {
+                      const typed = stockText[item.id] ?? '';
+                      return (
+                        <label key={item.id} className="desk__stock-row">
+                          <span className="desk__stock-name">{item.name}</span>
+                          <input
+                            className="desk__input desk__stock-input mono"
+                            type="text"
+                            inputMode="decimal"
+                            value={typed}
+                            placeholder="—"
+                            aria-invalid={typed.trim() !== '' && !STOCK_COUNT.test(typed.trim())}
+                            onChange={(e) => {
+                              setStockText((t) => ({ ...t, [item.id]: e.target.value }));
+                              setConfirming(false);
+                            }}
+                          />
+                        </label>
+                      );
+                    })}
+                  </div>
+                </>
               )}
               <label className="desk__field">
                 <span>Note</span>

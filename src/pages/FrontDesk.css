@@ -254,3 +254,38 @@
   font-size: 14px;
   font-weight: 800;
 }
+
+/* The shelf count at close: name on the left, a short box for the number. */
+.desk__stock-hint {
+  margin: 0;
+  text-align: left;
+}
+
+.desk__stock {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.desk__stock-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13.5px;
+  color: var(--ink);
+}
+
+.desk__stock-name {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.desk__stock-input {
+  width: 84px;
+  text-align: right;
+}
+
+.desk__stock-input[aria-invalid='true'] {
+  border-color: var(--occupied);
+}
