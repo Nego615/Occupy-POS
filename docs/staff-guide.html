@@ -1,0 +1,912 @@
+<!doctype html>
+<!--
+  Source of Occupy-POS-Staff-Guide.pdf. To re-print after editing, from the project root:
+
+  "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" --headless=new --disable-gpu
+    --no-pdf-header-footer --virtual-time-budget=8000
+    --print-to-pdf="docs\Occupy-POS-Staff-Guide.pdf" "file:///D:/PROJECTS/OCCUPY POS/docs/staff-guide.html"
+
+  Or open it in Edge or Chrome, press Ctrl+P, choose "Save as PDF", and turn off "Headers and footers".
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Occupy POS — Staff Guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #2b1810;
+    --ink-soft: #6b5446;
+    --paper: #fff9ee;
+    --sand: #f2e6d0;
+    --line: #e2d3b8;
+    --marigold: #f4b12e;
+    --marigold-soft: #fbe6b5;
+    --vermilion: #cf3720;
+    --vermilion-soft: #f8dcd4;
+    --green: #2f6b3a;
+    --green-soft: #dcebd9;
+  }
+
+  @page {
+    size: A4;
+    margin: 18mm 17mm 20mm;
+    @bottom-center {
+      content: "Occupy POS · Staff Guide  ·  " counter(page);
+      font-family: 'Archivo', Arial, sans-serif;
+      font-size: 8pt;
+      color: #6b5446;
+    }
+  }
+  @page cover {
+    margin: 0;
+    @bottom-center { content: none; }
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body {
+    margin: 0;
+    font-family: 'Archivo', 'Helvetica Neue', Arial, sans-serif;
+    font-size: 9.9pt;
+    line-height: 1.48;
+    color: var(--ink);
+    background: #fff;
+  }
+
+  /* ---------- Cover ---------- */
+  .cover {
+    page: cover;
+    height: 297mm;
+    width: 210mm;
+    background: var(--sand);
+    position: relative;
+    overflow: hidden;
+    break-after: page;
+    padding: 34mm 22mm 0;
+  }
+  .cover__band {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: 92mm;
+    background: var(--ink);
+    color: var(--paper);
+    padding: 16mm 22mm;
+  }
+  .cover__band::before {
+    content: "";
+    position: absolute;
+    left: 0; right: 0; top: -9mm;
+    height: 9mm;
+    background: repeating-linear-gradient(90deg, var(--marigold) 0 14mm, var(--vermilion) 14mm 28mm);
+  }
+  .cover__mark {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 800;
+    font-size: 15pt;
+    letter-spacing: -0.01em;
+  }
+  .cover__dot {
+    width: 16px; height: 16px; border-radius: 50%;
+    background: var(--vermilion);
+  }
+  .cover h1 {
+    font-size: 46pt;
+    line-height: 1;
+    font-weight: 850;
+    font-stretch: 112%;
+    letter-spacing: -0.03em;
+    margin: 30mm 0 6mm;
+  }
+  .cover__lede {
+    font-size: 14pt;
+    max-width: 125mm;
+    color: var(--ink-soft);
+    line-height: 1.45;
+  }
+  .cover__for {
+    margin-top: 12mm;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .cover__for span {
+    background: var(--paper);
+    border-radius: 100px;
+    padding: 5px 12px;
+    font-size: 9.5pt;
+    font-weight: 650;
+  }
+  .cover__band h2 {
+    margin: 0 0 4mm;
+    font-size: 12pt;
+    color: var(--marigold);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+  }
+  .cover__band p { margin: 0 0 3mm; max-width: 150mm; font-size: 10.5pt; opacity: 0.92; }
+  .cover__saying {
+    position: absolute;
+    bottom: 12mm; left: 22mm;
+    font-size: 8.5pt;
+    font-weight: 750;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--marigold);
+  }
+
+  /* ---------- Body ---------- */
+  .chapter { break-before: page; }
+  .chapter:first-of-type { break-before: auto; }
+
+  .eyebrow {
+    font-size: 8.5pt;
+    font-weight: 750;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--vermilion);
+    margin: 0 0 2mm;
+  }
+  h2 {
+    font-size: 23pt;
+    line-height: 1.1;
+    font-weight: 800;
+    font-stretch: 108%;
+    letter-spacing: -0.02em;
+    margin: 0 0 4mm;
+  }
+  h2 + .intro {
+    font-size: 11.5pt;
+    color: var(--ink-soft);
+    margin: 0 0 6mm;
+    max-width: 160mm;
+  }
+  h3 {
+    font-size: 13pt;
+    font-weight: 750;
+    margin: 6mm 0 2mm;
+    break-after: avoid;
+  }
+  h4 {
+    font-size: 10.5pt;
+    font-weight: 750;
+    margin: 4mm 0 1mm;
+    break-after: avoid;
+  }
+  p { margin: 0 0 2.5mm; }
+  ul, ol { margin: 0 0 3mm; padding-left: 5.5mm; }
+  li { margin-bottom: 1.2mm; }
+  li::marker { color: var(--vermilion); font-weight: 700; }
+  strong { font-weight: 700; }
+  .btn {
+    display: inline-block;
+    padding: 0 6px;
+    border-radius: 5px;
+    background: var(--ink);
+    color: var(--paper);
+    font-weight: 650;
+    font-size: 0.92em;
+    line-height: 1.5;
+    white-space: nowrap;
+  }
+  .btn--gold { background: var(--marigold); color: var(--ink); }
+  .path {
+    font-weight: 650;
+    background: var(--sand);
+    padding: 0 5px;
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+
+  /* Callouts */
+  .note, .tip, .warn {
+    border-radius: 10px;
+    padding: 3.5mm 4.5mm;
+    margin: 3mm 0 4mm;
+    break-inside: avoid;
+    font-size: 9.8pt;
+  }
+  .note { background: var(--sand); }
+  .tip  { background: var(--green-soft); }
+  .warn { background: var(--vermilion-soft); }
+  .note b:first-child, .tip b:first-child, .warn b:first-child {
+    display: block;
+    font-size: 8pt;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    margin-bottom: 1mm;
+  }
+  .tip b:first-child { color: var(--green); }
+  .warn b:first-child { color: var(--vermilion); }
+
+  /* Steps */
+  ol.steps { list-style: none; padding: 0; counter-reset: step; }
+  ol.steps > li {
+    counter-increment: step;
+    position: relative;
+    padding-left: 10mm;
+    margin-bottom: 2.5mm;
+    break-inside: avoid;
+  }
+  ol.steps > li::before {
+    content: counter(step);
+    position: absolute;
+    left: 0; top: 0.2mm;
+    width: 6.5mm; height: 6.5mm;
+    border-radius: 50%;
+    background: var(--marigold);
+    font-weight: 800;
+    font-size: 9pt;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  /* Tables */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 2mm 0 5mm;
+    font-size: 9.3pt;
+    break-inside: auto;
+  }
+  th {
+    text-align: left;
+    font-size: 8pt;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    border-bottom: 1.5px solid var(--ink);
+    padding: 2mm 2mm 1.5mm;
+  }
+  td {
+    padding: 2mm;
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+  }
+  tr { break-inside: avoid; }
+  td:first-child { font-weight: 650; }
+  .yes { color: var(--green); font-weight: 800; }
+  .no { color: #b9a58f; }
+  .center { text-align: center; }
+
+  /* Flow diagram */
+  .flow {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    margin: 4mm 0 6mm;
+    break-inside: avoid;
+  }
+  .flow__step {
+    flex: 1;
+    background: var(--sand);
+    border-radius: 10px;
+    padding: 3mm 3mm 3.5mm;
+    font-size: 8.8pt;
+    line-height: 1.35;
+  }
+  .flow__step b { display: block; font-size: 10pt; margin-bottom: 1mm; }
+  .flow__step small { display: block; color: var(--ink-soft); font-size: 7.8pt; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 1mm; }
+  .flow__step--gold { background: var(--marigold); }
+  .flow__step--ink { background: var(--ink); color: var(--paper); }
+  .flow__step--ink small { color: var(--marigold); }
+  .flow__arrow {
+    display: flex; align-items: center; justify-content: center;
+    width: 6mm;
+    color: var(--vermilion);
+    font-weight: 800;
+    font-size: 13pt;
+  }
+
+  /* Four areas grid */
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3.5mm;
+    margin: 3mm 0 5mm;
+  }
+  .card {
+    border: 1.5px solid var(--line);
+    border-radius: 12px;
+    padding: 4mm;
+    break-inside: avoid;
+  }
+  .card h4 { margin-top: 0; font-size: 11.5pt; }
+  .card p { font-size: 9.3pt; margin: 0 0 1.5mm; }
+  .card .who { font-size: 8.3pt; color: var(--ink-soft); font-weight: 650; }
+
+  /* Contents */
+  .toc { columns: 2; column-gap: 10mm; margin-top: 6mm; }
+  .toc__item {
+    break-inside: avoid;
+    display: flex;
+    gap: 4mm;
+    padding: 2.6mm 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .toc__num {
+    font-weight: 850;
+    font-size: 15pt;
+    color: var(--vermilion);
+    width: 9mm;
+    flex: none;
+    line-height: 1.1;
+  }
+  .toc__item b { display: block; font-size: 10.5pt; }
+  .toc__item span { font-size: 8.8pt; color: var(--ink-soft); }
+
+  /* Mock UI */
+  .mock {
+    border: 1.5px solid var(--line);
+    border-radius: 12px;
+    background: var(--sand);
+    padding: 4mm;
+    margin: 3mm 0 5mm;
+    display: grid;
+    grid-template-columns: 1.55fr 1fr;
+    gap: 4mm;
+    font-size: 8.4pt;
+    break-inside: avoid;
+  }
+  .mock__label {
+    font-size: 7.4pt; font-weight: 750; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--vermilion); margin-bottom: 1.5mm;
+  }
+  .mock__pills { display: flex; gap: 1.5mm; margin-bottom: 2mm; flex-wrap: wrap; }
+  .mock__pills span { background: var(--paper); border-radius: 100px; padding: 0.6mm 2.5mm; font-weight: 650; }
+  .mock__pills span.on { background: var(--ink); color: var(--paper); }
+  .mock__search { background: var(--paper); border-radius: 8px; padding: 1.5mm 2.5mm; color: var(--ink-soft); margin-bottom: 2mm; }
+  .mock__tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.8mm; }
+  .mock__tiles div { background: var(--paper); border-radius: 8px; padding: 2mm; font-weight: 650; }
+  .mock__tiles div i { display: block; font-style: normal; font-weight: 500; color: var(--ink-soft); font-size: 7.6pt; }
+  .mock__tiles div.low i { color: var(--vermilion); font-weight: 700; }
+  .mock__cart { background: var(--paper); border-radius: 10px; padding: 3mm; }
+  .mock__tab { background: var(--marigold); border-radius: 9px; padding: 2.5mm; margin: 1.5mm 0 2mm; }
+  .mock__tab b { font-size: 14pt; display: block; margin-top: 1mm; }
+  .mock__line { display: flex; justify-content: space-between; border-bottom: 1px solid var(--line); padding: 1mm 0; }
+  .mock__charge { background: var(--ink); color: var(--paper); border-radius: 7px; padding: 1.8mm 2.5mm; margin-top: 2mm; display: flex; justify-content: space-between; font-weight: 700; }
+  .mock__links { text-align: right; margin-top: 1.5mm; font-weight: 700; text-decoration: underline; }
+
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 6mm; }
+  .keep { break-inside: avoid; }
+
+  dl.glossary { display: grid; grid-template-columns: 34mm 1fr; gap: 1.2mm 5mm; margin: 0; }
+  dl.glossary dt { font-weight: 750; }
+  dl.glossary dd { margin: 0; }
+
+  .checklist { list-style: none; padding: 0; }
+  .checklist li { padding-left: 7mm; position: relative; }
+  .checklist li::before {
+    content: ""; position: absolute; left: 0; top: 1mm;
+    width: 3.6mm; height: 3.6mm; border: 1.5px solid var(--ink); border-radius: 3px;
+  }
+
+  .faq { break-inside: avoid; margin-bottom: 3.5mm; }
+  .faq b { display: block; }
+</style>
+</head>
+<body>
+
+<!-- ============ COVER ============ -->
+<section class="cover">
+  <div class="cover__mark"><span class="cover__dot"></span> Occupy POS</div>
+  <h1>Staff Guide</h1>
+  <p class="cover__lede">Everything a new team member needs to know: ringing up tabs, sending orders to the kitchen, taking payment, closing the shift, and running the back office.</p>
+  <div class="cover__for">
+    <span>Servers</span><span>Baristas</span><span>Counter</span><span>Cooks</span><span>Managers</span><span>Owners</span>
+  </div>
+  <div class="cover__band">
+    <h2>How to use this guide</h2>
+    <p>Read Chapters 1–3 first, whatever your role. They explain how the system fits together and how to sign in.</p>
+    <p>Then read the chapter for the screens you'll use: the <b>Register</b> if you take orders, the <b>Counter</b> if you take payment, the <b>Kitchen</b> if you cook, and the <b>Admin dashboard</b> if you manage.</p>
+    <p>The back pages have a daily checklist, answers to common questions, and a glossary.</p>
+  </div>
+  <div class="cover__saying">Karibu · Tuko pamoja</div>
+</section>
+
+<!-- ============ CONTENTS ============ -->
+<section class="chapter" style="break-before: auto;">
+  <p class="eyebrow">Contents</p>
+  <h2>What's inside</h2>
+  <div class="toc">
+    <div class="toc__item"><div class="toc__num">1</div><div><b>The system at a glance</b><span>The four areas and the life of an order</span></div></div>
+    <div class="toc__item"><div class="toc__num">2</div><div><b>Roles and what they can do</b><span>Servers, baristas, counter, cooks, managers, owners</span></div></div>
+    <div class="toc__item"><div class="toc__num">3</div><div><b>Signing in and your shift</b><span>PIN, clocking in and out, auto-lock</span></div></div>
+    <div class="toc__item"><div class="toc__num">4</div><div><b>The Register</b><span>Ringing up tabs, tables, kitchen, dockets, charging</span></div></div>
+    <div class="toc__item"><div class="toc__num">5</div><div><b>The Counter</b><span>Bills, discounts, payment, rooms, refunds, cash-up</span></div></div>
+    <div class="toc__item"><div class="toc__num">6</div><div><b>The Kitchen screen</b><span>Tickets, starting, bumping, voids</span></div></div>
+    <div class="toc__item"><div class="toc__num">7</div><div><b>Order history</b><span>Finding an order, reprinting, reopening a tab</span></div></div>
+    <div class="toc__item"><div class="toc__num">8</div><div><b>The Admin dashboard</b><span>Menu, stock, staff, reports, settings</span></div></div>
+    <div class="toc__item"><div class="toc__num">9</div><div><b>A day at a glance</b><span>Opening and closing checklists</span></div></div>
+    <div class="toc__item"><div class="toc__num">10</div><div><b>Questions and fixes</b><span>Common situations and what to do</span></div></div>
+    <div class="toc__item"><div class="toc__num">11</div><div><b>Glossary</b><span>The words the system uses</span></div></div>
+  </div>
+</section>
+
+<!-- ============ 1 ============ -->
+<section class="chapter">
+  <p class="eyebrow">Chapter 1</p>
+  <h2>The system at a glance</h2>
+  <p class="intro">Occupy POS runs the whole floor: orders are rung up on the Register, cooked from the Kitchen screen, paid at the Counter, and recorded for the Admin dashboard. Every device shows the same live tabs.</p>
+
+  <h3>The four areas</h3>
+  <div class="grid">
+    <div class="card">
+      <h4>Register</h4>
+      <p>Where orders are taken. Each customer or table has a <b>tab</b>. You add items, send food to the kitchen, print dockets, and send the bill to the counter.</p>
+      <p class="who">Used by servers, baristas, managers</p>
+    </div>
+    <div class="card">
+      <h4>Counter</h4>
+      <p>Where every bill is paid. Discounts, payments, splitting a bill, charging to a room, receipts, refunds, and the end-of-shift cash-up.</p>
+      <p class="who">Used by counter staff, managers</p>
+    </div>
+    <div class="card">
+      <h4>Kitchen</h4>
+      <p>A live screen of food tickets, oldest first, each with a timer. Cooks start them, tick off lines, and bump them when they go out.</p>
+      <p class="who">Used by cooks and anyone with kitchen access</p>
+    </div>
+    <div class="card">
+      <h4>Admin dashboard</h4>
+      <p>The back office: sales overview, all orders, the menu, promotions, stock and purchasing, staff, timecards, salaries, reports and settings.</p>
+      <p class="who">Used by managers and owners</p>
+    </div>
+  </div>
+  <p>The pill buttons in the top bar move you between areas. You only see the ones your role allows.</p>
+
+  <h3>The life of an order</h3>
+  <div class="flow">
+    <div class="flow__step"><small>Register</small><b>Open a tab</b>Pick a table or room, or make it a walk-in.</div>
+    <div class="flow__arrow">›</div>
+    <div class="flow__step"><small>Register</small><b>Ring it up</b>Tap items. Add notes. Send food to the kitchen.</div>
+    <div class="flow__arrow">›</div>
+    <div class="flow__step"><small>Kitchen</small><b>Cook it</b>The ticket appears, is started, made and bumped.</div>
+    <div class="flow__arrow">›</div>
+    <div class="flow__step flow__step--gold"><small>Register</small><b>Charge it</b>The bill is sent to the counter to be paid.</div>
+    <div class="flow__arrow">›</div>
+    <div class="flow__step flow__step--ink"><small>Counter</small><b>Pay it</b>Discount if needed, take payment, print the receipt.</div>
+  </div>
+  <p>Stock is taken off the shelf when the bill is paid, not when an item is added. A tab can stay open as long as the table is seated; more can be added to it at any time.</p>
+
+  <div class="note"><b>Remember</b>The register never takes money and never gives discounts. All payment and all discounts happen at the Counter.</div>
+</section>
+
+<!-- ============ 2 ============ -->
+<section class="chapter">
+  <p class="eyebrow">Chapter 2</p>
+  <h2>Roles and what they can do</h2>
+  <p class="intro">Everyone has a main role, and can also have extra roles (for example, a server who sometimes works the counter). You can do anything any of your roles allows.</p>
+
+  <table>
+    <thead>
+      <tr><th>Can…</th><th class="center">Server</th><th class="center">Barista</th><th class="center">Counter</th><th class="center">Cook</th><th class="center">Manager</th><th class="center">Owner</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Ring up orders on the register</td><td class="center yes">✓</td><td class="center yes">✓</td><td class="center no">–</td><td class="center no">–</td><td class="center yes">✓</td><td class="center yes">✓</td></tr>
+      <tr><td>See everyone's open tabs</td><td class="center no">own only</td><td class="center yes">✓</td><td class="center yes">✓</td><td class="center no">–</td><td class="center yes">✓</td><td class="center yes">✓</td></tr>
+      <tr><td>Work the kitchen screen</td><td class="center yes">✓</td><td class="center yes">✓</td><td class="center no">–</td><td class="center yes">✓</td><td class="center yes">✓</td><td class="center yes">✓</td></tr>
+      <tr><td>Take payment at the counter</td><td class="center no">–</td><td class="center no">–</td><td class="center yes">✓</td><td class="center no">–</td><td class="center yes">✓</td><td class="center yes">✓</td></tr>
+      <tr><td>Give discounts</td><td class="center no">–</td><td class="center no">–</td><td class="center yes">✓</td><td class="center no">–</td><td class="center yes">✓</td><td class="center yes">✓</td></tr>
+      <tr><td>Refund orders</td><td class="center no">–</td><td class="center no">–</td><td class="center no">approval</td><td class="center no">–</td><td class="center yes">✓</td><td class="center yes">✓</td></tr>
+      <tr><td>Edit &amp; delete orders and tabs</td><td class="center no">–</td><td class="center no">–</td><td class="center no">–</td><td class="center no">–</td><td class="center yes">✓</td><td class="center yes">✓</td></tr>
+      <tr><td>Menu, categories, promotions</td><td class="center no">–</td><td class="center no">–</td><td class="center no">–</td><td class="center no">optional</td><td class="center yes">✓</td><td class="center yes">✓</td></tr>
+      <tr><td>Stock, deliveries, purchasing</td><td class="center no">–</td><td class="center no">–</td><td class="center no">–</td><td class="center no">–</td><td class="center yes">✓</td><td class="center yes">✓</td></tr>
+      <tr><td>Record expenses</td><td class="center no">–</td><td class="center no">–</td><td class="center no">–</td><td class="center no">–</td><td class="center yes">✓</td><td class="center yes">✓</td></tr>
+      <tr><td>Reports, timecards, tables &amp; rooms</td><td class="center no">–</td><td class="center no">–</td><td class="center no">–</td><td class="center no">–</td><td class="center yes">✓</td><td class="center yes">✓</td></tr>
+      <tr><td>Staff, salaries, paying suppliers, settings</td><td class="center no">–</td><td class="center no">–</td><td class="center no">–</td><td class="center no">–</td><td class="center no">–</td><td class="center yes">✓</td></tr>
+    </tbody>
+  </table>
+  <p style="font-size:9pt;color:var(--ink-soft)"><b>approval</b>: counter staff can start a refund, but a manager or owner enters their PIN to approve it. <b>optional</b>: the owner can let cooks add and edit items and set meals (Settings → Let the kitchen manage items).</p>
+
+  <h3>Where you land when you sign in</h3>
+  <ul>
+    <li><b>Servers, baristas, managers and owners</b> start on the Register.</li>
+    <li><b>Counter staff</b> start on the Counter.</li>
+    <li><b>Cooks</b> start on the Kitchen screen.</li>
+  </ul>
+  <div class="note"><b>Servers</b>Servers only see the tabs they opened themselves. If a server signs in on a register showing someone else's tab, they get a fresh walk-in tab of their own.</div>
+</section>
+
+<!-- ============ 3 ============ -->
+<section class="chapter">
+  <p class="eyebrow">Chapter 3</p>
+  <h2>Signing in and your shift</h2>
+  <p class="intro">Every screen sits behind a lock screen. You sign in with your own 4-digit staff PIN. Never share it: everything you ring up, discount or refund is recorded under your name.</p>
+
+  <h3>Setting up a device (once)</h3>
+  <p>The first time the system is opened on a new tablet or computer, it asks for the shop's account email and password (<b>Set up this register</b>). A manager or owner does this once per device. After that, staff only ever see the PIN screen.</p>
+
+  <h3>Signing in</h3>
+  <ol class="steps">
+    <li>On the lock screen, enter your 4-digit PIN.</li>
+    <li>If you aren't clocked in yet, you're offered a <b>one-tap clock-in</b>. Take it at the start of your shift; this is what your timecard records.</li>
+    <li>You land on your home screen (see Chapter 2).</li>
+  </ol>
+
+  <h3>Clocking out and signing out</h3>
+  <p>Tap your name in the top bar to open your account menu. From there you can <span class="btn">Clock out</span> at the end of your shift, or sign out so the next person can sign in. Open tabs are not affected by signing out: they stay open for everyone.</p>
+
+  <h3>Security features</h3>
+  <ul>
+    <li><b>Auto-lock:</b> after a set time with no taps, the screen locks itself. Open tabs carry on. Sign in again to continue.</li>
+    <li><b>Wrong PINs:</b> after several wrong PINs in a row, sign-in locks for 30 seconds.</li>
+    <li><b>Forgot to clock out?</b> Tell a manager. They correct it in Admin → Timecards.</li>
+  </ul>
+  <div class="warn"><b>Important</b>Always sign out (or let the screen lock) before walking away from a shared register. Anything done while you're signed in is recorded as yours.</div>
+</section>
+
+<!-- ============ 4 ============ -->
+<section class="chapter">
+  <p class="eyebrow">Chapter 4</p>
+  <h2>The Register</h2>
+  <p class="intro">The register is split in two: the menu on the left, and the current tab on the right. On a tablet the tab sits under the menu; on a phone the whole page scrolls.</p>
+
+  <div class="mock">
+    <div>
+      <div class="mock__label">Menu</div>
+      <div class="mock__search">Search items…</div>
+      <div class="mock__pills"><span class="on">Coffee</span><span>Food</span><span>Drinks</span><span>Set meals</span></div>
+      <div class="mock__tiles">
+        <div>Oat Latte<i>TSh 6,500</i></div>
+        <div>Cortado<i>TSh 5,500</i></div>
+        <div class="low">Cold Brew<i>3 left</i></div>
+        <div>Espresso<i>TSh 3,500</i></div>
+        <div>Turkey Club<i>TSh 15,000</i></div>
+        <div class="low">Croissant<i>Sold out</i></div>
+      </div>
+    </div>
+    <div class="mock__cart">
+      <div class="mock__label">Current tab</div>
+      <div style="display:flex;justify-content:space-between;font-weight:700">Open tabs ▾ <span>+ New tab</span></div>
+      <div class="mock__tab">Table 4 ▾ · 3 items<b>TSh 18,000</b><span style="font-size:7.6pt">#1046, opened 3:58 PM</span></div>
+      <div class="mock__line"><span>2 × Oat Latte</span><span>13,000</span></div>
+      <div class="mock__line"><span>1 × Cortado</span><span>5,500</span></div>
+      <div class="mock__links">Print bill · Print docket</div>
+      <div class="mock__charge"><span>Charge to Table 4</span><span>18,000</span></div>
+    </div>
+  </div>
+
+  <h3>Finding items</h3>
+  <ul>
+    <li><b>Categories</b> run along the top. Some open a second row (Drinks → Sodas, Wines).</li>
+    <li><b>Search</b> finds any item by name.</li>
+    <li>Running <b>promotions</b> (happy hour and so on) show as chips under the categories, so you know why a price has dropped. They apply automatically.</li>
+    <li>Tiles warn about stock: <b>"3 left"</b> when running low, <b>"Sold out"</b> when there's none, <b>"All on this tab"</b> when the last ones are already on your tab.</li>
+  </ul>
+
+  <h3>Ringing up a tab</h3>
+  <ol class="steps">
+    <li><b>Start a tab.</b> The register always shows one. Use <span class="btn">+ New tab</span> for a new customer.</li>
+    <li><b>Assign it.</b> Tap <b>Assign table *</b> on the gold tab card and pick a table or room, or tap <span class="btn">Walk-in</span> for a customer at the counter. A tab must be assigned before it can be charged or sent to the kitchen.</li>
+    <li><b>Add items.</b> Tap a tile to add one; tap again for more. The total updates as you go.</li>
+    <li><b>Add notes.</b> Tap an item's name on the tab to add a note ("no onions"). It prints on the kitchen ticket and the receipt.</li>
+    <li><b>Send food to the kitchen</b> with <span class="btn btn--gold">Send 2 to kitchen</span>. The button only shows when there are kitchen items not yet sent.</li>
+    <li><b>Charge it</b> when the customer is ready to pay (see "Charging a tab" below).</li>
+  </ol>
+
+  <h3>Items that ask a question</h3>
+  <ul>
+    <li><b>Portions:</b> some items come in servings (a half, a glass, a 25 ml shot). You'll be asked which.</li>
+    <li><b>Add-ons:</b> categories can offer sides and extras. Pick them in the pop-up; some are free, some have a price.</li>
+    <li><b>Price at the counter:</b> items like "market fish" ask you to type the price each time.</li>
+    <li><b>Custom amount:</b> for something not on the menu, ring up a one-off amount.</li>
+    <li><b>Set meals:</b> under the <b>Set meals</b> shelf. One price for several courses: pick what the guest wants from each course. Any course can be skipped, and the meal goes on the tab as a single line.</li>
+  </ul>
+
+  <h3>Working with several tabs</h3>
+  <ul>
+    <li><b>Open tabs ▾</b> (top of the tab) lists every running tab with its count. Tap one to bring it onto the register.</li>
+    <li>The <b>Tables</b> screen shows the floor at a glance: which tables and rooms have a tab running, plus walk-in tabs. Tap any to put it on the register.</li>
+    <li>Assigning a tab to a table that already has one <b>merges</b> them into a single tab.</li>
+    <li>When you move to another tab, what you rang up on the last one is saved to it. Reopen it any time to add more.</li>
+  </ul>
+
+  <h3>Dockets and bills</h3>
+  <p>Two links sit just above the charge button:</p>
+  <ul>
+    <li><b>Print bill</b> prints the whole tab so far: every item, the subtotal, tax and total, with any discount and part-payments. Hand it to the table so they can check it.</li>
+    <li><b>Print docket</b> prints only what's been added since the last docket, as either an <b>Order docket</b> (with prices and the total) or a <b>Kitchen docket</b> (items and notes only). After printing, those items join the rest of the tab, so the next docket starts fresh.</li>
+  </ul>
+
+  <h3>Charging a tab</h3>
+  <p>The big button at the bottom says <span class="btn">Charge to Table 4</span> (or <b>Send bill to counter</b> for a walk-in). Tapping it, or pressing <b>Enter</b>:</p>
+  <ol class="steps">
+    <li>prints an order docket of anything new since the last one,</li>
+    <li>sends the bill to the Counter, marked <b>Bill at counter</b>,</li>
+    <li>moves the register on to a fresh tab for the next customer.</li>
+  </ol>
+  <p>The customer then pays at the Counter. The tab stays open, and can still be added to, until it's paid.</p>
+
+  <h3>Taking items off a tab</h3>
+  <div class="warn"><b>The rule</b>
+    You can only take items off a <b>new tab that you started</b>, before anything on it has been printed or charged, and before you've moved away from it. While that's true, the <b>−</b> on each line, the <b>×</b>, and <b>Clear tab</b> are shown.<br><br>
+    Once a tab has been docketed, charged, or left and reopened, those buttons disappear for <b>everyone</b>, managers and owners included. You can still add to it. If something on an existing tab is wrong, tell a manager.
+  </div>
+  <p>Items taken off after they were sent to the kitchen send a <b>void</b> ticket, so the kitchen stops making them.</p>
+</section>
+
+<!-- ============ 5 ============ -->
+<section class="chapter">
+  <p class="eyebrow">Chapter 5</p>
+  <h2>The Counter</h2>
+  <p class="intro">The Counter is where money is taken. Its top bar has four views: <b>Bills</b>, <b>Rooms</b>, <b>Receipts</b> and <b>Cash-up</b>.</p>
+
+  <h3>Bills: collecting payment</h3>
+  <p><b>Bills to collect</b> lists every open bill: the ones sent over from the register first, then the longest-running. Tap one to see it.</p>
+  <ul>
+    <li><span class="btn">Discount the bill</span>: take a percentage or an amount off the whole bill. This must be done <b>before</b> any payment is taken.</li>
+    <li><b>Charge to</b> a room: put the bill on a guest room, to be paid at checkout.</li>
+    <li><b>Take payment</b> opens the payment screen.</li>
+  </ul>
+  <div class="note"><b>Part-paid bills</b>Once part of a bill has been paid, it can only be paid off: no new discounts and no room charges.</div>
+
+  <h3>The payment screen</h3>
+  <ol class="steps">
+    <li><b>Tip</b> (if your shop uses tips): pick a percentage, a custom amount, or <b>No tip</b>.</li>
+    <li><b>Method:</b> Card, Cash, or Mobile money.</li>
+    <li><b>Splitting the bill</b> (optional): tap <b>÷ 2</b>, <b>÷ 3</b> or <b>÷ 4</b> for even shares, <b>By item</b> to tick the items this person is paying for, or type an amount in <b>This payment</b>. Take each share as its own payment.</li>
+    <li><b>Cash:</b> enter the cash received, or tap a quick-cash amount. The screen shows the <b>Change due</b> (or how much the customer is short).</li>
+    <li>Confirm. When the last payment covers the bill, it's <b>Paid</b>, and the receipt prints (or tap <span class="btn">Print receipt</span>).</li>
+  </ol>
+  <p>A payment taken by mistake can be taken back from the list of payments, as long as the bill isn't finished.</p>
+
+  <h3>Rooms</h3>
+  <p><b>Room bills</b> lists rooms with charges waiting. When a guest checks out, pick the room, see everything charged to it, and settle the whole room bill in one payment.</p>
+
+  <h3>Receipts and refunds</h3>
+  <p>The <b>Receipts</b> view lists paid orders. Pick one to <span class="btn">Reprint receipt</span> or to refund it.</p>
+  <ol class="steps">
+    <li>Tap <b>Refund…</b>. Everything is selected; untick or lower anything not being refunded.</li>
+    <li>Choose a reason, and whether items go back into stock.</li>
+    <li>Tap <b>Refund</b>. If your role can't refund, the button reads <b>Approve</b>: a manager or owner enters their PIN to approve it.</li>
+  </ol>
+
+  <h3>Cash-up: closing the shift</h3>
+  <p>The <b>Cash-up</b> view shows <b>This shift</b>: money taken and refunded by each method since the last cash-up.</p>
+  <ol class="steps">
+    <li>Count the cash in the drawer and enter it under <b>Cash drawer</b>.</li>
+    <li>The system compares it with what's expected, and shows whether the drawer is <b>short</b> or <b>over</b>, and by how much.</li>
+    <li>Confirm to close the shift. The cash-up is kept under <b>Past cash-ups</b>, where it can be printed.</li>
+  </ol>
+  <div class="tip"><b>Good practice</b>Do the cash-up at every shift change, not just at closing. A short drawer is much easier to explain when it covers a few hours.</div>
+</section>
+
+<!-- ============ 6 ============ -->
+<section class="chapter">
+  <p class="eyebrow">Chapter 6</p>
+  <h2>The Kitchen screen</h2>
+  <p class="intro">Tickets arrive from the register as soon as food is sent, oldest first, each with a timer running since it was sent.</p>
+
+  <ol class="steps">
+    <li><b>Start</b> a ticket when you pick it up, so the floor can see it's being made. Tapped Start by mistake? Tap it again.</li>
+    <li><b>Tap each line</b> to cross it off as it's made.</li>
+    <li><span class="btn">Bump</span> the ticket once it's gone out. It leaves the screen.</li>
+  </ol>
+
+  <h3>What the ticket tells you</h3>
+  <ul>
+    <li>The tab name (table, room or walk-in) and order number.</li>
+    <li>Each item with its quantity, sides, set-meal picks and notes.</li>
+    <li>A second order for the same tab is marked as its next fire.</li>
+    <li><b>Late:</b> a ticket waiting longer than the set time (Settings → Flag tickets late after) is marked late.</li>
+  </ul>
+
+  <h3>Void tickets</h3>
+  <p>When food that was already sent is taken off a tab, a <b>Void, stop making</b> ticket appears, showing the quantities with a minus sign. Stop making those items, then tap <span class="btn">Got it, clear</span>.</p>
+
+  <h3>Done: recalling a ticket</h3>
+  <p>The <b>Done</b> view keeps recently bumped tickets. If one was bumped by mistake, recall it to put it back up.</p>
+  <p>When there's nothing waiting, the screen reads <b>All clear</b>.</p>
+</section>
+
+<!-- ============ 7 ============ -->
+<section class="chapter">
+  <p class="eyebrow">Chapter 7</p>
+  <h2>Order history</h2>
+  <p class="intro">The <b>Orders</b> pill on the register's top bar opens the counter's quick lookup of every order.</p>
+  <ul>
+    <li><b>Search</b> by tab, item or amount.</li>
+    <li>Narrow by <b>date range</b> (today, this week, all time), <b>status</b> (open, paid, refunded and so on), <b>table or room</b>, and <b>payment method</b>.</li>
+    <li>Tap any order to see its detail.</li>
+  </ul>
+  <h3>What you can do from an order</h3>
+  <table>
+    <thead><tr><th>Order is…</th><th>You can</th></tr></thead>
+    <tbody>
+      <tr><td>Open (a running tab)</td><td><b>Open on register</b> to add to it, or <b>Print bill</b>. Managers and owners can also <b>Delete tab</b>, giving a reason.</td></tr>
+      <tr><td>Paid</td><td><b>Reprint receipt</b>, or <b>Refund…</b> (with approval if your role needs it).</td></tr>
+      <tr><td>Deleted</td><td>See who deleted it, when and why; reprint it. Managers can restore it.</td></tr>
+    </tbody>
+  </table>
+  <p>Servers only see their own open tabs here; everyone else sees all of them.</p>
+</section>
+
+<!-- ============ 8 ============ -->
+<section class="chapter">
+  <p class="eyebrow">Chapter 8 · Managers and owners</p>
+  <h2>The Admin dashboard</h2>
+  <p class="intro">Open it with the <b>Admin</b> pill. The sidebar shows only the pages your role can use.</p>
+
+  <h3>Overview</h3>
+  <p>A one-screen summary: net sales for the chosen range at the top, round shortcut buttons for the nightly jobs (<b>Register</b>, <b>Cash up</b>, <b>Add expense</b>, <b>Reports</b>), the open tabs, sales by day, an at-a-glance panel, top items, and recent activity.</p>
+
+  <h3>Orders</h3>
+  <p>The back-office ledger of every order: open, paid and refunded. It has sorting, totals, longer date ranges, and <b>Export CSV</b> of exactly what's filtered. From an order you can reprint, refund, <b>edit</b> or <b>delete</b> a closed order (with a note on what changed and why), or delete an open tab. Every edit and deletion is logged with who did it.</p>
+
+  <h3>Menu</h3>
+  <h4>Items &amp; catalog</h4>
+  <p>Every item, by category, with a <b>restock</b> view of tracked items that are low or sold out. Tap an item to open the item editor:</p>
+  <ul>
+    <li><b>Name, price, category</b> and <b>tile colour</b>, with a live preview of the register tile.</li>
+    <li><b>Available for sale</b>: switch off to hide it from the register without deleting it.</li>
+    <li><b>Price set at the counter</b>: asks for the price each time it's rung up.</li>
+    <li><b>Track stock</b>: count units on the shelf, with an optional low-stock warning level.</li>
+    <li><b>Portions</b>: sell part of a unit, either as a share ("1/2") or in millilitres for drinks (a 25 ml shot from a 750 ml bottle).</li>
+    <li><b>Recipe</b>: for cocktails and the like. Each serving pours its ingredients from stock, and its cost is worked out from them.</li>
+  </ul>
+  <h4>Categories</h4>
+  <p>The shelves along the top of the register and the headings in reports. Categories can sit inside others (Sodas inside Drinks). Each can offer <b>add-ons</b>: sides and extras, free or priced. A category can only be deleted once it's empty.</p>
+  <h4>Set meals</h4>
+  <p>Several courses at one price. Each course lists the items to choose from; at the register, any number can be picked from each course, or a course skipped.</p>
+  <h4>Promotions</h4>
+  <p>Automatic discounts such as happy hour, set to run on chosen days and hours. The register applies them as items are rung up; there's nothing for staff to enter.</p>
+
+  <h3>Money</h3>
+  <h4>Reports</h4>
+  <table>
+    <thead><tr><th>Report</th><th>Answers</th></tr></thead>
+    <tbody>
+      <tr><td>Sales summary</td><td>What came in, day by day</td></tr>
+      <tr><td>Profit &amp; loss</td><td>Whether you made money, after every cost: stock, losses, wages and expenses</td></tr>
+      <tr><td>Items / Categories</td><td>What sold, ranked by sales</td></tr>
+      <tr><td>Payments</td><td>How customers paid</td></tr>
+      <tr><td>Time of day</td><td>When the counter is busiest</td></tr>
+      <tr><td>Tabs &amp; tables</td><td>Walk-ins against each table and room</td></tr>
+      <tr><td>Staff</td><td>What each person sold</td></tr>
+      <tr><td>Margins</td><td>What each item earns after its cost</td></tr>
+      <tr><td>Stock &amp; losses</td><td>What stock is worth, and what went missing</td></tr>
+      <tr><td>Purchasing</td><td>Deliveries, payments and what's owed</td></tr>
+    </tbody>
+  </table>
+  <p>Pick any date range. Every report is a table first, with charts over the same numbers, and <b>Export CSV</b> downloads the table on screen. Reports can also be printed on the shop's letterhead.</p>
+  <h4>Expenses</h4>
+  <p>Running costs that aren't stock or wages: rent, power, transport. Record them here; they come off gross profit in the Profit &amp; loss report.</p>
+
+  <h3>Stock and purchasing</h3>
+  <ul>
+    <li><b>Stock:</b> what's on the shelf, its value at cost, and every change to it. Sales and refunds record themselves; anything else (breakage, spoilage) is an <b>adjustment</b> here, with a reason.</li>
+    <li><b>Stock count:</b> walk the shelves and enter what's actually there, for everything, one category, or one supplier. Items left blank are skipped, not zeroed. Posting the count records the differences as gains or losses. An unfinished count stays in progress if you leave.</li>
+    <li><b>Purchases:</b> purchase orders from draft to delivery. Create a draft, place it with the supplier (print it on the letterhead), then receive it, in full or in parts. Receiving puts the stock on the shelf, updates item costs, and raises a supplier bill. A delivery that will never arrive in full can be closed short.</li>
+    <li><b>Suppliers:</b> contacts, payment terms, and where each account stands. Suppliers are deactivated, not deleted, so their history keeps its name.</li>
+    <li><b>Supplier bills:</b> what the business owes, with due dates ("3 days overdue"). Only owners record payments against them.</li>
+  </ul>
+
+  <h3>People</h3>
+  <ul>
+    <li><b>Staff</b> (owners): add people, set their main and extra roles, PIN and monthly salary. Deactivating keeps someone on the list but stops them signing in. Deleting removes them, though past orders still show their name. The page also lists exactly what each role can do.</li>
+    <li><b>Timecards:</b> who's working now, hours per person, and the shift log. Fix forgotten clock-outs here. Timecards record hours only; pay is a monthly salary.</li>
+    <li><b>Salaries</b> (owners): what the team is owed for a month. Pay a month whole, or in two halves (1st–15th, then 16th–end). Marking a month paid freezes it into the history.</li>
+  </ul>
+
+  <h3>Setup</h3>
+  <ul>
+    <li><b>Locations:</b> the tables and rooms tabs can be assigned to. Changes show straight away on the Tables screen and the register's picker.</li>
+    <li><b>Settings</b> (owners). Changes are collected and applied together when you tap Save:
+      <ul>
+        <li><b>Business:</b> name, logo, location and register name (printed on receipts), receipt footer message, and whether to print automatically after payment.</li>
+        <li><b>Money:</b> currency, buying currency and exchange rate, VAT/sales tax, tips on or off and the tip options offered.</li>
+        <li><b>Register and kitchen:</b> price at the counter, the low-stock warning level, when kitchen tickets count as late, and whether cooks may manage items.</li>
+        <li><b>Security:</b> auto-lock time and how many wrong PINs before lockout.</li>
+        <li><b>This device:</b> sign out to remove the shop's data from the browser. It stays safe in the cloud and comes back on signing in.</li>
+      </ul>
+    </li>
+  </ul>
+</section>
+
+<!-- ============ 9 ============ -->
+<section class="chapter">
+  <p class="eyebrow">Chapter 9</p>
+  <h2>A day at a glance</h2>
+  <p class="intro">A simple routine that keeps the numbers right.</p>
+
+  <div class="two">
+    <div class="keep">
+      <h3>Opening</h3>
+      <ul class="checklist">
+        <li>Sign in with your PIN and <b>clock in</b>.</li>
+        <li>Check the receipt printer has paper.</li>
+        <li>Counter: check the cash float in the drawer.</li>
+        <li>Kitchen: open the Kitchen screen and check it reads <b>All clear</b>.</li>
+        <li>Managers: check <b>Items &amp; catalog → restock</b> for anything low or sold out, and switch off items you can't serve.</li>
+      </ul>
+    </div>
+    <div class="keep">
+      <h3>During service</h3>
+      <ul class="checklist">
+        <li>Assign every tab to a table, room or walk-in.</li>
+        <li>Send food to the kitchen as soon as it's ordered.</li>
+        <li>Add notes for allergies and changes.</li>
+        <li>Charge tabs when guests ask for the bill.</li>
+        <li>Never leave a register signed in and unattended.</li>
+      </ul>
+    </div>
+    <div class="keep">
+      <h3>Shift change</h3>
+      <ul class="checklist">
+        <li>Counter: do a <b>cash-up</b> and hand over the drawer.</li>
+        <li>Make sure your tabs are charged or handed over.</li>
+        <li><b>Clock out</b> and sign out.</li>
+      </ul>
+    </div>
+    <div class="keep">
+      <h3>Closing</h3>
+      <ul class="checklist">
+        <li>Check <b>Open tabs</b> and <b>Bills to collect</b>: nothing should be left unpaid.</li>
+        <li>Counter: final <b>cash-up</b>; explain any short or over.</li>
+        <li>Kitchen: bump any remaining tickets.</li>
+        <li>Managers: record the day's <b>expenses</b>, and glance at the <b>Overview</b>.</li>
+        <li>Everyone: clock out.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 10 ============ -->
+<section class="chapter">
+  <p class="eyebrow">Chapter 10</p>
+  <h2>Questions and fixes</h2>
+  <p class="intro">Common situations, and what to do.</p>
+
+  <div class="faq"><b>I can't charge the tab or send it to the kitchen.</b>It hasn't been assigned. Tap <b>Assign table *</b> on the tab card and pick a table or room, or tap <b>Walk-in</b>.</div>
+  <div class="faq"><b>The − and × buttons have disappeared from a tab.</b>The tab isn't new any more: it was docketed, charged, or reopened, or someone else started it. You can still add items. Ask a manager to sort out anything that needs to come off.</div>
+  <div class="faq"><b>I added the wrong item to a brand-new tab.</b>As long as it's your tab and you haven't printed, charged or left it, tap <b>−</b> or <b>×</b> on the line, or <b>Clear tab</b>.</div>
+  <div class="faq"><b>A tile says "Sold out" but we have stock.</b>The stock count in the system is wrong. A manager can correct it in Admin → Stock with an adjustment, or with a stock count.</div>
+  <div class="faq"><b>I can't find a tab in Open tabs.</b>Servers only see the tabs they opened. If it's someone else's, ask them or a manager. Bills already sent to the counter also show on the Counter's Bills view.</div>
+  <div class="faq"><b>The customer wants a discount.</b>Discounts are only given at the Counter, before any payment is taken. Send the bill to the counter and ask counter staff.</div>
+  <div class="faq"><b>The customer wants to pay in parts.</b>On the payment screen, use ÷ 2, ÷ 3, ÷ 4, By item, or type an amount, and take each part as its own payment.</div>
+  <div class="faq"><b>A guest staying in a room wants to put a meal on their room.</b>At the Counter, open the bill and use <b>Charge to</b> the room. It's paid when the room settles up at checkout.</div>
+  <div class="faq"><b>I bumped a kitchen ticket by mistake.</b>Open the Kitchen screen's Done view and recall it.</div>
+  <div class="faq"><b>The receipt didn't print.</b>Check the printer has paper and is on, then reprint it from the Counter's Receipts view or Order history.</div>
+  <div class="faq"><b>I forgot to clock out.</b>Tell a manager; they'll correct your shift in Admin → Timecards.</div>
+  <div class="faq"><b>The screen locked while I was working.</b>That's auto-lock. Sign in again with your PIN: open tabs are exactly as you left them.</div>
+  <div class="faq"><b>My PIN won't work and now it says to wait.</b>Too many wrong PINs locks sign-in for 30 seconds. Wait, then try again carefully. If you've forgotten your PIN, an owner can set a new one in Admin → Staff.</div>
+</section>
+
+<!-- ============ 11 ============ -->
+<section class="chapter">
+  <p class="eyebrow">Chapter 11</p>
+  <h2>Glossary</h2>
+  <p class="intro">The words the system uses, and what they mean.</p>
+  <dl class="glossary">
+    <dt>Tab</dt><dd>A running order for one customer, table or room. It stays open until it's paid.</dd>
+    <dt>Walk-in</dt><dd>A tab for a customer who isn't at a table or room, such as a takeaway at the counter.</dd>
+    <dt>New tab</dt><dd>A tab you've just started and haven't printed, charged or left. Only a new tab can have items taken off.</dd>
+    <dt>Assign</dt><dd>Attach a tab to a table, room, or walk-in. Required before charging or sending to the kitchen.</dd>
+    <dt>Send to kitchen</dt><dd>Fire the tab's unsent food to the Kitchen screen as a ticket.</dd>
+    <dt>Ticket</dt><dd>One order on the Kitchen screen. A <b>void</b> ticket tells the kitchen to stop making something.</dd>
+    <dt>Bump</dt><dd>Clear a finished ticket off the Kitchen screen.</dd>
+    <dt>Docket</dt><dd>A printout of what's been added since the last docket: an order docket (with prices) or a kitchen docket (items and notes).</dd>
+    <dt>Bill</dt><dd>The whole tab, priced, to be paid. "Print bill" prints it; "Charge" sends it to the counter.</dd>
+    <dt>Bill at counter</dt><dd>A tab that has been charged and is waiting to be paid at the Counter.</dd>
+    <dt>Room charge</dt><dd>A bill put on a guest room, paid when the room settles up at checkout.</dd>
+    <dt>Tender</dt><dd>Taking payment: the payment screen.</dd>
+    <dt>Cash-up</dt><dd>Counting the drawer at the end of a shift and comparing it with what the system expects.</dd>
+    <dt>Short / over</dt><dd>The drawer has less / more cash than expected.</dd>
+    <dt>Portion</dt><dd>A serving smaller than a whole unit, like half a cake or a 25 ml shot.</dd>
+    <dt>Add-on</dt><dd>A side or extra offered with items in a category.</dd>
+    <dt>Set meal</dt><dd>Several courses sold at one price, with choices in each course.</dd>
+    <dt>Promotion</dt><dd>A discount that applies itself automatically at set days and times.</dd>
+    <dt>Stock count</dt><dd>Counting what's actually on the shelf and recording the differences.</dd>
+    <dt>Purchase order</dt><dd>An order to a supplier, tracked from draft to delivered.</dd>
+    <dt>Supplier bill</dt><dd>What the business owes a supplier for a delivery.</dd>
+    <dt>Timecard</dt><dd>Your record of clock-ins and clock-outs.</dd>
+    <dt>PIN</dt><dd>Your private 4-digit code for signing in and approving actions.</dd>
+  </dl>
+
+  <div class="note" style="margin-top:8mm"><b>Still stuck?</b>Ask your manager. They can see every tab and order, fix timecards, and correct stock, and they know how your shop has set the system up.</div>
+</section>
+
+</body>
+</html>

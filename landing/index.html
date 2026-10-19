@@ -1,0 +1,1164 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Occupy: the till for bars, restaurants and lodges</title>
+<meta name="description" content="Occupy runs tabs, tables, kitchen tickets, room bills and the cash-up on a tablet at the counter, in shillings, with or without internet." />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='%23cf3720' stroke='%23cf3720'%3E%3Ccircle cx='32' cy='11' r='7' fill='none' stroke-width='4'/%3E%3Ccircle cx='32' cy='11' r='2.3' stroke='none'/%3E%3Cpath d='M26 29a6 6 0 0 1 12 0z' stroke='none'/%3E%3Crect x='19' y='30.5' width='26' height='9' rx='4.5' stroke='none'/%3E%3Cpath d='M31 41.5h-8.5q-4.5 0-4.5 4.5v3q0 11.5 13 11.5z' stroke='none'/%3E%3Cpath d='M33 41.5h8.5q4.5 0 4.5 4.5v3q0 11.5-13 11.5z' stroke='none'/%3E%3C/g%3E%3C/svg%3E" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&display=swap" rel="stylesheet" />
+<!--
+  Placeholders to fill before going live:
+  - WHATSAPP: every "wa.me/255000000000" link
+  - APP: every href="/sign-in" (the register app's sign-in, if it lives on another domain)
+-->
+<style>
+/* ---------------------------------------------------------------
+   Occupy landing. The same kanga colours as the app's tokens.css:
+   cocoa ink on paper, marigold for the thing to press next,
+   vermilion for the mark and the cloth's border.
+   --------------------------------------------------------------- */
+:root {
+  --ink: #2b1810;
+  --ink-soft: #6b5244;
+  --paper: #fff9ee;
+  --surface: #f6ecda;
+  --sand: #f2e6d0;
+  --line: #e6d5b8;
+  --marigold: #f4b12e;
+  --vermilion: #cf3720;
+  --open: #2f7d4a;
+  --open-soft: #e1efdc;
+  --occupied: #b8301a;
+  --occupied-soft: #fadbd0;
+
+  /* The cloth is cocoa in both themes: a kanga doesn't change colour at night. */
+  --cocoa: #2b1810;
+  --cocoa-dot: #3a2419;
+  --on-cocoa: #fff9ee;
+  --on-cocoa-soft: #d9c3a6;
+
+  --radius-xl: 28px;
+  --radius-lg: 24px;
+  --radius-md: 20px;
+  --radius-pill: 999px;
+  --lift: 0 18px 30px -22px rgba(43, 24, 16, 0.45);
+
+  --font: 'Archivo', 'Helvetica Neue', Arial, sans-serif;
+  --gutter: clamp(16px, 4vw, 48px);
+  --measure: 1180px;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ink: #f5e9d6;
+    --ink-soft: #bba48f;
+    --paper: #1d140f;
+    --surface: #2a1e17;
+    --sand: #150e0a;
+    --line: #3f2f25;
+    --vermilion: #e5533a;
+    --open: #72c98f;
+    --open-soft: #1d3626;
+    --occupied: #ff8a6b;
+    --occupied-soft: #4a2016;
+    --lift: 0 18px 30px -22px rgba(0, 0, 0, 0.7);
+    color-scheme: dark;
+  }
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 16px;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, p, figure, blockquote, dl, dd, ul, ol { margin: 0; }
+ul, ol { padding: 0; list-style: none; }
+a { color: inherit; }
+button { font: inherit; color: inherit; }
+
+:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px; height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.wrap {
+  max-width: var(--measure);
+  margin: 0 auto;
+  padding: 0 var(--gutter);
+}
+
+/* ---------- Buttons: if it's round, you can press it ---------- */
+.btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 52px;
+  padding: 0 26px;
+  border: none;
+  border-radius: var(--radius-pill);
+  font-size: 16px;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+  transition: filter 120ms ease;
+}
+.btn:hover { filter: brightness(0.94); }
+.btn--marigold { background: var(--marigold); color: var(--cocoa); }
+.btn--cocoa { background: var(--cocoa); color: var(--on-cocoa); }
+
+/* ---------- Header ---------- */
+.top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 72px;
+}
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  text-decoration: none;
+}
+.brand svg { width: 30px; height: 30px; color: var(--vermilion); }
+.top__link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-weight: 600;
+  text-underline-offset: 4px;
+}
+
+/* ---------- The kanga ----------
+   A border (pindo) of marigold cashews on vermilion, a printed rule,
+   and the cocoa centre (mji) carrying the register and the saying. */
+.kanga {
+  --tile: 44px;
+  margin: 0 clamp(8px, 2vw, 24px);
+  padding: var(--tile);
+  border-radius: 6px;
+  background-color: #cf3720;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 48 48'%3E%3Crect width='48' height='48' fill='%23cf3720'/%3E%3Cpath d='M24 7c7 0 11.5 5.6 11.5 11.8C35.5 27.6 28.6 35 18 38.6c4.1-3.4 6-7 5.6-10.6C17.6 27.6 13.5 24 13.5 18.3 13.5 11.9 18 7 24 7z' fill='%23f4b12e'/%3E%3Ccircle cx='24.2' cy='18.2' r='3.6' fill='%232b1810'/%3E%3Ccircle cx='41' cy='41' r='2.4' fill='%23fff9ee'/%3E%3Ccircle cx='7' cy='41' r='2.4' fill='%23fff9ee'/%3E%3C/svg%3E");
+  background-size: var(--tile) var(--tile);
+  background-repeat: round;
+}
+
+.mji {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  grid-template-areas:
+    "pitch register"
+    "jina  jina";
+  gap: clamp(32px, 4vw, 56px) clamp(32px, 4vw, 64px);
+  padding: clamp(28px, 4.4vw, 64px);
+  border-radius: 3px;
+  outline: 3px solid #f4b12e;
+  outline-offset: 6px;
+  background-color: var(--cocoa);
+  background-image: radial-gradient(circle, var(--cocoa-dot) 1.6px, transparent 2px);
+  background-size: 22px 22px;
+  color: var(--on-cocoa);
+}
+.mji :focus-visible { outline-color: var(--marigold); }
+
+.pitch {
+  grid-area: pitch;
+  align-self: center;
+}
+.pitch h1 {
+  max-width: 13ch;
+  font-size: clamp(37px, 4.7vw, 64px);
+  font-weight: 800;
+  line-height: 1.02;
+  letter-spacing: -0.025em;
+}
+.pitch p {
+  max-width: 40ch;
+  margin-top: 24px;
+  font-size: clamp(17px, 1.4vw, 19px);
+  line-height: 1.55;
+  color: var(--on-cocoa-soft);
+}
+.pitch__act {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 20px;
+  margin-top: 32px;
+}
+.pitch__note {
+  font-size: 14px;
+  color: var(--on-cocoa-soft);
+}
+
+/* The saying, as printed along a kanga: condensed, heavy, edge to edge. */
+.jina {
+  grid-area: jina;
+  padding-top: clamp(20px, 2.4vw, 32px);
+  border-top: 2px solid rgba(244, 177, 46, 0.35);
+  text-align: center;
+}
+.jina blockquote {
+  font-size: clamp(34px, 5.9vw, 96px);
+  font-weight: 900;
+  font-stretch: 62%;
+  font-variation-settings: 'wdth' 62;
+  line-height: 0.92;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  color: var(--marigold);
+}
+.jina figcaption {
+  margin-top: 12px;
+  font-size: 15px;
+  color: var(--on-cocoa-soft);
+}
+
+/* ---------- The register, working ---------- */
+.register {
+  grid-area: register;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.08fr);
+  gap: 14px;
+  padding: 14px;
+  border-radius: var(--radius-xl);
+  background: #f2e6d0;
+  color: #2b1810;
+}
+.register :focus-visible { outline-color: #2b1810; }
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-content: start;
+  gap: 10px;
+}
+.tile {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 88px;
+  padding: 12px 13px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: #fff9ee;
+  color: #2b1810;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 120ms ease, transform 120ms ease;
+}
+.tile:hover { background: #efe0c6; }
+.tile:active, .tile.is-pressed { transform: scale(0.96); background: #efe0c6; }
+.tile__name { font-size: 14.5px; font-weight: 650; line-height: 1.25; }
+.tile__price { font-size: 13px; color: #6b5244; }
+
+.rail {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 12px;
+  border-radius: var(--radius-lg);
+  background: #fff9ee;
+}
+
+.tab-card {
+  position: relative;
+  padding: 14px 16px 24px;
+  border-radius: 20px;
+  background: #f4b12e;
+  box-shadow: var(--lift);
+}
+.tab-card__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.tab-card__name { font-size: 16px; font-weight: 700; }
+.chip {
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.chip--dark { background: #2b1810; color: #f4b12e; }
+.chip--paid { background: #e1efdc; color: #2f7d4a; }
+.tab-card__amount {
+  display: block;
+  margin-top: 18px;
+  font-size: clamp(28px, 2.6vw, 36px);
+  font-weight: 750;
+  line-height: 1;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+.tab-card__amount small { font-size: 0.5em; font-weight: 700; margin-right: 4px; }
+.tab-card__saying {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  padding: 0 8px;
+  background: #f4b12e;
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.14em;
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+  transform: translate(-50%, -8px);
+}
+
+.lines { flex: 1; min-height: 120px; }
+.line {
+  display: grid;
+  grid-template-columns: 30px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 0;
+  border-bottom: 1px solid #e6d5b8;
+  font-size: 14px;
+}
+.line.is-new { animation: line-in 180ms ease-out; }
+@keyframes line-in { from { opacity: 0; transform: translateY(-4px); } }
+.line__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.line__qty { color: #6b5244; }
+.line__total { font-weight: 600; }
+.line__less {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 26px; height: 26px;
+  padding: 0;
+  border: 1px solid #e6d5b8;
+  border-radius: 50%;
+  background: #fff9ee;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+.line__less::after { content: ''; position: absolute; inset: -9px; }
+.line__less:hover { background: #f6ecda; }
+.lines__empty { padding: 10px 2px; font-size: 14px; color: #6b5244; }
+
+.charge { width: 100%; min-height: 50px; font-size: 15px; }
+.charge:disabled { opacity: 0.4; cursor: default; filter: none; }
+
+/* ---------- Sections below the cloth ---------- */
+.section { padding: clamp(72px, 10vw, 128px) 0 0; }
+.section__head { max-width: 40rem; }
+.section h2 {
+  font-size: clamp(30px, 3.4vw, 44px);
+  font-weight: 800;
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+}
+.section__head p {
+  margin-top: 16px;
+  font-size: 18px;
+  color: var(--ink-soft);
+}
+
+/* The house, drawn as a floor plan: the walls are the grid's gaps. */
+.plan {
+  display: grid;
+  grid-template-columns: 1.25fr 1fr 1fr;
+  grid-template-areas:
+    "counter counter kitchen"
+    "desk    office  kitchen";
+  gap: 4px;
+  margin-top: 48px;
+  padding: 4px;
+  border-radius: 6px;
+  background: var(--ink);
+}
+.room {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: clamp(24px, 2.6vw, 36px);
+  background: var(--paper);
+}
+.room:first-child { border-top-left-radius: 3px; }
+.room--counter { grid-area: counter; }
+.room--kitchen { grid-area: kitchen; background: var(--surface); }
+.room--desk { grid-area: desk; }
+.room--office { grid-area: office; background: var(--surface); }
+.room h3 { font-size: 22px; font-weight: 750; letter-spacing: -0.01em; }
+.room > p { max-width: 38ch; color: var(--ink-soft); }
+.room__thing { margin-top: auto; padding-top: 12px; }
+
+/* A doorway: a gap in the wall, and the swing of the door. */
+.door {
+  position: absolute;
+  width: 48px;
+  height: 48px;
+  pointer-events: none;
+}
+.door::before {
+  content: '';
+  position: absolute;
+  background: inherit;
+}
+.door--top { top: 0; left: 40px; }
+.door--top::before { left: 0; top: -4px; width: 48px; height: 4px; background: var(--door-gap, var(--paper)); }
+.door--top::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-right: 1px solid var(--ink-soft);
+  border-bottom: 1px dashed var(--ink-soft);
+  border-bottom-right-radius: 100%;
+  opacity: 0.6;
+}
+.door--side { right: 0; top: 40px; }
+.door--side::before { right: -4px; top: 0; width: 4px; height: 48px; background: var(--door-gap, var(--paper)); }
+.door--side::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-bottom: 1px solid var(--ink-soft);
+  border-left: 1px dashed var(--ink-soft);
+  border-bottom-left-radius: 100%;
+  opacity: 0.6;
+}
+.door--entry { bottom: 0; left: 40px; }
+.door--entry::before { left: 0; bottom: -4px; width: 64px; height: 4px; background: var(--paper); }
+
+.floor { display: flex; flex-wrap: wrap; gap: 8px; }
+.floor li {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 12px;
+  border-radius: var(--radius-pill);
+  font-size: 14px;
+  font-weight: 600;
+}
+.floor li::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.floor .is-open { background: var(--open-soft); color: var(--open); }
+.floor .is-taken { background: var(--occupied-soft); color: var(--occupied); }
+.floor span { font-weight: 500; opacity: 0.85; }
+
+.ticket {
+  max-width: 260px;
+  padding: 16px 18px 18px;
+  border-radius: 4px 4px var(--radius-md) var(--radius-md);
+  background: var(--paper);
+  border-top: 4px dotted var(--line);
+}
+.ticket__head { display: flex; justify-content: space-between; font-weight: 700; }
+.ticket__head span { font-weight: 500; color: var(--ink-soft); }
+.ticket ul { margin: 12px 0 16px; }
+.ticket li { padding: 3px 0; font-size: 15px; }
+.ticket li b { display: inline-block; min-width: 22px; }
+.ticket__note { display: block; padding-left: 22px; font-size: 13px; color: var(--occupied); }
+.ticket__ready {
+  min-height: 44px;
+  padding: 0 20px;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: var(--ink);
+  color: var(--paper);
+  font-weight: 700;
+  cursor: pointer;
+}
+.ticket__ready[aria-pressed='true'] { background: var(--open-soft); color: var(--open); }
+
+.tally { max-width: 300px; }
+.tally div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+.tally dt { color: var(--ink-soft); }
+.tally dd { font-weight: 600; }
+.tally .is-short dd, .tally .is-short dt { color: var(--occupied); font-weight: 700; }
+
+.stock div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+.stock dt { font-weight: 600; }
+.stock dd { color: var(--ink-soft); }
+.stock .chip { background: var(--occupied-soft); color: var(--occupied); }
+
+/* ---------- The ask: marigold, the thing to press next ---------- */
+.ask {
+  margin-top: clamp(80px, 11vw, 140px);
+  background: #f4b12e;
+  color: #2b1810;
+}
+.ask::before {
+  content: '';
+  display: block;
+  height: 22px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 48 48'%3E%3Crect width='48' height='48' fill='%23cf3720'/%3E%3Cpath d='M24 7c7 0 11.5 5.6 11.5 11.8C35.5 27.6 28.6 35 18 38.6c4.1-3.4 6-7 5.6-10.6C17.6 27.6 13.5 24 13.5 18.3 13.5 11.9 18 7 24 7z' fill='%23f4b12e'/%3E%3Ccircle cx='24.2' cy='18.2' r='3.6' fill='%232b1810'/%3E%3Ccircle cx='41' cy='41' r='2.4' fill='%23fff9ee'/%3E%3Ccircle cx='7' cy='41' r='2.4' fill='%23fff9ee'/%3E%3C/svg%3E");
+  background-size: 22px 22px;
+}
+.ask .wrap {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) auto;
+  align-items: end;
+  gap: 32px 64px;
+  padding-top: clamp(56px, 7vw, 88px);
+  padding-bottom: clamp(56px, 7vw, 88px);
+}
+.ask h2 {
+  max-width: 16ch;
+  font-size: clamp(34px, 4.4vw, 58px);
+  font-weight: 800;
+  line-height: 1.02;
+  letter-spacing: -0.025em;
+}
+.ask p { max-width: 46ch; margin-top: 20px; font-size: 18px; }
+.ask :focus-visible { outline-color: #2b1810; }
+
+.foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 24px;
+  padding-top: 28px;
+  padding-bottom: 36px;
+  font-size: 14px;
+  color: var(--ink-soft);
+}
+.foot .brand { font-size: 17px; color: var(--ink); }
+.foot .brand svg { width: 24px; height: 24px; }
+.top__link--foot { display: inline-flex; align-items: center; min-height: 44px; color: var(--ink); font-weight: 600; text-underline-offset: 4px; }
+
+/* ---------- Header actions ---------- */
+.top__acts { display: flex; align-items: center; gap: 8px 20px; }
+.btn--small { min-height: 44px; padding: 0 20px; font-size: 15px; }
+
+/* ---------- Takings: what the night has filled so far ---------- */
+.takings {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 6px 2px;
+  border-top: 1px solid #e6d5b8;
+  font-size: 14px;
+  color: #6b5244;
+}
+.takings strong { font-size: 20px; font-weight: 750; color: #2b1810; }
+.takings strong.is-up { color: #2f7d4a; }
+
+.pitch__sure {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  margin-top: 18px;
+  font-size: 14px;
+  color: var(--on-cocoa-soft);
+}
+.pitch__sure li { display: inline-flex; align-items: center; gap: 8px; }
+.pitch__sure li::before {
+  content: '';
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--marigold);
+}
+
+/* ---------- Leaks: the worry, then what Occupy does about it ---------- */
+.leaks { margin-top: 40px; border-top: 2px solid var(--ink); }
+.leak {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px clamp(24px, 5vw, 80px);
+  padding: 28px 0;
+  border-bottom: 1px solid var(--line);
+}
+.leak h3 {
+  font-size: clamp(21px, 2vw, 26px);
+  font-weight: 750;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+.leak p { max-width: 46ch; font-size: 17px; color: var(--ink-soft); }
+.leak p b { color: var(--ink); font-weight: 650; }
+
+/* ---------- Morning: yesterday, as the owner reads it ---------- */
+.morning {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+  align-items: center;
+  gap: 48px clamp(32px, 6vw, 96px);
+}
+.morning .section__head p + p { margin-top: 12px; }
+.day {
+  padding: clamp(22px, 2.6vw, 32px);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+.day__head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.day__head h3 { font-size: 17px; font-weight: 700; }
+.day__head span { font-size: 14px; color: var(--ink-soft); }
+.day__total { margin-top: 10px; font-size: clamp(36px, 4vw, 48px); font-weight: 750; letter-spacing: -0.02em; line-height: 1.05; }
+.day__total small { font-size: 0.42em; font-weight: 700; margin-right: 6px; }
+.day dl { margin-top: 20px; }
+.day dl div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+.day dt { color: var(--ink-soft); }
+.day dd { font-weight: 650; text-align: right; }
+.day .is-profit dd { color: var(--open); }
+
+/* ---------- Trial steps: a real sequence, so numbered ---------- */
+.steps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 32px clamp(20px, 3vw, 40px);
+  margin-top: 40px;
+  counter-reset: step;
+}
+.steps li { counter-increment: step; }
+.steps li::before {
+  content: counter(step);
+  display: grid;
+  place-items: center;
+  width: 44px; height: 44px;
+  margin-bottom: 16px;
+  border-radius: 50%;
+  background: var(--marigold);
+  color: #2b1810;
+  font-size: 18px;
+  font-weight: 800;
+}
+.steps h3 { font-size: 19px; font-weight: 750; line-height: 1.3; }
+.steps p { margin-top: 6px; color: var(--ink-soft); max-width: 30ch; }
+
+/* ---------- Questions owners ask ---------- */
+.faq { max-width: 52rem; margin-top: 32px; border-top: 2px solid var(--ink); }
+.faq details { border-bottom: 1px solid var(--line); }
+.faq summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  min-height: 64px;
+  padding: 14px 0;
+  font-size: 19px;
+  font-weight: 700;
+  cursor: pointer;
+  list-style: none;
+}
+.faq summary::-webkit-details-marker { display: none; }
+.faq summary::after {
+  content: '+';
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  background: var(--surface);
+  font-size: 20px;
+  font-weight: 500;
+}
+.faq details[open] summary::after { content: '\2212'; }
+.faq details p { max-width: 60ch; padding: 0 0 22px; color: var(--ink-soft); font-size: 17px; }
+
+/* ---------- Narrower screens ---------- */
+@media (max-width: 1020px) {
+  .mji {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "pitch" "register" "jina";
+  }
+  .pitch h1 { max-width: 16ch; }
+  .register { max-width: 640px; }
+  .morning { grid-template-columns: minmax(0, 1fr); }
+  .day { max-width: 560px; }
+  .steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 760px) {
+  .plan {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "counter" "kitchen" "desk" "office";
+  }
+  .door--side { display: none; }
+  .ask .wrap { grid-template-columns: minmax(0, 1fr); }
+  .leak { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 560px) {
+  .kanga { --tile: 26px; margin: 0 6px; }
+  .mji { outline-offset: 4px; padding: 24px 18px; }
+  .register { grid-template-columns: minmax(0, 1fr); padding: 10px; }
+  .tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .tile { min-height: 76px; padding: 10px 9px; }
+  .tile__price { font-size: 12px; white-space: nowrap; }
+  .tile__name { font-size: 13.5px; }
+  .steps { grid-template-columns: minmax(0, 1fr); gap: 28px; }
+  .top__link { display: none; }
+  .faq summary { font-size: 17px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  .tile:active, .tile.is-pressed { transform: none; }
+}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="scarab" viewBox="0 0 64 64">
+    <circle cx="32" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="4" />
+    <circle cx="32" cy="11" r="2.3" fill="currentColor" />
+    <path d="M26 29a6 6 0 0 1 12 0z" fill="currentColor" />
+    <rect x="19" y="30.5" width="26" height="9" rx="4.5" fill="currentColor" />
+    <path d="M31 41.5h-8.5q-4.5 0-4.5 4.5v3q0 11.5 13 11.5z" fill="currentColor" />
+    <path d="M33 41.5h8.5q4.5 0 4.5 4.5v3q0 11.5-13 11.5z" fill="currentColor" />
+    <path d="M20 33l-6-5 8-11M44 33l6-5-8-11M18.5 47l-7-1-3 5M45.5 47l7-1 3 5M21 56l-6 2-1 4M43 56l6 2 1 4" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+  </symbol>
+</svg>
+
+<header class="wrap top">
+  <a class="brand" href="/" aria-label="Occupy home">
+    <svg aria-hidden="true"><use href="#scarab" /></svg>
+    Occupy
+  </a>
+  <div class="top__acts">
+    <a class="top__link" href="/sign-in">Sign in to your shop</a>
+    <a class="btn btn--marigold btn--small" href="https://wa.me/255000000000?text=I%E2%80%99d%20like%20a%20free%20trial%20of%20Occupy">Start a free trial</a>
+  </div>
+</header>
+
+<main>
+  <section class="kanga" aria-labelledby="pitch-title">
+    <div class="mji">
+      <div class="pitch">
+        <h1 id="pitch-title">Know where every shilling went tonight.</h1>
+        <p>Occupy is the till for bars, restaurants and lodges. Every drink, plate and room charge is rung up, paid and counted, so the drawer matches at closing and you see what you made.</p>
+        <div class="pitch__act">
+          <a class="btn btn--marigold" href="https://wa.me/255000000000?text=I%E2%80%99d%20like%20a%20free%20trial%20of%20Occupy">Start a free trial</a>
+        </div>
+        <ul class="pitch__sure">
+          <li>We load your menu for you</li>
+          <li>Runs on the tablets you have</li>
+          <li>Every plan has every feature</li>
+        </ul>
+      </div>
+
+      <section class="register" aria-label="Try the register">
+        <div class="tiles" id="tiles"></div>
+        <div class="rail">
+          <div class="tab-card">
+            <div class="tab-card__top">
+              <span class="tab-card__name" id="tab-name">Table 4</span>
+              <span class="chip chip--dark" id="tab-chip">Empty</span>
+            </div>
+            <span class="tab-card__amount" id="tab-amount" aria-live="polite" aria-atomic="true"><small>TSh</small>0</span>
+            <span class="tab-card__saying" id="tab-saying" aria-hidden="true">Karibu tena</span>
+          </div>
+          <ul class="lines" id="lines" aria-label="On the tab"></ul>
+          <button class="btn btn--cocoa charge" id="charge" type="button" disabled>Charge</button>
+        </div>
+        <p class="takings">Taken today <strong id="takings" aria-live="polite">TSh 1,184,500</strong></p>
+      </section>
+
+      <figure class="jina">
+        <blockquote lang="sw">Haba na haba hujaza kibaba</blockquote>
+        <figcaption>Little by little fills the measure.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="section wrap" aria-labelledby="leaks-title">
+    <div class="section__head">
+      <h2 id="leaks-title">Where takings slip away, and how Occupy stops it</h2>
+      <p>Most of what goes missing in a bar or a lodge goes missing quietly. Occupy puts a name and a number on it.</p>
+    </div>
+    <div class="leaks">
+      <div class="leak">
+        <h3>Drinks go out that were never rung up.</h3>
+        <p>Stock counts down with every sale. <b>Count the shelf and Occupy shows what’s missing</b>, in bottles and in shillings.</p>
+      </div>
+      <div class="leak">
+        <h3>The drawer is short at closing.</h3>
+        <p>The cash-up shows <b>what should be in the drawer</b> for the shift, cash, card and mobile money apart, against what was counted.</p>
+      </div>
+      <div class="leak">
+        <h3>A tab walks out the door.</h3>
+        <p>Nothing is rung up without a table or a room, and <b>every open bill stays on the front desk</b> until it’s paid.</p>
+      </div>
+      <div class="leak">
+        <h3>A sale is cancelled after the customer paid.</h3>
+        <p>Everyone signs in with their own PIN, so <b>every sale and every refund carries a name</b>.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section wrap" aria-labelledby="house-title">
+    <div class="section__head">
+      <h2 id="house-title">One till for the bar, the kitchen and the rooms</h2>
+      <p>Each tablet opens on the screen its person needs. What one does reaches the others straight away.</p>
+    </div>
+
+    <div class="plan">
+      <article class="room room--counter">
+        <span class="door door--side" style="--door-gap: var(--surface)" aria-hidden="true"></span>
+        <h3>Counter</h3>
+        <p>Ring up a tab, move it to a table or a room, and charge it in cash, card or mobile money.</p>
+        <ul class="floor room__thing" aria-label="Tables and rooms">
+          <li class="is-open">Table 1</li>
+          <li class="is-taken">Table 4 <span>TSh 12,000</span></li>
+          <li class="is-open">Table 5</li>
+          <li class="is-taken">Room 12 <span>TSh 48,500</span></li>
+          <li class="is-open">Bar 2</li>
+        </ul>
+      </article>
+
+      <article class="room room--kitchen">
+        <h3>Kitchen</h3>
+        <p>Food reaches the kitchen as a ticket the moment it’s sent. Cooks mark it ready and the counter sees it.</p>
+        <div class="room__thing">
+          <div class="ticket">
+            <div class="ticket__head">Table 4 <span>4 min</span></div>
+            <ul>
+              <li><b>2</b> Mishkaki</li>
+              <li><b>1</b> Chipsi mayai <span class="ticket__note">No chilli</span></li>
+            </ul>
+            <button class="ticket__ready" type="button" aria-pressed="false" id="ready">Mark ready</button>
+          </div>
+        </div>
+      </article>
+
+      <article class="room room--desk">
+        <span class="door door--top" style="--door-gap: var(--paper)" aria-hidden="true"></span>
+        <span class="door door--entry" aria-hidden="true"></span>
+        <h3>Front desk</h3>
+        <p>Every open bill and room bill in one place, and the cash-up when you close.</p>
+        <dl class="tally room__thing" aria-label="Friday’s cash-up">
+          <div><dt>Expected</dt><dd>TSh 412,000</dd></div>
+          <div><dt>Counted</dt><dd>TSh 410,500</dd></div>
+          <div class="is-short"><dt>Short</dt><dd>TSh 1,500</dd></div>
+        </dl>
+      </article>
+
+      <article class="room room--office">
+        <span class="door door--top" style="--door-gap: var(--surface)" aria-hidden="true"></span>
+        <h3>Office</h3>
+        <p>Stock that counts down with each sale, suppliers and their bills, wages, and what the day made.</p>
+        <dl class="stock room__thing" aria-label="Stock">
+          <div><dt>Safari Lager</dt><dd>46 bottles</dd></div>
+          <div><dt>Konyagi</dt><dd><span class="chip">3 left</span></dd></div>
+          <div><dt>Potatoes</dt><dd>12 kg</dd></div>
+        </dl>
+      </article>
+    </div>
+  </section>
+
+  <section class="section wrap morning" aria-labelledby="morning-title">
+    <div class="section__head">
+      <h2 id="morning-title">What you’ll know tomorrow morning</h2>
+      <p>Open Occupy on your phone before you’re out of bed: what sold, when, how it was paid, and what was left after stock and wages.</p>
+      <p>Then look back by day, week or month to see which nights pay and which items carry the menu.</p>
+    </div>
+    <article class="day" aria-label="A day’s report, as an example">
+      <div class="day__head"><h3>Yesterday’s sales</h3><span>Friday</span></div>
+      <p class="day__total"><small>TSh</small>1,284,500</p>
+      <dl>
+        <div><dt>Cash</dt><dd>TSh 642,000</dd></div>
+        <div><dt>Mobile money</dt><dd>TSh 518,500</dd></div>
+        <div><dt>Card</dt><dd>TSh 124,000</dd></div>
+        <div><dt>Best seller</dt><dd>Safari Lager, 96 bottles</dd></div>
+        <div><dt>Busiest hour</dt><dd>9 to 10 PM</dd></div>
+        <div><dt>Refunds</dt><dd>1, by Neema</dd></div>
+        <div class="is-profit"><dt>Left after stock and wages</dt><dd>TSh 386,200</dd></div>
+      </dl>
+    </article>
+  </section>
+
+  <section class="section wrap" aria-labelledby="trial-title">
+    <div class="section__head">
+      <h2 id="trial-title">Selling on Occupy by the weekend</h2>
+      <p>The trial is free, and we do the setting up.</p>
+    </div>
+    <ol class="steps">
+      <li>
+        <h3>Message us on WhatsApp</h3>
+        <p>Tell us your shop’s name and how many tablets you’ll use.</p>
+      </li>
+      <li>
+        <h3>Send us your menu</h3>
+        <p>A spreadsheet, a photo of the board or a link to your website. We load it for you.</p>
+      </li>
+      <li>
+        <h3>Sell on the tablets you have</h3>
+        <p>Give each person a PIN and open the till. Occupy runs in the browser, nothing to install.</p>
+      </li>
+      <li>
+        <h3>Keep going on a plan</h3>
+        <p>When the trial ends, pick a plan. Your menu and every sale stay where they are.</p>
+      </li>
+    </ol>
+  </section>
+
+  <section class="section wrap" aria-labelledby="faq-title">
+    <div class="section__head">
+      <h2 id="faq-title">Before you start</h2>
+    </div>
+    <div class="faq">
+      <details>
+        <summary>How much does it cost?</summary>
+        <p>One price per shop, with every feature included, paid in shillings. Message us for this year’s prices. The trial is free either way.</p>
+      </details>
+      <details>
+        <summary>What do I need to buy?</summary>
+        <p>Nothing to start. Occupy runs in the browser on a tablet, phone or laptop. Add a receipt printer when you want printed bills.</p>
+      </details>
+      <details>
+        <summary>What if the internet goes off?</summary>
+        <p>Keep selling. Every sale saves on the tablet first, then goes up to the cloud and out to your other tablets when the connection comes back.</p>
+      </details>
+      <details>
+        <summary>Can I check the shop when I’m not there?</summary>
+        <p>Yes. Sign in on your phone to see today’s sales, open bills and the cash-up as they happen.</p>
+      </details>
+      <details>
+        <summary>Can I sell in shillings and pay suppliers in dollars?</summary>
+        <p>Yes. Price the menu in TSh, KSh or USh, pay suppliers in dollars, and Occupy converts at the rate you set.</p>
+      </details>
+      <details>
+        <summary>What happens when the trial ends?</summary>
+        <p>Pick a plan and carry on. If you don’t, the till stops opening, and your menu and sales records are kept for when you come back.</p>
+      </details>
+    </div>
+  </section>
+
+  <section class="ask" aria-labelledby="ask-title">
+    <div class="wrap">
+      <div>
+        <h2 id="ask-title">See tonight’s takings add up.</h2>
+        <p>Start a free trial and we’ll load your menu before your next shift. Every plan has every feature.</p>
+      </div>
+      <a class="btn btn--cocoa" href="https://wa.me/255000000000?text=I%E2%80%99d%20like%20a%20free%20trial%20of%20Occupy">Start a free trial on WhatsApp</a>
+    </div>
+  </section>
+</main>
+
+<footer class="wrap foot">
+  <a class="brand" href="/" aria-label="Occupy home">
+    <svg aria-hidden="true"><use href="#scarab" /></svg>
+    Occupy
+  </a>
+  <a class="top__link--foot" href="/sign-in">Sign in to your shop</a>
+  <span>© 2026 Occupy</span>
+</footer>
+
+<script>
+(() => {
+  const MENU = [
+    { id: 'safari', name: 'Safari Lager', price: 3500 },
+    { id: 'mishkaki', name: 'Mishkaki', price: 2500 },
+    { id: 'chipsi', name: 'Chipsi mayai', price: 6000 },
+    { id: 'nyama', name: 'Nyama choma', price: 15000 },
+    { id: 'soda', name: 'Soda', price: 1500 },
+    { id: 'chai', name: 'Chai', price: 1000 },
+  ];
+  // The same sayings the register prints along its tab cards.
+  const SAYINGS = ['Karibu tena', 'Tuko pamoja', 'Pole pole ndio mwendo', 'Asante kwa kuja'];
+  const PLACES = ['Table 4', 'Room 12', 'Table 7', 'Bar 2', 'Table 1'];
+
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const $ = (id) => document.getElementById(id);
+  const tilesEl = $('tiles'), linesEl = $('lines'), amountEl = $('tab-amount');
+  const chipEl = $('tab-chip'), chargeEl = $('charge'), nameEl = $('tab-name'), sayingEl = $('tab-saying');
+  const money = (n) => n.toLocaleString('en-US');
+
+  let tab = new Map(); // id -> qty, in the order rung up
+  let tabNo = 0;
+  let shown = 0;
+  let charged = false;
+  let intro = [];
+  let taken = 1184500;
+  const takingsEl = $("takings");
+
+  function total() {
+    let t = 0;
+    tab.forEach((qty, id) => { t += qty * MENU.find((m) => m.id === id).price; });
+    return t;
+  }
+
+  /**
+   * Counts an amount from one figure to another. A newer count on the same
+   * element replaces an older one, and the last write is always the exact figure.
+   */
+  const runs = new WeakMap();
+  function tween(el, from, to, ms, write) {
+    const run = {};
+    runs.set(el, run);
+    if (reduced || from === to) { write(to); return; }
+    let start = null;
+    const step = (now) => {
+      if (runs.get(el) !== run) return;
+      if (start === null) start = now;
+      const k = Math.max(0, Math.min(1, (now - start) / ms));
+      write(k === 1 ? to : Math.round(from + (to - from) * (1 - Math.pow(1 - k, 3))));
+      if (k < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }
+
+  function countTo(target) {
+    const from = shown;
+    shown = target;
+    tween(amountEl, from, target, 260, (v) => { amountEl.innerHTML = "<small>TSh</small>" + money(v); });
+  }
+
+
+  function render(newId) {
+    const t = total();
+    const count = [...tab.values()].reduce((a, b) => a + b, 0);
+    linesEl.innerHTML = '';
+    if (tab.size === 0) {
+      const li = document.createElement('li');
+      li.className = 'lines__empty';
+      li.textContent = 'Tap an item to start the tab.';
+      linesEl.append(li);
+    }
+    tab.forEach((qty, id) => {
+      const item = MENU.find((m) => m.id === id);
+      const li = document.createElement('li');
+      li.className = 'line' + (id === newId ? ' is-new' : '');
+      li.innerHTML =
+        '<button class="line__less" type="button" aria-label="Take one ' + item.name + ' off">&minus;</button>' +
+        '<span class="line__name"><span class="line__qty">' + qty + '&times;</span> ' + item.name + '</span>' +
+        '<span class="line__total">' + money(qty * item.price) + '</span>';
+      li.querySelector('button').addEventListener('click', () => less(id));
+      linesEl.append(li);
+    });
+    chipEl.className = 'chip chip--dark';
+    chipEl.textContent = count === 0 ? 'Empty' : count === 1 ? '1 item' : count + ' items';
+    chargeEl.disabled = t === 0;
+    chargeEl.textContent = t === 0 ? 'Charge' : 'Charge TSh ' + money(t);
+    countTo(t);
+  }
+
+  function add(id) {
+    if (charged) return;
+    tab.set(id, (tab.get(id) || 0) + 1);
+    render(id);
+  }
+
+  function less(id) {
+    const q = (tab.get(id) || 0) - 1;
+    if (q <= 0) tab.delete(id); else tab.set(id, q);
+    render();
+  }
+
+  function stopIntro() { intro.forEach(clearTimeout); intro = []; }
+
+  // The night fills little by little: each charge lands in the day's takings.
+  function bank(amount) {
+    const from = taken;
+    taken += amount;
+    takingsEl.classList.add("is-up");
+    setTimeout(() => takingsEl.classList.remove("is-up"), 1200);
+    tween(takingsEl, from, taken, 600, (v) => { takingsEl.textContent = "TSh " + money(v); });
+  }
+
+
+  function charge() {
+    stopIntro();
+    bank(total());
+    charged = true;
+    chipEl.className = 'chip chip--paid';
+    chipEl.textContent = 'Charged';
+    chargeEl.disabled = true;
+    chargeEl.textContent = 'Charged';
+    setTimeout(() => {
+      tabNo += 1;
+      tab = new Map();
+      charged = false;
+      nameEl.textContent = PLACES[tabNo % PLACES.length];
+      sayingEl.textContent = SAYINGS[tabNo % SAYINGS.length];
+      render();
+    }, 1800);
+  }
+
+  MENU.forEach((item) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'tile';
+    b.dataset.id = item.id;
+    b.setAttribute('aria-label', 'Add ' + item.name + ', TSh ' + money(item.price));
+    b.innerHTML = '<span class="tile__name">' + item.name + '</span><span class="tile__price">TSh ' + money(item.price) + '</span>';
+    b.addEventListener('click', () => { stopIntro(); add(item.id); });
+    tilesEl.append(b);
+  });
+  chargeEl.addEventListener('click', charge);
+
+  // The one moment on load: a first round rings up by itself, then the till is yours.
+  const opening = ['safari', 'safari', 'mishkaki'];
+  if (reduced) {
+    opening.forEach((id) => tab.set(id, (tab.get(id) || 0) + 1));
+    render();
+  } else {
+    render();
+    opening.forEach((id, i) => {
+      intro.push(setTimeout(() => {
+        const tile = tilesEl.querySelector('[data-id="' + id + '"]');
+        tile.classList.add('is-pressed');
+        setTimeout(() => tile.classList.remove('is-pressed'), 140);
+        add(id);
+      }, 700 + i * 520));
+    });
+  }
+
+  const ready = $('ready');
+  ready.addEventListener('click', () => {
+    const on = ready.getAttribute('aria-pressed') !== 'true';
+    ready.setAttribute('aria-pressed', String(on));
+    ready.textContent = on ? 'Ready' : 'Mark ready';
+  });
+})();
+</script>
+</body>
+</html>
