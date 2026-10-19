@@ -3,8 +3,8 @@ import { Link, useSearchParams } from 'react-router';
 import './AdminReports.css';
 import { Button } from '../components/Button';
 import { ColumnChart } from '../components/ColumnChart';
+import { FilterSelect } from '../components/FilterSelect';
 import { Mono, formatCost } from '../components/Mono';
-import { Pill, PillRow } from '../components/Pill';
 import { PrintableDocument } from '../components/PrintableDocument';
 import { StaffFilterSelect, staffFilterLabel } from '../components/StaffFilterSelect';
 import type { CatalogItem, Category } from '../data/catalog';
@@ -135,15 +135,19 @@ export function AdminReports() {
     );
   }
 
-  /** Switches to picked dates, starting from the range on screen so nothing jumps. */
-  function pickDates() {
-    const reach = Number.isFinite(days) ? days : span;
+  // The dates on screen: the picked ones, or the preset's own.
+  const shownFrom = isoDate(dateOfDaysAgo(end + (Number.isFinite(days) ? days : span) - 1));
+  const shownTo = isoDate(dateOfDaysAgo(end));
+
+  /** Switches to picked dates, keeping the other end where it is on screen so nothing jumps. */
+  function pickDate(key: 'from' | 'to', value: string) {
     setParams(
       (prev) => {
         const next = new URLSearchParams(prev);
         next.set('range', 'custom');
-        next.set('from', isoDate(dateOfDaysAgo(end + reach - 1)));
-        next.set('to', isoDate(dateOfDaysAgo(end)));
+        next.set('from', shownFrom);
+        next.set('to', shownTo);
+        next.set(key, value);
         return next;
       },
       { replace: true },
@@ -215,41 +219,37 @@ export function AdminReports() {
           {byPerson && (
             <StaffFilterSelect value={person} onChange={(v) => setParam('staff', v)} staff={staff} />
           )}
-          <PillRow label="Date range">
+          <FilterSelect value={range} onChange={(v) => setParam('range', v)} label="Date range">
             {REPORT_RANGES.map((r) => (
-              <Pill key={r.id} active={r.id === range} onClick={() => setParam('range', r.id)}>
+              <option key={r.id} value={r.id}>
                 {r.label}
-              </Pill>
+              </option>
             ))}
-            <Pill active={custom !== null} onClick={pickDates}>
-              Pick dates
-            </Pill>
-          </PillRow>
-          {custom && (
-            <div className="report-dates" role="group" aria-label="Report dates">
-              <label className="report-dates__field">
-                <span>From</span>
-                <input
-                  type="date"
-                  className="report-dates__input mono"
-                  value={from ?? ''}
-                  max={to ?? today}
-                  onChange={(e) => e.target.value && setParam('from', e.target.value)}
-                />
-              </label>
-              <label className="report-dates__field">
-                <span>To</span>
-                <input
-                  type="date"
-                  className="report-dates__input mono"
-                  value={to ?? ''}
-                  min={from ?? undefined}
-                  max={today}
-                  onChange={(e) => e.target.value && setParam('to', e.target.value)}
-                />
-              </label>
-            </div>
-          )}
+            {custom && <option value="custom">Custom dates</option>}
+          </FilterSelect>
+          <div className="report-dates" role="group" aria-label="Report dates">
+            <label className="report-dates__field">
+              <span>From</span>
+              <input
+                type="date"
+                className="report-dates__input mono"
+                value={shownFrom}
+                max={shownTo}
+                onChange={(e) => e.target.value && pickDate('from', e.target.value)}
+              />
+            </label>
+            <label className="report-dates__field">
+              <span>To</span>
+              <input
+                type="date"
+                className="report-dates__input mono"
+                value={shownTo}
+                min={shownFrom}
+                max={today}
+                onChange={(e) => e.target.value && pickDate('to', e.target.value)}
+              />
+            </label>
+          </div>
           <Button
             variant="secondary"
             size="sm"
