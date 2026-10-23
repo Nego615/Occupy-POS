@@ -97,12 +97,29 @@ describe('readShop', () => {
     expect(await readShop(fakeClient(null, [{ data: null, error: null }]).client, 'store-1')).toBeUndefined();
   });
 
+  it('reads the business type with the rest', async () => {
+    const { client, columns } = fakeClient('store-1', [{ data: shop({ business_type: 'retail' }), error: null }]);
+    expect((await readShop(client, 'store-1'))?.business_type).toBe('retail');
+    expect(columns[0]).toContain('business_type');
+  });
+
+  it('reads without the business type on a database from before business types', async () => {
+    const { client, columns } = fakeClient('store-1', [
+      { data: null, error: { code: '42703' } },
+      { data: shop({}), error: null },
+    ]);
+    expect(await readShop(client, 'store-1')).toEqual(shop({}));
+    expect(columns[1]).not.toContain('business_type');
+    expect(columns[1]).toContain('trial');
+  });
+
   it('reads without the trial column on a database from before trials', async () => {
     const { client, columns } = fakeClient('store-1', [
+      { data: null, error: { code: '42703' } },
       { data: null, error: { code: '42703' } },
       { data: null, error: null },
     ]);
     expect(await readShop(client, 'store-1')).toBeNull();
-    expect(columns[1]).not.toContain('trial');
+    expect(columns[2]).not.toContain('trial');
   });
 });

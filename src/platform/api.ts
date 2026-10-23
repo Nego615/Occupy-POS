@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { BusinessType } from '../lib/business';
 import { currencyOf, formatCurrency, type CurrencyCode } from '../lib/currency';
 import type { ShopSubscription } from '../lib/subscription';
 
@@ -93,6 +94,7 @@ export type NewShop = {
   phone: string;
   planId: string | null;
   trialDays: number;
+  businessType: BusinessType;
 };
 
 export const createShop = (client: SupabaseClient, shop: NewShop) => server(client, 'POST', shop);
@@ -105,7 +107,9 @@ export const resetPassword = (client: SupabaseClient, id: string, password: stri
 export async function updateShop(
   client: SupabaseClient,
   id: string,
-  patch: Partial<Pick<Shop, 'name' | 'phone' | 'notes' | 'plan_id' | 'grace_days' | 'suspended' | 'paid_until' | 'trial'>>,
+  patch: Partial<
+    Pick<Shop, 'name' | 'phone' | 'notes' | 'plan_id' | 'grace_days' | 'suspended' | 'paid_until' | 'trial' | 'business_type'>
+  >,
 ): Promise<void> {
   must(await client.from('shops').update(patch).eq('store_id', id));
 }

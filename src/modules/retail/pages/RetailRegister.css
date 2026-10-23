@@ -1,0 +1,75 @@
+/* Retail's till: hospitality's register grid and cart (Register.css), with
+   its own sale card in place of the kanga tab card. */
+
+/* Why a scan rang nothing up — it stays until the next scan or keystroke. */
+.retail-till__note {
+  margin: -6px 0 12px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--occupied-soft);
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+/* The sale on the till: its number, item count and total, on the brand panel. */
+.retail-sale {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+  padding: 16px 18px;
+  border-radius: 22px;
+  background: var(--panel);
+  color: var(--on-panel);
+}
+
+.retail-sale__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 14px;
+}
+
+.retail-sale__name {
+  font-weight: 800;
+}
+
+.retail-sale__count {
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--marigold);
+  color: var(--on-marigold);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.retail-sale__amount {
+  font-size: 34px;
+}
+
+.retail-sale__clear {
+  align-self: flex-start;
+  min-height: 32px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--on-panel);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+  opacity: 0.85;
+}
+
+.retail-sale__clear--confirm {
+  color: var(--marigold);
+  opacity: 1;
+}
+
+.retail-sale__clear:focus-visible {
+  outline: var(--focus-width) solid var(--on-panel);
+  outline-offset: var(--focus-offset);
+}

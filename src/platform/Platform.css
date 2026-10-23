@@ -643,7 +643,49 @@
 }
 
 .pf-row--shop {
-  grid-template-columns: minmax(200px, 1.6fr) 1fr 120px 110px 170px;
+  grid-template-columns: minmax(200px, 1.6fr) 110px 1fr 120px 110px 170px;
+}
+
+/* A shop's module: one card per choice, the picked one ringed in blue. */
+.pf-module {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 10px;
+}
+
+.pf-module__option {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 10px;
+  align-items: start;
+  padding: 14px 16px;
+  border: 1px solid var(--pf-rule);
+  border-radius: 12px;
+  background: var(--pf-paper);
+  cursor: pointer;
+}
+
+.pf-module__option > .pf-line__sub {
+  grid-column: 2;
+}
+
+.pf-module__option--on {
+  border-color: var(--pf-blue);
+  background: var(--pf-blue-soft);
+}
+
+.pf-module__option input {
+  margin-top: 3px;
+  accent-color: var(--pf-blue);
+}
+
+.pf-module__option:focus-within {
+  outline: 2px solid var(--pf-blue);
+  outline-offset: 2px;
+}
+
+.pf-module__name {
+  font-weight: 700;
 }
 
 .pf-row--plan {

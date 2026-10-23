@@ -1,7 +1,8 @@
-import { StrictMode } from 'react';
+import { lazy, StrictMode, Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
 import './styles/global.css';
 import { App } from './App';
+import { BusinessContext, devBusinessType, useBusiness } from './lib/business';
 import { cloudRepository } from './lib/cloud';
 import {
   CloudUnreachable as CloudUnreachableError,
@@ -22,19 +23,38 @@ initTheme();
 
 const root = createRoot(document.getElementById('root')!);
 
-function renderApp(repo: PosRepository, snapshot: Snapshot, storeId?: string) {
-  const app = supabase && storeId ? (
-    <SubscriptionGate client={supabase} storeId={storeId}>
-      <App />
-    </SubscriptionGate>
+// Each business type is a module of its own, picked by the shop's type. Retail's
+// loads as its own chunk, so hospitality registers never download it.
+const RetailApp = lazy(() => import('./modules/retail/RetailApp').then((m) => ({ default: m.RetailApp })));
+
+function ModuleApp() {
+  const { retail } = useBusiness();
+  return retail ? (
+    <Suspense fallback={null}>
+      <RetailApp />
+    </Suspense>
   ) : (
     <App />
   );
+}
+
+// The gate sits outside the store, so the store knows whether the shop is retail.
+function renderApp(repo: PosRepository, snapshot: Snapshot, storeId?: string) {
+  const app = (
+    <PosProvider repo={repo} snapshot={snapshot}>
+      <ModuleApp />
+    </PosProvider>
+  );
   root.render(
     <StrictMode>
-      <PosProvider repo={repo} snapshot={snapshot}>
-        {app}
-      </PosProvider>
+      {supabase && storeId ? (
+        <SubscriptionGate client={supabase} storeId={storeId}>
+          {app}
+        </SubscriptionGate>
+      ) : (
+        // With no platform to assign one, a register on this browser alone is hospitality.
+        <BusinessContext.Provider value={devBusinessType() ?? 'hospitality'}>{app}</BusinessContext.Provider>
+      )}
     </StrictMode>,
   );
 }

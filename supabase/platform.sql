@@ -55,6 +55,8 @@ create table shops (
   suspended   boolean not null default false,
   -- On a free trial: paid_until is when the trial ends. The first payment ends it.
   trial       boolean not null default false,
+  -- Hospitality shops run tables and a kitchen; retail shops scan barcodes and sell variants.
+  business_type text not null default 'hospitality' check (business_type in ('hospitality', 'retail')),
   created_at  timestamptz not null default now()
 );
 alter table shops enable row level security;

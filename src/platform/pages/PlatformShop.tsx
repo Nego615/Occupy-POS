@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router';
 import { Button } from '../../components/Button';
 import { Mono } from '../../components/Mono';
+import { asBusinessType, BUSINESS_TYPES, businessTypeLabel, type BusinessType } from '../../lib/business';
 import { dayCount, formatDay, subscriptionState } from '../../lib/subscription';
 import {
   ago,
@@ -43,7 +44,7 @@ function useAction() {
   return { busy, error, run };
 }
 
-/** One shop: its subscription, payments, details and account. */
+/** One shop: its module, subscription, payments, details and account. */
 export function PlatformShop() {
   const { id } = useParams();
   const { shops, plans, payments, stats } = usePlatform();
@@ -66,6 +67,8 @@ export function PlatformShop() {
           <div className="page-sub">
             {shop.owner_email}
             {shop.phone && <> · {shop.phone}</>}
+            {' · '}
+            {businessTypeLabel(asBusinessType(shop.business_type))} module
           </div>
         </div>
       </div>
@@ -73,6 +76,8 @@ export function PlatformShop() {
       <section className="panel pf-section pf-panel--runway" aria-label="Paid time">
         <Runway shops={[shop]} plans={plans} single />
       </section>
+
+      <ShopModule shop={shop} />
 
       <div className="pf-cols">
         <section className="panel" aria-labelledby="sub-title">
@@ -139,6 +144,98 @@ export function PlatformShop() {
       <ShopDetails shop={shop} plans={plans} />
       <AccountActions shop={shop} />
     </>
+  );
+}
+
+/** What each module is, for the admin choosing one. */
+const MODULE_NOTES: Record<BusinessType, string> = {
+  hospitality: 'Tables and rooms, the kitchen screen, set meals, portions and recipes. For bars, restaurants, cafés and hotels.',
+  retail: 'A till with barcode and SKU scanning, and products in sizes and colours. For shops selling goods off the shelf.',
+};
+
+/**
+ * Which module the shop runs — assigned here and only here: a shop can read
+ * its module but never change it. Saved on its own, straight away.
+ */
+function ShopModule({ shop }: { shop: Shop }) {
+  const { client, reload } = usePlatform();
+  const current = asBusinessType(shop.business_type);
+  const [picked, setPicked] = useState<BusinessType>(current);
+  const [saved, setSaved] = useState(false);
+  const { busy, error, run } = useAction();
+  // Another save, or a reload, can change it underneath.
+  useEffect(() => setPicked(current), [current]);
+  // Rows are read with every column, so one without it is on a database not yet upgraded.
+  const upgraded = 'business_type' in shop;
+
+  async function save() {
+    const ok = await run(async () => {
+      await updateShop(client, shop.store_id, { business_type: picked });
+      await reload();
+    });
+    if (ok) setSaved(true);
+  }
+
+  return (
+    <section className="panel pf-section" aria-labelledby="module-title">
+      <h2 className="panel__title" id="module-title">
+        Module
+      </h2>
+      {!upgraded ? (
+        <p className="pf-error" role="alert">
+          This database doesn’t have modules yet, so every shop runs Hospitality. Run supabase/platform-upgrade.sql in the
+          Supabase SQL editor, then reload this page.
+        </p>
+      ) : (
+        <form
+          className="pf-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void save();
+          }}
+        >
+          <div className="pf-module" role="radiogroup" aria-label="Module">
+            {BUSINESS_TYPES.map((t) => (
+              <label key={t.id} className={picked === t.id ? 'pf-module__option pf-module__option--on' : 'pf-module__option'}>
+                <input
+                  type="radio"
+                  name="module"
+                  value={t.id}
+                  checked={picked === t.id}
+                  onChange={() => {
+                    setPicked(t.id);
+                    setSaved(false);
+                  }}
+                />
+                <span className="pf-module__name">
+                  {t.label}
+                  {t.id === current && <span className="pf-line__sub"> · current</span>}
+                </span>
+                <span className="pf-line__sub">{MODULE_NOTES[t.id]}</span>
+              </label>
+            ))}
+          </div>
+          {error && (
+            <p className="pf-error" role="alert">
+              {error}
+            </p>
+          )}
+          <div className="pf-actions">
+            <Button type="submit" disabled={picked === current || busy}>
+              {busy ? 'Saving…' : `Switch to ${businessTypeLabel(picked)}`}
+            </Button>
+            {saved && picked === current && (
+              <span className="pf-saved" role="status">
+                Saved — the shop’s registers switch within the hour, or when they next open.
+              </span>
+            )}
+          </div>
+          <p className="pf-line__sub">
+            Only you can change this. The shop’s data stays as it is; switching changes which screens its registers show.
+          </p>
+        </form>
+      )}
+    </section>
   );
 }
 

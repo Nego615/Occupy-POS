@@ -9,6 +9,8 @@ export type ShopSubscription = {
   suspended: boolean;
   /** On a free trial: paid_until is when it ends. Absent on rows cached before trials. */
   trial?: boolean;
+  /** Hospitality or retail. Absent on rows cached before shops had a type — those are hospitality. */
+  business_type?: string;
 };
 
 /**
@@ -25,8 +27,9 @@ export async function readShop(
   if (auth.session?.user.id !== storeId) return undefined;
   const read = (columns: string) =>
     client.from('shops').select(columns).eq('store_id', storeId).maybeSingle<ShopSubscription>();
-  let { data, error } = await read('name, paid_until, grace_days, suspended, trial');
-  // A database not yet upgraded for free trials has no `trial` column.
+  let { data, error } = await read('name, paid_until, grace_days, suspended, trial, business_type');
+  // A database not yet upgraded for business types, or for free trials, lacks those columns.
+  if (error?.code === '42703') ({ data, error } = await read('name, paid_until, grace_days, suspended, trial'));
   if (error?.code === '42703') ({ data, error } = await read('name, paid_until, grace_days, suspended'));
   return error ? undefined : data;
 }
