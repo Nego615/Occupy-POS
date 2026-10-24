@@ -43,6 +43,14 @@ export type CatalogItem = {
    * these off their own stock instead of its own, so it's kept untracked.
    */
   recipe?: RecipePart[];
+  /** The shop's own stock code — "TEE-M-BLK". Unique across the catalog. */
+  sku?: string;
+  /** The code printed on the packet, as a scanner reads it. Unique across the catalog. */
+  barcode?: string;
+  /** The product this is one size or colour of — see data/products. */
+  productId?: string;
+  /** This variant's value for each of its product's options, in their order — ["M", "Black"]. */
+  variant?: string[];
 };
 
 /**

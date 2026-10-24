@@ -5,6 +5,7 @@ import { Modal } from '../../components/CounterDialogs';
 import { Mono } from '../../components/Mono';
 import { Pill, PillRow } from '../../components/Pill';
 import { SearchField } from '../../components/SearchField';
+import { asBusinessType, BUSINESS_TYPES, businessTypeLabel, type BusinessType } from '../../lib/business';
 import { formatDay, subscriptionState, type SubscriptionStatus } from '../../lib/subscription';
 import { ago, createShop, isLifetime, planLabel } from '../api';
 import { usePlatform } from '../PlatformData';
@@ -66,6 +67,7 @@ export function PlatformShops() {
       <section className="panel" aria-label="Shops">
         <div className="pf-row pf-row--shop pf-row--head" aria-hidden="true">
           <span>Shop</span>
+          <span>Module</span>
           <span>Plan</span>
           <span>Paid until</span>
           <span>Last used</span>
@@ -82,6 +84,7 @@ export function PlatformShops() {
                   <span className="pf-line__name">{shop.name}</span>
                   <span className="pf-line__sub">{shop.owner_email}</span>
                 </span>
+                <span>{businessTypeLabel(asBusinessType(shop.business_type))}</span>
                 <span>{plan ? planLabel(plan) : 'No plan'}</span>
                 <Mono>{shop.paid_until ? formatDay(shop.paid_until) : plan && isLifetime(plan) ? 'Lifetime' : '—'}</Mono>
                 <span>{ago(stats.get(shop.store_id)?.last_activity ?? null)}</span>
@@ -116,6 +119,7 @@ function NewShopDialog({ open, onClose }: { open: boolean; onClose: () => void }
   const [phone, setPhone] = useState('');
   const [planId, setPlanId] = useState('');
   const [trialDays, setTrialDays] = useState('14');
+  const [businessType, setBusinessType] = useState<BusinessType>('hospitality');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -127,6 +131,7 @@ function NewShopDialog({ open, onClose }: { open: boolean; onClose: () => void }
     setPhone('');
     setPlanId(activePlans[0]?.id ?? '');
     setTrialDays('14');
+    setBusinessType('hospitality');
     setError(null);
     // Only reset when the dialog opens.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -157,6 +162,7 @@ function NewShopDialog({ open, onClose }: { open: boolean; onClose: () => void }
         phone,
         planId: planId || null,
         trialDays: Number(trialDays) || 0,
+        businessType,
       });
       await reload();
       onClose();
@@ -197,10 +203,26 @@ function NewShopDialog({ open, onClose }: { open: boolean; onClose: () => void }
             onChange={(e) => setPassword(e.target.value)}
           />
         </label>
-        <label className="counter-field">
-          <span>Phone</span>
-          <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
-        </label>
+        <div className="pf-field-pair">
+          <label className="counter-field">
+            <span>Phone</span>
+            <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
+          </label>
+          <label className="counter-field">
+            <span>Module</span>
+            <select
+              className="counter-field__input"
+              value={businessType}
+              onChange={(e) => setBusinessType(e.target.value as BusinessType)}
+            >
+              {BUSINESS_TYPES.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
         <div className="pf-field-pair">
           <label className="counter-field">
             <span>Plan</span>

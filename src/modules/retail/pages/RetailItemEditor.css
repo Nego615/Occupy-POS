@@ -1,0 +1,16 @@
+/* What retail's item editor adds to the shared editor shell (ItemEditor.css). */
+
+/* SKU and barcode side by side, stacking on a phone. */
+.retail-codes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.retail-codes__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12.5px;
+  font-weight: 600;
+}

@@ -1,0 +1,62 @@
+/* ---------------------------------------------------------------
+   Occupy Retail — design tokens
+   The same Pocket system as hospitality's tokens.css, re-coloured:
+   navy ink on cool paper where hospitality has cocoa on cream.
+   Applies only while the retail module is mounted — RetailApp sets
+   data-module="retail" on <html> — so hospitality never sees it.
+   Retail's colours are changed here, and only here.
+   --------------------------------------------------------------- */
+
+:root[data-module='retail'] {
+  /* Base */
+  --ink:            #0f2540; /* navy — primary text, primary buttons, active states */
+  --ink-soft:       #4a5f7a; /* secondary text, captions, timestamps */
+  --paper:          #f5f9ff; /* page background, panels on sand */
+  --surface:        #e8f0fb; /* cards, panels, item tiles on paper */
+  --surface-hover:  #d9e6f7; /* hover state for surface elements */
+  --line:           #cbdaee; /* all hairline borders/dividers */
+
+  /* Pocket — the ground the register and overview sit on */
+  --sand:           #e6eefa;
+  --tint:           #d3e1f4;
+
+  /* Accents */
+  --marigold:       #f4b12e;
+  --on-marigold:    #0f2540;
+  --vermilion:      #d93a26;
+  --on-vermilion:   #f5f9ff;
+  --clay:           #3a78c8; /* charts — background work only */
+  --hatch:          #93add0;
+
+  --panel:          var(--ink);
+  --on-panel:       #f5f9ff;
+
+  --shadow: 0 1px 2px rgba(15, 37, 64, 0.06), 0 8px 24px rgba(15, 37, 64, 0.08);
+  --lift: 0 18px 30px -22px rgba(15, 37, 64, 0.45);
+}
+
+@media screen {
+  :root[data-module='retail'][data-theme='dark'] {
+    --ink:            #e3edfb;
+    --ink-soft:       #9fb3cf;
+    --paper:          #0c1626;
+    --surface:        #13213a;
+    --surface-hover:  #1b2c4a;
+    --line:           #243756;
+
+    --sand:           #08101c;
+    --tint:           #1c2d4b;
+
+    --on-marigold:    #0c1626;
+    --vermilion:      #ec5a41;
+    --on-vermilion:   #0c1626;
+    --clay:           #5f9be0;
+    --hatch:          #3e5578;
+
+    --panel:          #162641;
+    --on-panel:       #e3edfb;
+
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.35);
+    --lift: 0 18px 30px -22px rgba(0, 0, 0, 0.7);
+  }
+}

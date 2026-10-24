@@ -3,6 +3,7 @@
 --
 -- Lifetime plans: a plan with period_months = 0 never ends; recording its
 -- payment clears the shop's paid-until date.
+-- Business types: shops.business_type is 'hospitality' or 'retail'.
 -- Free trials: shops.trial marks a shop whose paid_until is a trial end. The
 -- first payment ends the trial, and paid time starts from that day.
 -- Registered shops only: an account with no row in shops can't sync. Check
@@ -13,6 +14,11 @@ alter table plans drop constraint if exists plans_period_months_check;
 alter table plans add constraint plans_period_months_check check (period_months >= 0);
 
 alter table shops add column if not exists trial boolean not null default false;
+
+-- Business types: every existing shop stays hospitality until it's set to retail on /platform.
+alter table shops add column if not exists business_type text not null default 'hospitality';
+alter table shops drop constraint if exists shops_business_type_check;
+alter table shops add constraint shops_business_type_check check (business_type in ('hospitality', 'retail'));
 
 create or replace function record_payment(
   store uuid, plan uuid, amount numeric, method text, reference text, periods int

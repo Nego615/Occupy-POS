@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { ShopNotRegistered } from '../pages/ShopNotRegistered';
 import { SubscriptionLocked } from '../pages/SubscriptionLocked';
+import { asBusinessType, BusinessContext, devBusinessType } from './business';
 import {
   isLocked,
   readShop,
@@ -79,5 +80,9 @@ export function SubscriptionGate({
   if (shop && state && isLocked(state)) {
     return <SubscriptionLocked shop={shop} state={state} onRetry={check} />;
   }
-  return <SubscriptionContext.Provider value={state}>{children}</SubscriptionContext.Provider>;
+  return (
+    <BusinessContext.Provider value={devBusinessType() ?? asBusinessType(shop?.business_type)}>
+      <SubscriptionContext.Provider value={state}>{children}</SubscriptionContext.Provider>
+    </BusinessContext.Provider>
+  );
 }

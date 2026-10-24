@@ -5,9 +5,9 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
  * service key live here; everything else the dashboard does goes straight to
  * Supabase under row-level security.
  *
- *   POST   { name, email, password, phone, planId, trialDays }  create a shop
- *   PATCH  { id, password }                                     set its password
- *   DELETE { id }                                               delete it and all its data
+ *   POST   { name, email, password, phone, planId, trialDays, businessType }  create a shop
+ *   PATCH  { id, password }                                                   set its password
+ *   DELETE { id }                                                             delete it and all its data
  *
  * Every call must carry a platform admin's access token.
  */
@@ -80,6 +80,7 @@ export const POST = handle(async (req) => {
     phone?: string;
     planId?: string | null;
     trialDays?: number;
+    businessType?: string;
   }>(req);
   const name = b.name?.trim();
   const email = b.email?.trim().toLowerCase();
@@ -87,6 +88,7 @@ export const POST = handle(async (req) => {
   if (!email || !email.includes('@')) throw new Refused(400, 'Enter the shop’s email address.');
   if (!b.password || b.password.length < 8) throw new Refused(400, 'The password needs at least 8 characters.');
   const trialDays = Math.max(0, Math.floor(b.trialDays ?? 0));
+  const retail = b.businessType === 'retail';
 
   const { data, error } = await admin.auth.admin.createUser({
     email,
@@ -104,8 +106,16 @@ export const POST = handle(async (req) => {
     // With no trial it starts unpaid (in its grace days) until the first payment.
     paid_until: new Date(Date.now() + trialDays * DAY).toISOString(),
   };
-  let { error: shopError } = await admin.from('shops').insert({ ...row, trial: trialDays > 0 });
-  // A database not yet upgraded for free trials has no `trial` column.
+  // Hospitality is the column's default, so only retail is written — older databases take the rest.
+  let { error: shopError } = await admin
+    .from('shops')
+    .insert({ ...row, trial: trialDays > 0, ...(retail ? { business_type: 'retail' } : {}) });
+  // A database not yet upgraded for business types has no `business_type` column — a retail
+  // shop can't be made there — and one not upgraded for free trials no `trial` column.
+  if (shopError?.code === 'PGRST204' && retail) {
+    await admin.auth.admin.deleteUser(data.user.id);
+    throw new Refused(400, 'This database has no business types yet — run supabase/platform-upgrade.sql first.');
+  }
   if (shopError?.code === 'PGRST204') ({ error: shopError } = await admin.from('shops').insert(row));
   if (shopError) {
     // No half-made shops: an account without its row is locked out, so it would only sit there.

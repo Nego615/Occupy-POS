@@ -1,0 +1,157 @@
+/* The product editor shares ItemEditor.css's shell; this is what a product adds. */
+
+/* Room for the variants table. */
+.editor__form--wide {
+  max-width: 880px;
+}
+
+/* Name and price side by side, stacking on a phone. */
+.product-editor__pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0 16px;
+}
+
+/* ---------- Options ---------- */
+
+.product-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.product-options__row {
+  display: grid;
+  grid-template-columns: minmax(90px, 160px) 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.product-options__remove {
+  width: var(--hit-area);
+  height: var(--hit-area);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  color: var(--ink-soft);
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.product-options__remove:hover {
+  background: var(--surface-hover);
+}
+
+.product-options__remove:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
+}
+
+/* ---------- Variants ---------- */
+
+.product-variants__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.product-variants__head .field__label {
+  margin-bottom: 0;
+}
+
+/* Scrolls sideways on a phone rather than widening the page. */
+.product-variants__wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--paper);
+}
+
+.product-variants {
+  width: 100%;
+  min-width: 620px;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+
+.product-variants th,
+.product-variants td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.product-variants tbody tr:last-child th,
+.product-variants tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.product-variants thead th {
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--ink-soft);
+}
+
+.product-variants tbody th {
+  font-weight: 800;
+  white-space: nowrap;
+  padding-top: 18px;
+}
+
+.product-variants td {
+  padding-top: 8px;
+}
+
+/* Stock readouts and checkboxes sit level with the inputs beside them. */
+.product-variants td > .mono:only-child,
+.product-variants td > input[type='checkbox'] {
+  display: inline-block;
+  margin-top: 10px;
+}
+
+.product-variants input[type='checkbox'] {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--brand);
+}
+
+.field .product-variants input[type='text'] {
+  min-width: 96px;
+  padding: 8px 10px;
+}
+
+.field .product-variants .product-variants__stock {
+  min-width: 64px;
+  width: 72px;
+}
+
+.product-variants input[aria-invalid='true'] {
+  border-color: var(--occupied);
+}
+
+.product-variants__new {
+  font-weight: 400;
+  color: var(--ink-soft);
+}
+
+.product-variants__error {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--occupied);
+}
+
+.product-editor__drop {
+  margin: -8px 0 22px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--refund-soft);
+  font-size: 13.5px;
+  line-height: 1.5;
+}

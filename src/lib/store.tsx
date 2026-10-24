@@ -16,6 +16,7 @@ import {
   type CategoryId,
   type Portion,
 } from '../data/catalog';
+import type { Product } from '../data/products';
 import { DEFAULT_SETTINGS, exchangeRate, withSwitchCurrencies, type Settings } from '../data/settings';
 import type { Expense } from '../data/expenses';
 import { expectedCash, expectedLocalCash, shiftStart, shiftTotals, type CashUp } from '../data/cashup';
@@ -117,6 +118,7 @@ import {
 import { salaried, type PayrollRun } from './payroll';
 import { costDue, currencyOf, setActiveCurrency, setCostCurrency, type CurrencyCode } from './currency';
 import { convertMenu, convertTab, readOrder, stampRate, switchBlockers } from './currencySwitch';
+import { useBusiness } from './business';
 import type { PosRepository, Snapshot } from './persist';
 import { useInventory, type InventoryStore } from './useInventory';
 import { restored, useNextId, usePersist, useRemote } from './usePersist';
@@ -240,6 +242,12 @@ type PosStore = {
   deleteCategory: (id: string) => boolean;
   /** Removes an item from the catalog. Tabs already holding it keep their lines. */
   deleteItem: (id: string) => void;
+  /** Products sold in sizes or colours. Their variants are catalog items carrying the product's id. */
+  products: Product[];
+  /** Adds a product, or replaces the one with its id. Its variants are saved as items, separately. */
+  saveProduct: (product: Omit<Product, 'id'> & { id?: string }) => Product;
+  /** Removes a product and every variant of it. */
+  deleteProduct: (id: string) => void;
   /** The tables and rooms tabs can be assigned to. */
   locations: Location[];
   /** Adds a table or room with a default name, and returns it. */
@@ -510,6 +518,7 @@ export function newShopSnapshot(
     activeTab: first.orderId,
     orders: [],
     catalog: [],
+    products: [],
     categories: [],
     locations: [],
     promotions: [],
@@ -665,6 +674,7 @@ export function PosProvider({
   repo: PosRepository;
   snapshot: Snapshot;
 }) {
+  const { retail } = useBusiness();
   const [storedTabs, setTabs] = useState<StoredTab[]>(() => restored(snapshot, 'tabs', INITIAL_TABS));
   const [activeId, setActiveId] = useState<number>(() => restored(snapshot, 'activeTab', 1046));
   const [closedRecords, setClosedOrders] = useState<OrderRecord[]>(() =>
@@ -679,6 +689,7 @@ export function PosProvider({
       setCatalog((prev) => withTitleCaseNames(typeof action === 'function' ? action(prev) : action)),
     [],
   );
+  const [products, setProducts] = useState<Product[]>(() => restored(snapshot, 'products', []));
   const [categories, setCategories] = useState<Category[]>(() =>
     withUsedCategories(restored(snapshot, 'categories', CATEGORIES), catalog),
   );
@@ -731,6 +742,7 @@ export function PosProvider({
   usePersist(repo, 'activeTab', activeId);
   usePersist(repo, 'orders', closedRecords);
   usePersist(repo, 'catalog', catalog);
+  usePersist(repo, 'products', products);
   usePersist(repo, 'categories', categories);
   usePersist(repo, 'locations', locations);
   usePersist(repo, 'promotions', promotions);
@@ -747,6 +759,7 @@ export function PosProvider({
   useRemote(repo, 'tabs', setTabs);
   useRemote(repo, 'orders', setClosedOrders);
   useRemote(repo, 'catalog', setSyncedCatalog);
+  useRemote(repo, 'products', setProducts);
   useRemote(repo, 'categories', setCategories);
   useRemote(repo, 'locations', setLocations);
   useRemote(repo, 'promotions', setPromotions);
@@ -939,12 +952,14 @@ export function PosProvider({
     [cart, catalog, updateActiveCart],
   );
 
+  // A retail shop has no kitchen, so nothing it sells is sent to one.
   const isKitchenItem = useCallback(
     (itemId: string) => {
+      if (retail) return false;
       const item = catalog.find((i) => i.id === itemId);
       return !!item && inAnyCategory(categories, item.category, settings.kitchenCategories);
     },
-    [catalog, categories, settings.kitchenCategories],
+    [retail, catalog, categories, settings.kitchenCategories],
   );
 
   const unsent = useMemo(
@@ -1523,6 +1538,23 @@ export function PosProvider({
     setCatalog((prev) => prev.filter((i) => i.id !== id));
   }, []);
 
+  const saveProduct = useCallback(
+    (data: Omit<Product, 'id'> & { id?: string }) => {
+      const id = data.id ?? slugId(data.name, 'product', new Set(products.map((p) => p.id)));
+      const product: Product = { ...data, id };
+      setProducts((prev) =>
+        prev.some((p) => p.id === id) ? prev.map((p) => (p.id === id ? product : p)) : [...prev, product],
+      );
+      return product;
+    },
+    [products],
+  );
+
+  const deleteProduct = useCallback((id: string) => {
+    setProducts((prev) => prev.filter((p) => p.id !== id));
+    setCatalog((prev) => prev.filter((i) => i.productId !== id));
+  }, []);
+
   const createCategory = useCallback(
     (label: string, parentId?: CategoryId) => {
       // 'meals', 'all' and 'restock' are shelves and filters of their own, so no category takes them.
@@ -1787,8 +1819,8 @@ export function PosProvider({
   const signOut = useCallback(() => setSignedInId(null), []);
 
   const can = useCallback(
-    (permission: Permission) => hasPermission(me, permission, settings),
-    [me, settings],
+    (permission: Permission) => !(retail && permission === 'kitchen') && hasPermission(me, permission, settings),
+    [retail, me, settings],
   );
 
   const canEditCategory = useCallback(
@@ -2028,6 +2060,9 @@ export function PosProvider({
       updateItem,
       createItem,
       deleteItem,
+      products,
+      saveProduct,
+      deleteProduct,
       categories,
       createCategory,
       renameCategory,
@@ -2121,6 +2156,9 @@ export function PosProvider({
       updateItem,
       createItem,
       deleteItem,
+      products,
+      saveProduct,
+      deleteProduct,
       categories,
       createCategory,
       renameCategory,
