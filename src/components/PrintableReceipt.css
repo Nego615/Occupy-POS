@@ -18,9 +18,9 @@
     display: block;
     page: receipt;
     box-sizing: border-box;
-    /* 80 mm tape prints about 72 mm; stay inside it so the prices on the right never clip. */
+    /* 80 mm tape prints about 72 mm; stay well inside it so the prices on the right never clip. */
     width: 100%;
-    max-width: 68mm;
+    max-width: 60mm;
     margin: 0 auto;
     padding: 8px 1mm 24px;
     color: #000;
