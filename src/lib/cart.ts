@@ -96,7 +96,9 @@ export function portionLine(
 ): Omit<CartLine, 'qty'> {
   const whole = !portion || portion.id === WHOLE;
   const listPrice = whole ? item.price : portion.price;
-  const pours = item.recipe?.length && catalog ? recipePours(item, catalog) : undefined;
+  // A recipe whose ingredients have all left the catalog draws the item itself.
+  const poured = item.recipe?.length && catalog ? recipePours(item, catalog) : [];
+  const pours = poured.length > 0 ? poured : undefined;
   const base: Omit<CartLine, 'qty'> = {
     ...(whole
       ? { key: item.id, itemId: item.id, name: item.name, unitPrice: item.price }
@@ -373,7 +375,7 @@ export function lineDishes(
  */
 export function lineItems(line: LineShape): { itemId: string; name: string; units: number }[] {
   return lineDishes(line).flatMap((d) => [
-    ...(line.pours && !line.parts
+    ...(line.pours?.length && !line.parts
       ? line.pours.map((p) => ({ itemId: p.itemId, name: p.name, units: p.units * d.units }))
       : [{ itemId: d.itemId, name: d.name, units: d.units }]),
     ...d.addOns.map((a) => ({ itemId: a.itemId, name: a.name, units: 1 })),

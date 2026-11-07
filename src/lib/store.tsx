@@ -320,10 +320,12 @@ type PosStore = {
    */
   removeFromTab: (orderId: number, qty: Record<string, number>, reason: string) => string | null;
   /**
-   * Puts a location's tab on the register — its open tab if it has one,
-   * otherwise a fresh one. `null` starts a new walk-in.
+   * Puts a location's tab on the register — an open one there the signed-in
+   * person can see, otherwise a fresh one. With `newTab`, a table always gets
+   * a fresh one: a table holds any number of tabs, a room one. `null` starts
+   * a new walk-in.
    */
-  openTab: (locationId: string | null) => void;
+  openTab: (locationId: string | null, newTab?: boolean) => void;
   /** Puts an existing open tab on the register. Refused for a tab the signed-in person can't see. */
   switchTab: (orderId: number) => void;
   /**
@@ -333,7 +335,8 @@ type PosStore = {
   canSeeTab: (tab: Pick<OpenTab, 'openedBy'>) => boolean;
   /**
    * Moves the register's tab to a table or room (or back to walk-in).
-   * A location holds one tab at a time, so an occupied one is refused.
+   * A table takes any number of tabs; a room holds one, so an occupied room
+   * is refused.
    */
   assignTab: (locationId: string | null) => boolean;
   /**
@@ -490,6 +493,11 @@ type PosStore = {
 } & InventoryStore;
 
 const PosContext = createContext<PosStore | null>(null);
+
+/** Whether a location seats more than one tab at once — tables do; rooms keep one bill. */
+export function holdsManyTabs(locations: Location[], locationId: string): boolean {
+  return locations.find((l) => l.id === locationId)?.kind !== 'room';
+}
 
 /**
  * An empty walk-in tab carries nothing worth keeping, so it's dropped as soon
@@ -824,14 +832,44 @@ export function PosProvider({
 
   // Someone who can't see the register's tab (a server signing in after
   // another) gets a fresh walk-in of their own instead.
+  // Anyone else signing in — after a sign-out or an auto-lock — starts on a
+  // fresh walk-in too, even when they may see every tab, so their sale never
+  // lands on the last person's docket. Others' tabs stay a tap away.
+  const lastSignedIn = useRef<string | null>(null);
   useEffect(() => {
     if (!me) return;
+    const arrived = lastSignedIn.current !== me.id;
+    lastSignedIn.current = me.id;
     const active = storedTabs.find((t) => t.orderId === activeId);
-    if (!active || canSeeTab(active)) return;
+    if (!active) return;
+    const someoneElses = !!active.openedBy && active.openedBy !== me.id;
+    if (canSeeTab(active) && !(arrived && someoneElses)) return;
     const fresh = freshTab(draftId(), null, me.id);
     setTabs((prev) => [...pruneIdle(prev, fresh.orderId), fresh]);
     setActiveId(fresh.orderId);
   }, [me, storedTabs, activeId, canSeeTab, nextOrderId]);
+
+  // A tab whose number already belongs to a closed order. Opened before that
+  // order closed, it's the same bill brought back by a screen that was still
+  // adding to it as it was paid — it goes, so it can't be paid twice. Opened
+  // after, it's a new tab that was handed a clashing number: it takes a fresh one.
+  useEffect(() => {
+    const closedAt = new Map(closedRecords.map((o) => [o.id, o.deleted?.at ?? o.at]));
+    const clashes = storedTabs.filter((t) => !isDraftId(t.orderId) && closedAt.has(t.orderId));
+    if (clashes.length === 0) return;
+    const renumber = new Map<number, number>();
+    for (const t of clashes) {
+      if (t.openedIso > closedAt.get(t.orderId)!) renumber.set(t.orderId, nextOrderId());
+    }
+    setTabs((prev) =>
+      prev.flatMap((t) => {
+        if (!closedAt.has(t.orderId) || isDraftId(t.orderId)) return [t];
+        const fresh = renumber.get(t.orderId);
+        return fresh === undefined ? [] : [{ ...t, orderId: fresh }];
+      }),
+    );
+    if (renumber.has(activeId)) setActiveId(renumber.get(activeId)!);
+  }, [storedTabs, closedRecords, activeId, nextOrderId]);
 
   // Suppliers, purchases, bills, and the stock ledger. Stock moves only through it.
   const inventory = useInventory(catalog, setCatalog, me, repo, snapshot);
@@ -1074,10 +1112,13 @@ export function PosProvider({
   );
 
   const openTab = useCallback(
-    (locationId: string | null) => {
-      const existing = locationId
-        ? storedTabs.find((t) => t.locationId === locationId)
-        : undefined;
+    (locationId: string | null, newTab = false) => {
+      const shared = locationId !== null && holdsManyTabs(locations, locationId);
+      // A room's one tab is its tab, whoever opened it; at a table, only one of your own.
+      const existing =
+        locationId === null || (shared && newTab)
+          ? undefined
+          : storedTabs.find((t) => t.locationId === locationId && (!shared || canSeeTab(t)));
       if (existing) {
         switchTab(existing.orderId);
         return;
@@ -1089,13 +1130,14 @@ export function PosProvider({
       setTabs((prev) => [...pruneIdle(leaveActive(prev, fresh.orderId), fresh.orderId), fresh]);
       setActiveId(fresh.orderId);
     },
-    [storedTabs, switchTab, me, leaveActive, activeId],
+    [storedTabs, switchTab, me, leaveActive, activeId, locations, canSeeTab],
   );
 
   const assignTab = useCallback(
     (locationId: string | null) => {
       const taken =
         locationId !== null &&
+        !holdsManyTabs(locations, locationId) &&
         storedTabs.some((t) => t.locationId === locationId && t.orderId !== activeId);
       if (taken) return false;
       setTabs((prev) =>
@@ -1109,7 +1151,7 @@ export function PosProvider({
       );
       return true;
     },
-    [storedTabs, activeId, me],
+    [storedTabs, activeId, me, locations],
   );
 
   const mergeTab = useCallback(

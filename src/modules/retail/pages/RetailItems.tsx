@@ -25,7 +25,8 @@ export function RetailItems() {
   const [filter, setFilter] = useState<Filter>('all');
   const restock = (item: CatalogItem) => stockState(item, settings.lowStockDefault) !== 'in';
 
-  const shown = catalog.filter((i) =>
+  // Saved oldest first; listed newest first, so what was just added is at the top.
+  const shown = [...catalog].reverse().filter((i) =>
     filter === 'all' ? true : filter === 'restock' ? restock(i) : inCategory(categories, i.category, filter),
   );
   // Each product is listed once, where its first matching variant falls.

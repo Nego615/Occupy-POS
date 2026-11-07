@@ -1,7 +1,7 @@
 import './FloorGrid.css';
 import { LOCATION_GROUPS } from '../data/locations';
 import { computeTotals } from '../lib/cart';
-import { orderNo, usePos } from '../lib/store';
+import { holdsManyTabs, orderNo, usePos } from '../lib/store';
 import { Money, Mono } from './Mono';
 import { StatusChip } from './StatusChip';
 
@@ -14,7 +14,10 @@ export type FloorGridProps = {
   assigningOrderId?: number;
 };
 
-/** Every table and room, grouped, each showing whether a tab is running there. */
+/**
+ * Every table and room, grouped, each showing the tabs running there. A table
+ * can hold several; a room holds one.
+ */
 export function FloorGrid({ onPick, assigningOrderId }: FloorGridProps) {
   const { tabs, locations, settings, canSeeTab, allStaff } = usePos();
   const picking = assigningOrderId !== undefined;
@@ -30,13 +33,22 @@ export function FloorGrid({ onPick, assigningOrderId }: FloorGridProps) {
           <h2 className="floor__heading">{group.label}</h2>
           <div className="floor__grid">
             {group.members.map((location) => {
-              const tab = tabs.find((t) => t.locationId === location.id);
-              const isCurrent = picking && tab?.orderId === assigningOrderId;
-              const occupied = tab !== undefined && !isCurrent;
-              // Another server's table: shown as taken, but its tab stays theirs.
-              const theirs = tab !== undefined && !canSeeTab(tab);
-              const owner = theirs ? allStaff.find((m) => m.id === tab.openedBy) : undefined;
-              const totals = tab && !theirs ? computeTotals(tab.cart, settings.taxRate) : null;
+              const here = tabs.filter((t) => t.locationId === location.id);
+              const isCurrent = picking && here.some((t) => t.orderId === assigningOrderId);
+              // Tabs other than the one being assigned.
+              const others = here.filter((t) => t.orderId !== assigningOrderId);
+              const visible = others.filter(canSeeTab);
+              const hidden = others.length - visible.length;
+              const occupied = others.length > 0;
+              // Another server's room: shown as taken, its tab stays theirs. A
+              // table with only someone else's tab still seats a tab of your own.
+              const theirs = !holdsManyTabs(locations, location.id) && occupied && visible.length === 0;
+              const ownerId = others.find((t) => !canSeeTab(t))?.openedBy;
+              const owner = ownerId ? allStaff.find((m) => m.id === ownerId) : undefined;
+              const sums = visible.map((t) => computeTotals(t.cart, settings.taxRate, t.discount));
+              const itemCount = sums.reduce((n, t) => n + t.itemCount, 0);
+              const total = sums.reduce((n, t) => n + t.total, 0);
+              const only = visible.length === 1 ? visible[0] : undefined;
               const classes = [
                 'location',
                 occupied ? 'location--occupied' : '',
@@ -63,7 +75,7 @@ export function FloorGrid({ onPick, assigningOrderId }: FloorGridProps) {
                       </StatusChip>
                     ) : occupied ? (
                       <StatusChip status="occupied" size="sm">
-                        Occupied
+                        {others.length > 1 ? `${others.length} tabs` : 'Occupied'}
                       </StatusChip>
                     ) : (
                       <StatusChip status="open" size="sm">
@@ -74,21 +86,39 @@ export function FloorGrid({ onPick, assigningOrderId }: FloorGridProps) {
                   <span className="location__meta">
                     <Mono>{location.seats}</Mono> seats
                   </span>
-                  {theirs && (
+                  {hidden > 0 && visible.length === 0 && (
                     <span className="location__tab">
                       <span className="location__tab-info">
-                        {owner ? `${owner.name.split(' ')[0]}’s table` : 'Another server’s table'}
+                        {hidden > 1
+                          ? `${hidden} other servers’ tabs`
+                          : owner
+                            ? `${owner.name.split(' ')[0]}’s tab`
+                            : 'Another server’s tab'}
                       </span>
                     </span>
                   )}
-                  {tab && totals && !isCurrent && (
+                  {visible.length > 0 && (
                     <span className="location__tab">
                       <span className="location__tab-info">
-                        {orderNo(tab.orderId) && <><Mono>{orderNo(tab.orderId)}</Mono> · </>}<Mono>{totals.itemCount}</Mono>{' '}
-                        {totals.itemCount === 1 ? 'item' : 'items'} · since{' '}
-                        <Mono>{tab.openedAt}</Mono>
+                        {only ? (
+                          <>
+                            {orderNo(only.orderId) && <><Mono>{orderNo(only.orderId)}</Mono> · </>}
+                          </>
+                        ) : (
+                          <>
+                            <Mono>{visible.length}</Mono> tabs ·{' '}
+                          </>
+                        )}
+                        <Mono>{itemCount}</Mono> {itemCount === 1 ? 'item' : 'items'}
+                        {only && (
+                          <>
+                            {' '}
+                            · since <Mono>{only.openedAt}</Mono>
+                          </>
+                        )}
+                        {hidden > 0 && <> · +<Mono>{hidden}</Mono> not yours</>}
                       </span>
-                      <Money value={totals.total} className="location__total" />
+                      <Money value={total} className="location__total" />
                     </span>
                   )}
                 </button>

@@ -57,7 +57,8 @@ export function AdminSuppliers() {
               </tr>
             </thead>
             <tbody>
-              {suppliers.map((s) => (
+              {/* Saved oldest first; listed newest first. */}
+              {[...suppliers].reverse().map((s) => (
                 <SupplierRow
                   key={s.id}
                   supplier={s}

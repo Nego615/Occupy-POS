@@ -34,7 +34,8 @@ export function AdminStaff() {
   const [justAdded, setJustAdded] = useState<{ id: string; pin: string } | null>(null);
 
   const activeCount = staff.filter((m) => m.active).length;
-  const members = staff.filter((m) => (filter === 'active' ? m.active : !m.active));
+  // Saved oldest first; listed newest first, so what was just added is at the top.
+  const members = staff.filter((m) => (filter === 'active' ? m.active : !m.active)).reverse();
 
   function add() {
     // Pay starts unset ("Not set") — it's entered on Salaries, in the business currency.

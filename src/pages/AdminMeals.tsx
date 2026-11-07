@@ -75,7 +75,8 @@ export function AdminMeals() {
               </tr>
             </thead>
             <tbody>
-              {setMeals.map((m) => {
+              {/* Saved oldest first; listed newest first. */}
+              {[...setMeals].reverse().map((m) => {
                 const isSelected = m.id === selectedId;
                 return (
                   <tr

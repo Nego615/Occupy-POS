@@ -31,7 +31,9 @@ export function AdminItems() {
   const categories = categoryTree(allCategories)
     .map(({ category }) => category)
     .filter((c) => canEditCategory(c.id));
-  const mine = wholeMenu ? catalog : catalog.filter((i) => canEditCategory(i.category));
+  // Saved oldest first; listed newest first, so what was just added is at the top.
+  const newestFirst = [...catalog].reverse();
+  const mine = wholeMenu ? newestFirst : newestFirst.filter((i) => canEditCategory(i.category));
   const restockCount = mine.filter(restock).length;
   const items =
     filter === 'all'

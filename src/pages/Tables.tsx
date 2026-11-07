@@ -1,16 +1,19 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import './Tables.css';
 import { Button } from '../components/Button';
 import { FloorGrid } from '../components/FloorGrid';
 import { Money, Mono } from '../components/Mono';
 import { StatusChip } from '../components/StatusChip';
+import { TableTabsDialog } from '../components/TableTabsDialog';
 import { computeTotals } from '../lib/cart';
-import { usePos } from '../lib/store';
+import { holdsManyTabs, usePos } from '../lib/store';
 
 /**
  * The floor at a glance: which tables and rooms have a tab running, and the
  * walk-in tabs that aren't assigned anywhere. Tapping any of them puts that
- * tab on the register.
+ * tab on the register. A table with tabs of yours running asks which one, or
+ * starts another there.
  */
 export function Tables() {
   const navigate = useNavigate();
@@ -19,9 +22,21 @@ export function Tables() {
   const occupiedCount = locations.filter((l) => tabs.some((t) => t.locationId === l.id)).length;
   const walkIns = tabs.filter((t) => t.locationId === null && t.cart.length > 0 && canSeeTab(t));
 
-  function open(locationId: string | null) {
-    openTab(locationId);
+  const [choosing, setChoosing] = useState<string | null>(null);
+
+  function toRegister() {
+    setChoosing(null);
     navigate('/counter/register');
+  }
+
+  function open(locationId: string | null) {
+    const shared = locationId !== null && holdsManyTabs(locations, locationId);
+    if (shared && tabs.some((t) => t.locationId === locationId && canSeeTab(t))) {
+      setChoosing(locationId);
+      return;
+    }
+    openTab(locationId, shared);
+    toRegister();
   }
 
   return (
@@ -36,6 +51,7 @@ export function Tables() {
       </div>
 
       <FloorGrid onPick={open} />
+      <TableTabsDialog locationId={choosing} onClose={() => setChoosing(null)} onDone={toRegister} />
 
       {walkIns.length > 0 && (
         <section className="tables__walk-ins" aria-label="Walk-in tabs">
