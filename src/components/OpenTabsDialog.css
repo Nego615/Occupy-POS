@@ -70,3 +70,36 @@
     order: 5;
   }
 }
+
+/* Search, then what to show and in what order. */
+.open-tabs__tools {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.open-tabs__filters {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.open-tabs__clear {
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-weight: 600;
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.open-tabs__count {
+  margin-left: 4px;
+  font-size: 12px;
+  opacity: 0.7;
+}

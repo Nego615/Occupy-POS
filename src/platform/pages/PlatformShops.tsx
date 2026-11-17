@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { Button } from '../../components/Button';
+import { SortSelect } from '../../components/ListControls';
 import { Modal } from '../../components/CounterDialogs';
 import { Mono } from '../../components/Mono';
 import { Pill, PillRow } from '../../components/Pill';
 import { SearchField } from '../../components/SearchField';
 import { asBusinessType, BUSINESS_TYPES, businessTypeLabel, type BusinessType } from '../../lib/business';
+import { byText, descending, sortRows, thenBy, type SortOption } from '../../lib/listView';
 import { formatDay, subscriptionState, type SubscriptionStatus } from '../../lib/subscription';
 import { ago, createShop, isLifetime, planLabel } from '../api';
 import { usePlatform } from '../PlatformData';
@@ -13,6 +15,15 @@ import { useUnsaved } from '../Unsaved';
 import { STATUS_LABEL, ShopStatus } from '../ShopStatus';
 
 type Filter = 'all' | 'trial' | SubscriptionStatus;
+
+type ShopRow = { shop: { name: string; created_at: string } };
+
+const SHOP_SORTS: SortOption<ShopRow>[] = [
+  { id: 'newest', label: 'Newest first', compare: thenBy(descending(byText((r) => r.shop.created_at)), byText((r) => r.shop.name)) },
+  { id: 'oldest', label: 'Oldest first', compare: thenBy(byText((r) => r.shop.created_at), byText((r) => r.shop.name)) },
+  { id: 'name', label: 'Name A to Z', compare: byText((r) => r.shop.name) },
+  { id: 'name-desc', label: 'Name Z to A', compare: descending(byText((r) => r.shop.name)) },
+];
 const FILTERS: Filter[] = ['all', 'active', 'trial', 'expiring', 'grace', 'locked', 'suspended'];
 
 /** "Paid up" leaves out shops on a free trial; "On free trial" is those still running. */
@@ -28,14 +39,19 @@ export function PlatformShops() {
   const { shops, plans, stats } = usePlatform();
   const [filter, setFilter] = useState<Filter>('all');
   const [query, setQuery] = useState('');
+  const [sort, setSort] = useState('newest');
   const [adding, setAdding] = useState(false);
 
   const withStatus = shops.map((shop) => ({ shop, ...subscriptionState(shop) }));
   const q = query.trim().toLowerCase();
-  const shown = withStatus.filter(
-    (row) =>
-      matches(filter, row) &&
-      (!q || row.shop.name.toLowerCase().includes(q) || row.shop.owner_email.toLowerCase().includes(q)),
+  const shown = sortRows(
+    withStatus.filter(
+      (row) =>
+        matches(filter, row) &&
+        (!q || row.shop.name.toLowerCase().includes(q) || row.shop.owner_email.toLowerCase().includes(q)),
+    ),
+    SHOP_SORTS,
+    sort,
   );
 
   return (
@@ -62,6 +78,7 @@ export function PlatformShops() {
           ))}
         </PillRow>
         <SearchField value={query} onChange={setQuery} placeholder="Name or email" label="Search shops" />
+        <SortSelect value={sort} onChange={setSort} options={SHOP_SORTS} />
       </div>
 
       <section className="panel" aria-label="Shops">

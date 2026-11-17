@@ -9,6 +9,24 @@
   letter-spacing: -0.01em;
 }
 
+/* Search, filters, and order above a desk list, lined up with its rows. */
+.desk__tools {
+  display: grid;
+  gap: 10px;
+  margin: 0 0 14px;
+  padding: 0 16px;
+}
+
+.desk__tools .history__filters {
+  margin: 0;
+}
+
+.desk__tools--row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
 .desk__subheading {
   margin: 28px 0 8px;
   padding: 0 16px;
@@ -233,7 +251,8 @@
 
 @media (max-width: 600px) {
   .desk__heading,
-  .desk__subheading {
+  .desk__subheading,
+  .desk__tools {
     padding: 0 8px;
   }
 

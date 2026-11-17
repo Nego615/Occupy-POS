@@ -1,0 +1,268 @@
+/* ---------- Sort ---------- */
+
+.sort-select {
+  position: relative;
+  display: inline-flex;
+}
+
+/* Sits inside the select's left padding, so the pill reads "⇅ Newest first". */
+.sort-select__glyph {
+  position: absolute;
+  z-index: 1;
+  left: 15px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 13px;
+  color: var(--ink-soft);
+  pointer-events: none;
+}
+
+.sort-select .filter-select select {
+  padding-left: 34px;
+}
+
+/* ---------- Time ---------- */
+
+.timefilter {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Shaped like the pills beside it; filled once it narrows the list. */
+.timefilter__trigger {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 38px;
+  padding: 0 16px 0 13px;
+  border: 1px dashed var(--hatch);
+  border-radius: var(--radius-pill);
+  background: var(--paper);
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.timefilter__trigger::after {
+  content: '';
+  position: absolute;
+  inset: 50% 0 auto;
+  transform: translateY(-50%);
+  height: var(--hit-area);
+}
+
+.timefilter__trigger:hover {
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.timefilter__trigger--set,
+.timefilter__trigger--set:hover {
+  border: 1px solid var(--marigold);
+  background: var(--marigold);
+  color: var(--on-marigold);
+}
+
+.timefilter__panel {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 8px);
+  left: 0;
+  width: 352px;
+  max-width: calc(100vw - 32px);
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+}
+
+.timefilter__group {
+  margin: 0 0 16px;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.timefilter__legend {
+  padding: 0;
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.timefilter__days {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.timefilter__field {
+  display: grid;
+  gap: 4px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.timefilter__date {
+  min-height: var(--hit-area);
+  width: 100%;
+  min-width: 0;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  font-size: 13.5px;
+  color: var(--ink);
+}
+
+.timefilter__foot {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.timefilter__reset {
+  min-height: var(--hit-area);
+  padding: 0 4px;
+  border: none;
+  background: none;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+/* ---------- Hour strip ----------
+   A trading day in four rows of six hours. The picked hours fill marigold —
+   "the thing you chose" — and run on from one row to the next. */
+
+.hourstrip {
+  display: grid;
+  gap: 4px;
+}
+
+.hourstrip__row {
+  display: grid;
+  grid-template-columns: 76px repeat(6, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.hourstrip__quarter {
+  min-height: var(--hit-area);
+  padding: 0 6px 0 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  text-align: left;
+  cursor: pointer;
+}
+
+.hourstrip__quarter:hover {
+  color: var(--ink);
+}
+
+.hourstrip__cell {
+  min-height: var(--hit-area);
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: var(--surface);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.hourstrip__cell:hover {
+  background: var(--surface-hover);
+  color: var(--ink);
+}
+
+.hourstrip__cell--on,
+.hourstrip__cell--on:hover {
+  background: var(--marigold);
+  color: var(--on-marigold);
+}
+
+/* The first hour tapped, waiting for the last. */
+.hourstrip__cell--anchor {
+  border-color: var(--ink);
+}
+
+.hourstrip__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: var(--hit-area);
+  margin-top: 4px;
+}
+
+.hourstrip__status {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+
+/* ---------- Count line ---------- */
+
+.list-count {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+.list-count__clear {
+  min-height: var(--hit-area);
+  padding: 0 4px;
+  border: none;
+  background: none;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+/* A shared toolbar row for lists that didn't have one: search grows, the rest wrap. */
+.list-tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.list-tools__end {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+
+@media (max-width: 640px) {
+  .list-tools__end {
+    margin-left: 0;
+  }
+}

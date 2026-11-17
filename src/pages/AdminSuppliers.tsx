@@ -1,14 +1,28 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import './Inventory.css';
 import { Button } from '../components/Button';
+import { ListCount, SortSelect } from '../components/ListControls';
+import { SearchField } from '../components/SearchField';
 import { CostMoney, Mono } from '../components/Mono';
 import { StatusChip } from '../components/StatusChip';
 import { Switch } from '../components/Switch';
 import { OPEN_PURCHASE_STATUSES, type Supplier } from '../data/inventory';
 import { billStatus } from '../lib/inventory';
+import { byNumber, byText, descending, matchesSearch, sortRows, type SortOption } from '../lib/listView';
 import { usePos } from '../lib/store';
 import { useRevealPanel } from '../lib/useRevealPanel';
+
+/** A supplier and where it sits in the saved list — later is more recently added. */
+type SupplierRowData = { supplier: Supplier; added: number };
+
+const SUPPLIER_SORTS: SortOption<SupplierRowData>[] = [
+  { id: 'newest', label: 'Recently added first', compare: descending(byNumber((r) => r.added)) },
+  { id: 'oldest', label: 'First added first', compare: byNumber((r) => r.added) },
+  { id: 'name', label: 'Name A to Z', compare: byText((r) => r.supplier.name) },
+  { id: 'name-desc', label: 'Name Z to A', compare: descending(byText((r) => r.supplier.name)) },
+  { id: 'terms', label: 'Shortest terms first', compare: byNumber((r) => r.supplier.paymentTermsDays) },
+];
 
 /**
  * Who the business buys from: contacts, payment terms, and where each
@@ -19,6 +33,20 @@ export function AdminSuppliers() {
   const { suppliers, addSupplier, settings } = usePos();
   const [selectedId, setSelectedId] = useState<string | null>(suppliers[0]?.id ?? null);
   const panelRef = useRevealPanel<HTMLElement>(selectedId);
+  const [query, setQuery] = useState('');
+  const [sort, setSort] = useState('newest');
+
+  const visible = useMemo(
+    () =>
+      sortRows(
+        suppliers
+          .map((supplier, added) => ({ supplier, added }))
+          .filter(({ supplier: s }) => matchesSearch(query, s.name, s.contact, s.phone, s.email)),
+        SUPPLIER_SORTS,
+        sort,
+      ),
+    [suppliers, query, sort],
+  );
 
   function add() {
     const s = addSupplier({ name: 'New supplier', paymentTermsDays: 14, active: true });
@@ -41,33 +69,50 @@ export function AdminSuppliers() {
         </div>
       </div>
 
+      <div className="list-tools">
+        <SearchField
+          value={query}
+          onChange={setQuery}
+          placeholder="Search name, contact, phone, or email"
+          label="Search suppliers"
+        />
+        <SortSelect value={sort} onChange={setSort} options={SUPPLIER_SORTS} />
+      </div>
+
+      <ListCount count={visible.length} noun="supplier" onClear={query.trim() ? () => setQuery('') : undefined} />
+
       <div className="inv-layout">
         <section className="panel inv-table-wrap" aria-label="Suppliers">
-          <table className="inv-table">
-            <thead>
-              <tr>
-                <th scope="col">Supplier</th>
-                <th scope="col" className="num">
-                  Items
-                </th>
-                <th scope="col">Terms</th>
-                <th scope="col" className="num">
-                  Owed
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {/* Saved oldest first; listed newest first. */}
-              {[...suppliers].reverse().map((s) => (
-                <SupplierRow
-                  key={s.id}
-                  supplier={s}
-                  selected={s.id === selectedId}
-                  onSelect={() => setSelectedId(s.id)}
-                />
-              ))}
-            </tbody>
-          </table>
+          {visible.length === 0 ? (
+            <p className="inv-empty">
+              {suppliers.length === 0 ? 'No suppliers yet. Add the people you buy stock from.' : 'No suppliers match that search.'}
+            </p>
+          ) : (
+            <table className="inv-table">
+              <thead>
+                <tr>
+                  <th scope="col">Supplier</th>
+                  <th scope="col" className="num">
+                    Items
+                  </th>
+                  <th scope="col">Terms</th>
+                  <th scope="col" className="num">
+                    Owed
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {visible.map(({ supplier: s }) => (
+                  <SupplierRow
+                    key={s.id}
+                    supplier={s}
+                    selected={s.id === selectedId}
+                    onSelect={() => setSelectedId(s.id)}
+                  />
+                ))}
+              </tbody>
+            </table>
+          )}
         </section>
 
         <aside ref={panelRef} className="inv-panel" aria-label="Supplier details">

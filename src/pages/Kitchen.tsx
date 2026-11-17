@@ -4,17 +4,44 @@ import { useNavigate } from 'react-router';
 import './Kitchen.css';
 import { AccountMenu } from '../components/AccountMenu';
 import { Button } from '../components/Button';
+import { SortSelect } from '../components/ListControls';
 import { Mono } from '../components/Mono';
-import { Pill, PillGroup } from '../components/Pill';
+import { Pill, PillGroup, PillRow } from '../components/Pill';
+import { SearchField } from '../components/SearchField';
 import { StatusChip } from '../components/StatusChip';
 import { TopBar } from '../components/TopBar';
 import { formatElapsed, type KitchenTicket } from '../data/kitchen';
 import { ADMIN_PERMISSIONS } from '../data/staff';
+import { byNumber, byText, descending, matchesSearch, sortRows, thenBy, type SortOption } from '../lib/listView';
 import { quick, snap } from '../lib/motion';
 import { usePos } from '../lib/store';
 import { formatTime, useNow } from '../lib/useClock';
 
 type View = 'waiting' | 'done';
+
+type Show = 'all' | 'not-started' | 'late';
+
+/**
+ * Oldest first is the kitchen's default: the ticket waiting longest is the
+ * next one to make, so it stays top-left.
+ */
+const TICKET_SORTS: SortOption<KitchenTicket>[] = [
+  { id: 'oldest', label: 'Waiting longest first', compare: thenBy(byNumber((k) => k.sentAt), byNumber((k) => k.id)) },
+  { id: 'newest', label: 'Newest first', compare: thenBy(descending(byNumber((k) => k.sentAt)), descending(byNumber((k) => k.id))) },
+  { id: 'docket-asc', label: 'Docket # low to high', compare: thenBy(byNumber((k) => k.orderId), byNumber((k) => k.fire)) },
+  { id: 'docket-desc', label: 'Docket # high to low', compare: thenBy(descending(byNumber((k) => k.orderId)), byNumber((k) => k.fire)) },
+  { id: 'name', label: 'Table A to Z', compare: thenBy(byText((k) => k.tabName), byNumber((k) => k.sentAt)) },
+];
+
+/** Docket number, table, or anything on the ticket — "fries", "no salt". */
+function ticketMatches(ticket: KitchenTicket, query: string): boolean {
+  return matchesSearch(
+    query,
+    `#${ticket.orderId}`,
+    ticket.tabName,
+    ...ticket.lines.flatMap((l) => [l.name, l.note, ...(l.addOns ?? [])]),
+  );
+}
 
 /** How long a ticket reads as new after it lands. */
 const NEW_FOR_MS = 60_000;
@@ -32,17 +59,38 @@ export function Kitchen() {
   const { kitchenTickets, bumpTicket, recallTicket, toggleTicketLine, toggleTicketStarted, can, settings } =
     usePos();
   const [view, setView] = useState<View>('waiting');
+  const [query, setQuery] = useState('');
+  const [show, setShow] = useState<Show>('all');
+  const [sort, setSort] = useState('oldest');
   const now = useNow();
   const lateAfterMs = settings.kitchenLateMinutes * 60_000;
 
   const waiting = kitchenTickets.filter((k) => k.bumpedAt === null);
-  const done = kitchenTickets
+  const allDone = kitchenTickets
     .filter((k) => k.bumpedAt !== null)
-    .sort((a, b) => b.bumpedAt! - a.bumpedAt!)
-    .slice(0, DONE_SHOWN);
+    .sort((a, b) => b.bumpedAt! - a.bumpedAt!);
+  // A search reaches past the most recent few, to recall an older one.
+  const done = query.trim()
+    ? allDone.filter((k) => ticketMatches(k, query)).slice(0, DONE_SHOWN)
+    : allDone.slice(0, DONE_SHOWN);
+  const isNotStarted = (k: KitchenTicket) => k.kind === 'order' && k.startedAt === undefined;
   const lateCount = waiting.filter((k) => isLate(k, now, lateAfterMs)).length;
-  const notStarted = waiting.filter((k) => k.kind === 'order' && k.startedAt === undefined).length;
-  const oldest = waiting[0];
+  const notStarted = waiting.filter(isNotStarted).length;
+  const oldest = waiting.reduce<KitchenTicket | undefined>((o, k) => (!o || k.sentAt < o.sentAt ? k : o), undefined);
+  const shownWaiting = sortRows(
+    waiting.filter(
+      (k) =>
+        (show === 'all' || (show === 'late' ? isLate(k, now, lateAfterMs) : isNotStarted(k))) &&
+        ticketMatches(k, query),
+    ),
+    TICKET_SORTS,
+    sort,
+  );
+  const filtering = query.trim() !== '' || show !== 'all';
+  function clearFilters() {
+    setQuery('');
+    setShow('all');
+  }
 
   return (
     <div className="kitchen">
@@ -85,7 +133,7 @@ export function Kitchen() {
                     <Mono>{notStarted}</Mono> not started
                   </>
                 )}
-                {' · '}oldest <Mono>{formatElapsed(now - oldest.sentAt)}</Mono>
+                {' · '}oldest <Mono>{formatElapsed(now - oldest!.sentAt)}</Mono>
                 {lateCount > 0 && (
                   <StatusChip status="occupied" size="sm" className="kitchen__late-count">
                     {lateCount} late
@@ -95,11 +143,34 @@ export function Kitchen() {
             )}
           </div>
 
+          {waiting.length > 0 && (
+            <div className="kitchen__tools">
+              <SearchField
+                value={query}
+                onChange={setQuery}
+                placeholder="Docket #, table, or item"
+                label="Search tickets by docket number, table, or item"
+              />
+              <PillRow label="Show">
+                <Pill active={show === 'all'} onClick={() => setShow('all')}>
+                  All <Mono className="kitchen__count">{waiting.length}</Mono>
+                </Pill>
+                <Pill active={show === 'not-started'} onClick={() => setShow('not-started')}>
+                  Not started <Mono className="kitchen__count">{notStarted}</Mono>
+                </Pill>
+                <Pill active={show === 'late'} onClick={() => setShow('late')}>
+                  Late <Mono className="kitchen__count">{lateCount}</Mono>
+                </Pill>
+              </PillRow>
+              <SortSelect value={sort} onChange={setSort} options={TICKET_SORTS} />
+            </div>
+          )}
+
           {/* A new ticket settles in; a bumped one drops out and the rest close
               up behind it, so the line can see what just left. */}
           <div className="kitchen__grid">
             <AnimatePresence initial={false} mode="popLayout">
-              {waiting.map((ticket) => (
+              {shownWaiting.map((ticket) => (
                 <motion.div
                   key={ticket.id}
                   layout="position"
@@ -120,17 +191,39 @@ export function Kitchen() {
               ))}
             </AnimatePresence>
           </div>
-          {waiting.length === 0 && (
+          {waiting.length === 0 ? (
             <p className="kitchen__empty">
               No tickets waiting — new orders show up here as soon as the register sends them.
             </p>
+          ) : (
+            shownWaiting.length === 0 &&
+            filtering && (
+              <p className="kitchen__empty">
+                No waiting tickets match.{' '}
+                <button type="button" className="kitchen__clear" onClick={clearFilters}>
+                  Show all tickets
+                </button>
+              </p>
+            )
           )}
         </main>
       ) : (
         <main className="kitchen__body">
           <div className="kitchen__summary">Recently bumped — recall one to put it back up.</div>
+          {allDone.length > 0 && (
+            <div className="kitchen__tools">
+              <SearchField
+                value={query}
+                onChange={setQuery}
+                placeholder="Find a bumped ticket by docket #, table, or item"
+                label="Search bumped tickets by docket number, table, or item"
+              />
+            </div>
+          )}
           {done.length === 0 ? (
-            <p className="kitchen__empty">Nothing bumped yet — cleared tickets land here.</p>
+            <p className="kitchen__empty">
+              {allDone.length === 0 ? 'Nothing bumped yet — cleared tickets land here.' : 'No bumped tickets match that search.'}
+            </p>
           ) : (
             <ul className="done-list">
               {done.map((ticket) => (

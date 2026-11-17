@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { Mono } from '../../components/Mono';
+import { SearchField } from '../../components/SearchField';
+import { matchesSearch } from '../../lib/listView';
 import { formatDay } from '../../lib/subscription';
 import { money } from '../api';
 import { usePlatform } from '../PlatformData';
@@ -16,10 +18,17 @@ export function PlatformPayments() {
   const today = new Date();
   const [from, setFrom] = useState(isoDay(new Date(today.getFullYear(), today.getMonth(), 1)));
   const [to, setTo] = useState(isoDay(today));
+  const [query, setQuery] = useState('');
 
+  // Newest first, as they arrive.
   const shown = payments.filter((p) => {
     const day = isoDay(new Date(p.paid_at));
-    return (!from || day >= from) && (!to || day <= to);
+    const plan = plans.find((pl) => pl.id === p.plan_id)?.name;
+    return (
+      (!from || day >= from) &&
+      (!to || day <= to) &&
+      matchesSearch(query, p.shop_name, plan, p.method, p.reference, p.amount)
+    );
   });
   const totals = new Map<string, number>();
   for (const p of shown) totals.set(p.currency, (totals.get(p.currency) ?? 0) + p.amount);
@@ -48,6 +57,15 @@ export function PlatformPayments() {
         </div>
       </div>
 
+      <div className="pf-toolbar">
+        <SearchField
+          value={query}
+          onChange={setQuery}
+          placeholder="Search shop, plan, method, or reference"
+          label="Search payments"
+        />
+      </div>
+
       <section className="panel" aria-label="Payments">
         <div className="pf-row pf-row--ledger pf-row--head" aria-hidden="true">
           <span>Date</span>
@@ -57,7 +75,9 @@ export function PlatformPayments() {
           <span className="pf-row__amount">Amount</span>
         </div>
         {shown.length === 0 ? (
-          <p className="pf-empty">No payments in this range.</p>
+          <p className="pf-empty">
+            {query.trim() ? 'No payments match that search in this range.' : 'No payments in this range.'}
+          </p>
         ) : (
           shown.map((p) => (
             <div key={p.id} className="pf-row pf-row--ledger">

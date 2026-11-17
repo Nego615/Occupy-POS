@@ -9,12 +9,14 @@ import { AccountMenu } from '../components/AccountMenu';
 import { Button } from '../components/Button';
 import { TabDiscountDialog } from '../components/CounterDialogs';
 import { Icon, type IconName } from '../components/Icon';
+import { SortSelect } from '../components/ListControls';
 import { InCurrency, Money, Mono } from '../components/Mono';
 import { OrderDetail } from '../components/OrderDetail';
-import { Pill, PillGroup } from '../components/Pill';
+import { Pill, PillGroup, PillRow } from '../components/Pill';
 import { PrintableCashUp, PrintableFolio } from '../components/PrintableSlip';
 import { PrintableReceipt } from '../components/PrintableReceipt';
 import { ReceiptEdge, SummaryRow } from '../components/Receipt';
+import { SearchField } from '../components/SearchField';
 import { StatusChip } from '../components/StatusChip';
 import { TopBar } from '../components/TopBar';
 import { TENDER_METHODS, expectedCash, expectedLocalCash, shiftStart, shiftTotals, type CashUp } from '../data/cashup';
@@ -41,13 +43,42 @@ import {
   type Currency,
 } from '../lib/currency';
 import { beforeSwitch } from '../lib/currencySwitch';
+import { byNumber, byText, descending, matchesSearch, sortRows, type SortOption } from '../lib/listView';
 import { swapIn } from '../lib/motion';
 import { cashUpStock, countResult } from '../lib/shiftStock';
 import { usePos } from '../lib/store';
+import { BILL_QUEUE_SORTS } from '../lib/tabSorts';
 import { formatTime, useNow } from '../lib/useClock';
 import { OrderHistory } from './OrderHistory';
 
 type View = 'bills' | 'rooms' | 'receipts' | 'cashup';
+
+type BillFilter = 'all' | 'sent' | 'part-paid' | 'open';
+
+const BILL_FILTERS: { id: BillFilter; label: string }[] = [
+  { id: 'all', label: 'All' },
+  { id: 'sent', label: 'Bill requested' },
+  { id: 'part-paid', label: 'Part paid' },
+  { id: 'open', label: 'Still open' },
+];
+
+/** Where a bill stands: part paid beats sent over, which beats still running. */
+function billState(b: { paid: number; tab: { billRequestedAt?: string } }): BillFilter {
+  return b.paid > 0 ? 'part-paid' : b.tab.billRequestedAt ? 'sent' : 'open';
+}
+
+type Folio = { roomId: string; name: string; charges: OrderRecord[]; total: number };
+
+const FOLIO_SORTS: SortOption<Folio>[] = [
+  {
+    id: 'newest',
+    label: 'Newest charge first',
+    compare: descending(byText((f) => f.charges[f.charges.length - 1]?.at)),
+  },
+  { id: 'oldest', label: 'Owing longest first', compare: byText((f) => f.charges[0]?.at) },
+  { id: 'total-desc', label: 'Most owed first', compare: descending(byNumber((f) => f.total)) },
+  { id: 'name', label: 'Room A to Z', compare: byText((f) => f.name) },
+];
 
 const VIEWS: { id: View; label: string }[] = [
   { id: 'bills', label: 'Bills' },
@@ -138,17 +169,52 @@ function BillsView({ selectedParam }: { selectedParam: number | null }) {
   const [picked, setPicked] = useState<number | null>(selectedParam);
   const [roomFor, setRoomFor] = useState<string | null>(null);
   const [discounting, setDiscounting] = useState(false);
+  const [query, setQuery] = useState('');
+  const [billFilter, setBillFilter] = useState<BillFilter>('all');
+  // The counter's queue: bills sent over first. Newest first is one pick away.
+  const [sort, setSort] = useState('queue');
 
-  const bills = useMemo(
+  const allBills = useMemo(
     () =>
       tabs
         .filter((t) => t.cart.length > 0)
-        .sort((a, b) => {
-          if (!!a.billRequestedAt !== !!b.billRequestedAt) return a.billRequestedAt ? -1 : 1;
-          return (a.billRequestedAt ?? a.openedIso).localeCompare(b.billRequestedAt ?? b.openedIso);
+        .map((t) => {
+          const order = orders.find((o) => o.id === t.orderId);
+          const paid = paidAmount(t.payments);
+          return {
+            tab: t,
+            paid,
+            row: {
+              orderId: t.orderId,
+              name: t.name,
+              openedIso: t.openedIso,
+              billRequestedAt: t.billRequestedAt,
+              total: order ? round(orderTotal(order) - paid) : 0,
+              items: t.cart.map((l) => l.name),
+            },
+          };
         }),
-    [tabs],
+    [tabs, orders],
   );
+
+  const billCounts = Object.fromEntries(
+    BILL_FILTERS.map((f) => [f.id, f.id === 'all' ? allBills.length : allBills.filter((b) => billState(b) === f.id).length]),
+  ) as Record<BillFilter, number>;
+
+  const bills = useMemo(() => {
+    const matching = allBills.filter(
+      (b) =>
+        (billFilter === 'all' || billState(b) === billFilter) &&
+        matchesSearch(query, `#${b.tab.orderId}`, b.row.name, b.row.total, ...b.row.items),
+    );
+    const byId = new Map(matching.map((b) => [b.tab.orderId, b.tab]));
+    return sortRows(
+      matching.map((b) => b.row),
+      BILL_QUEUE_SORTS,
+      sort,
+    ).map((r) => byId.get(r.orderId)!);
+  }, [allBills, billFilter, query, sort]);
+  const filteringBills = query.trim() !== '' || billFilter !== 'all';
   const rooms = locations.filter((l) => l.kind === 'room');
   const selectedTab = bills.find((t) => t.orderId === picked) ?? bills[0] ?? null;
   const selected = selectedTab ? orders.find((o) => o.id === selectedTab.orderId) ?? null : null;
@@ -185,10 +251,45 @@ function BillsView({ selectedParam }: { selectedParam: number | null }) {
     <div className="history__body">
       <main className="history__list">
         <h1 className="desk__heading">Bills to collect</h1>
+        {allBills.length > 0 && (
+          <div className="desk__tools">
+            <SearchField
+              value={query}
+              onChange={setQuery}
+              placeholder="Search docket #, table, item, or amount"
+              label="Search bills by docket number, table, item, or amount"
+            />
+            <div className="history__filters">
+              <PillRow label="Show">
+                {BILL_FILTERS.map((f) => (
+                  <Pill key={f.id} active={billFilter === f.id} onClick={() => setBillFilter(f.id)}>
+                    {f.label} <Mono className="history__count">{billCounts[f.id]}</Mono>
+                  </Pill>
+                ))}
+              </PillRow>
+              <SortSelect value={sort} onChange={setSort} options={BILL_QUEUE_SORTS} />
+            </div>
+          </div>
+        )}
         {bills.length === 0 ? (
           <p className="history__empty">
-            No open bills. Bills sent from the register, and tabs running at tables and rooms, show
-            up here to be paid.
+            {filteringBills ? (
+              <>
+                No bills match.{' '}
+                <button
+                  type="button"
+                  className="history__clear"
+                  onClick={() => {
+                    setQuery('');
+                    setBillFilter('all');
+                  }}
+                >
+                  Show all bills
+                </button>
+              </>
+            ) : (
+              'No open bills. Bills sent from the register, and tabs running at tables and rooms, show up here to be paid.'
+            )}
           </p>
         ) : (
           bills.map((t, i) => {
@@ -372,8 +473,18 @@ function RoomsView({ onShowBill }: { onShowBill: (orderId: number) => void }) {
   const [ref, setRef] = useState('');
   const [settled, setSettled] = useState<Settled | null>(null);
   const [cashIn, setCashIn] = useState<'sales' | 'local'>('sales');
+  const [roomQuery, setRoomQuery] = useState('');
+  const [roomSort, setRoomSort] = useState('newest');
 
-  const folio = folios.find((f) => f.roomId === picked) ?? folios[0] ?? null;
+  const shownFolios = sortRows(
+    folios.filter((f) =>
+      matchesSearch(roomQuery, f.name, f.total, ...f.charges.flatMap((o) => [`#${o.id}`, ...o.lines.map((l) => l.name)])),
+    ),
+    FOLIO_SORTS,
+    roomSort,
+  );
+
+  const folio = folios.find((f) => f.roomId === picked) ?? shownFolios[0] ?? null;
   const openHere = folio ? tabs.find((t) => t.locationId === folio.roomId && t.cart.length > 0) : undefined;
   const paysLocal = method === 'cash' && local !== null && cashIn === 'local';
   const cashCurrency = paysLocal ? local! : undefined;
@@ -418,12 +529,30 @@ function RoomsView({ onShowBill }: { onShowBill: (orderId: number) => void }) {
     <div className="history__body">
       <main className="history__list">
         <h1 className="desk__heading">Room bills</h1>
+        {folios.length > 1 && (
+          <div className="desk__tools desk__tools--row">
+            <SearchField
+              value={roomQuery}
+              onChange={setRoomQuery}
+              placeholder="Search room, docket #, or item"
+              label="Search room bills by room, docket number, or item"
+            />
+            <SortSelect value={roomSort} onChange={setRoomSort} options={FOLIO_SORTS} />
+          </div>
+        )}
         {folios.length === 0 ? (
           <p className="history__empty">
             No rooms owe anything. Bills charged to a room wait here until the guest settles up.
           </p>
+        ) : shownFolios.length === 0 ? (
+          <p className="history__empty">
+            No room bills match.{' '}
+            <button type="button" className="history__clear" onClick={() => setRoomQuery('')}>
+              Show all rooms
+            </button>
+          </p>
         ) : (
-          folios.map((f, i) => (
+          shownFolios.map((f, i) => (
             <div key={f.roomId}>
               <button
                 type="button"
@@ -440,7 +569,7 @@ function RoomsView({ onShowBill }: { onShowBill: (orderId: number) => void }) {
                 </span>
                 <Money value={f.total} className="order-row__amount desk__amount" />
               </button>
-              {i < folios.length - 1 && <hr className="history__divider desk__divider" />}
+              {i < shownFolios.length - 1 && <hr className="history__divider desk__divider" />}
             </div>
           ))
         )}

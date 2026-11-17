@@ -27,7 +27,8 @@ export function TableTabsDialog({
   const name = locations.find((l) => l.id === locationId)?.name ?? 'this table';
   const here = tabs
     .filter((t) => t.locationId === locationId && canSeeTab(t))
-    .sort((a, b) => a.openedIso.localeCompare(b.openedIso));
+    // Newest first, like every list; the one just opened is on top.
+    .sort((a, b) => b.openedIso.localeCompare(a.openedIso));
   const hidden = tabs.filter((t) => t.locationId === locationId && !canSeeTab(t)).length;
 
   useEffect(() => {

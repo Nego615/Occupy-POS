@@ -3,8 +3,9 @@ import { Link, useSearchParams } from 'react-router';
 import './Inventory.css';
 import { Button } from '../components/Button';
 import { FilterSelect } from '../components/FilterSelect';
+import { ListCount, SortSelect, TimeFilterControl } from '../components/ListControls';
+import { SearchField } from '../components/SearchField';
 import { CostMoney, Mono, formatCost } from '../components/Mono';
-import { Pill, PillRow } from '../components/Pill';
 import {
   EXPENSE_CATEGORIES,
   expenseCategoryLabel,
@@ -13,16 +14,31 @@ import {
 } from '../data/expenses';
 import { PAYMENT_METHOD_LABEL, formatDay, todayIso, type PaymentMethod } from '../data/inventory';
 import { activeCurrency, costCurrency, isAmountText } from '../lib/currency';
+import {
+  byNumber,
+  byText,
+  descending,
+  inTimeFilter,
+  matchesSearch,
+  sortRows,
+  thenBy,
+  timeFilter,
+  type SortOption,
+  type TimeFilter,
+} from '../lib/listView';
 import { expensesByCategory } from '../lib/profit';
 import { usePos } from '../lib/store';
 import { useRevealPanel } from '../lib/useRevealPanel';
 
 type Period = 'this-month' | 'last-month' | 'all';
 
-const PERIODS: { id: Period; label: string }[] = [
-  { id: 'this-month', label: 'This month' },
-  { id: 'last-month', label: 'Last month' },
-  { id: 'all', label: 'All' },
+const EXPENSE_SORTS: SortOption<Expense>[] = [
+  { id: 'newest', label: 'Newest first', compare: descending(byText((e) => e.date)) },
+  { id: 'oldest', label: 'Oldest first', compare: byText((e) => e.date) },
+  { id: 'amount-desc', label: 'Amount high to low', compare: descending(byNumber((e) => e.amount)) },
+  { id: 'amount-asc', label: 'Amount low to high', compare: byNumber((e) => e.amount) },
+  { id: 'name', label: 'Description A to Z', compare: thenBy(byText((e) => e.description), descending(byText((e) => e.date))) },
+  { id: 'category', label: 'Category A to Z', compare: thenBy(byText((e) => expenseCategoryLabel(e.category)), descending(byText((e) => e.date))) },
 ];
 
 /** "2026-09" for this month, or `offset` months back. */
@@ -43,7 +59,9 @@ const inPeriod = (e: Expense, period: Period) =>
 export function AdminExpenses() {
   const { expenses, settings } = usePos();
   const [params, setParams] = useSearchParams();
-  const [period, setPeriod] = useState<Period>('this-month');
+  const [time, setTime] = useState<TimeFilter>(() => timeFilter('this-month'));
+  const [query, setQuery] = useState('');
+  const [sort, setSort] = useState('newest');
   const category = params.get('category') ?? 'all';
   // "new" opens a blank form; an id opens that expense.
   const selectedId = params.get('expense');
@@ -73,9 +91,21 @@ export function AdminExpenses() {
     };
   }, [expenses]);
 
-  const visible = expenses.filter(
-    (e) => inPeriod(e, period) && (category === 'all' || e.category === category),
+  const visible = sortRows(
+    expenses.filter(
+      (e) =>
+        inTimeFilter(e.date, time) &&
+        (category === 'all' || e.category === category) &&
+        matchesSearch(query, e.description, expenseCategoryLabel(e.category), e.by, PAYMENT_METHOD_LABEL[e.method], e.amount),
+    ),
+    EXPENSE_SORTS,
+    sort,
   );
+  const filtersActive = query.trim() !== '' || category !== 'all';
+  function clearFilters() {
+    setQuery('');
+    setParam('category', 'all');
+  }
   const visibleTotal = visible.reduce((s, e) => s + e.amount, 0);
   const selected = expenses.find((e) => e.id === selectedId) ?? null;
 
@@ -109,23 +139,40 @@ export function AdminExpenses() {
         />
       </div>
 
-      <div className="inv-toolbar">
-        <PillRow label="Show">
-          {PERIODS.map((p) => (
-            <Pill key={p.id} active={p.id === period} onClick={() => setPeriod(p.id)}>
-              {p.label}
-            </Pill>
-          ))}
-        </PillRow>
-        <FilterSelect value={category} onChange={(v) => setParam('category', v)} label="Category">
-          <option value="all">Every category</option>
-          {EXPENSE_CATEGORIES.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.label}
-            </option>
-          ))}
-        </FilterSelect>
+      <div className="list-tools">
+        <SearchField
+          value={query}
+          onChange={setQuery}
+          placeholder="Search what it was for, who paid, or amount"
+          label="Search expenses"
+        />
       </div>
+      <div className="inv-toolbar">
+        <TimeFilterControl
+          value={time}
+          onChange={setTime}
+          presets={['this-month', 'last-month', '30d', 'all']}
+        />
+        <div className="inv-toolbar__right">
+          <SortSelect value={sort} onChange={setSort} options={EXPENSE_SORTS} />
+          <FilterSelect value={category} onChange={(v) => setParam('category', v)} label="Category">
+            <option value="all">Every category</option>
+            {EXPENSE_CATEGORIES.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.label}
+              </option>
+            ))}
+          </FilterSelect>
+        </div>
+      </div>
+
+      <ListCount count={visible.length} noun="expense" onClear={filtersActive ? clearFilters : undefined}>
+        {visible.length > 0 && (
+          <>
+            , <CostMoney value={visibleTotal} className="inv-strong" />
+          </>
+        )}
+      </ListCount>
 
       <div className="inv-layout">
         <section className="panel inv-table-wrap" aria-label="Expenses">
@@ -133,7 +180,7 @@ export function AdminExpenses() {
             <p className="inv-empty">
               {expenses.length === 0
                 ? 'No expenses yet. Record rent, power, transport, and other running costs so reports can show your real profit.'
-                : 'No expenses match.'}
+                : 'No expenses match. Try another search or a wider range.'}
             </p>
           ) : (
             <table className="inv-table">
@@ -181,12 +228,6 @@ export function AdminExpenses() {
                 ))}
               </tbody>
             </table>
-          )}
-          {visible.length > 0 && (
-            <p className="inv-note inv-note--pad">
-              <Mono>{visible.length}</Mono> {visible.length === 1 ? 'expense' : 'expenses'} ·{' '}
-              <CostMoney value={visibleTotal} className="inv-strong" />
-            </p>
           )}
         </section>
 

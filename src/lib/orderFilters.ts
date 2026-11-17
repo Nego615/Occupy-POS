@@ -1,6 +1,7 @@
 import { formatMoney } from '../components/Mono';
 import { orderTotal, type Order, type OrderStatus } from '../data/orders';
 import { hasRole, type RoleId, type StaffMember } from '../data/staff';
+import { byNumber, byText, descending, thenBy, type SortOption } from './listView';
 
 /**
  * Filters shared by every order list — the counter's history and the admin's
@@ -96,3 +97,15 @@ export function matchesStaff(
   }
   return people.includes(filter);
 }
+
+/** The ways any order list can be put in order. Newest first is the default everywhere. */
+export const ORDER_SORTS: SortOption<Order>[] = [
+  { id: 'newest', label: 'Newest first', compare: thenBy(descending(byText((o) => o.at)), descending(byNumber((o) => o.id))) },
+  { id: 'oldest', label: 'Oldest first', compare: thenBy(byText((o) => o.at), byNumber((o) => o.id)) },
+  { id: 'docket-desc', label: 'Docket # high to low', compare: descending(byNumber((o) => o.id)) },
+  { id: 'docket-asc', label: 'Docket # low to high', compare: byNumber((o) => o.id) },
+  { id: 'name', label: 'Tab name A to Z', compare: thenBy(byText((o) => o.name), descending(byText((o) => o.at))) },
+  { id: 'name-desc', label: 'Tab name Z to A', compare: thenBy(descending(byText((o) => o.name)), descending(byText((o) => o.at))) },
+  { id: 'total-desc', label: 'Total high to low', compare: descending(byNumber(orderTotal)) },
+  { id: 'total-asc', label: 'Total low to high', compare: byNumber(orderTotal) },
+];

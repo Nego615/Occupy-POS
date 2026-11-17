@@ -3,6 +3,7 @@ import './AdminTimecards.css';
 import { Avatar } from '../components/Avatar';
 import { Button } from '../components/Button';
 import { FilterSelect } from '../components/FilterSelect';
+import { SortSelect } from '../components/ListControls';
 import { Mono } from '../components/Mono';
 import { Pill, PillRow } from '../components/Pill';
 import { StatusChip } from '../components/StatusChip';
@@ -17,6 +18,7 @@ import {
   type StaffMember,
 } from '../data/staff';
 import { downloadCsv } from '../lib/analytics';
+import { byNumber, byText, descending, sortRows, thenBy, type SortOption } from '../lib/listView';
 import { dayLabel, toCsv } from '../lib/reports';
 import { usePos } from '../lib/store';
 import { useMinutesNow } from '../lib/useClock';
@@ -40,6 +42,7 @@ export function AdminTimecards() {
   const now = useMinutesNow();
   const [range, setRange] = useState<RangeId>('week');
   const [person, setPerson] = useState<string>('all');
+  const [sort, setSort] = useState('newest');
   const [toClockIn, setToClockIn] = useState('');
 
   const days = RANGES.find((r) => r.id === range)!.days;
@@ -49,9 +52,21 @@ export function AdminTimecards() {
   const offClock = staff.filter((m) => m.active && !open.some((s) => s.staffId === m.id));
 
   const inRange = useMemo(() => shifts.filter((s) => s.daysAgo < days), [shifts, days]);
+  const shiftSorts = useMemo<SortOption<Shift>[]>(() => {
+    const newest = thenBy<Shift>(descending(byText((s) => s.date)), descending(byNumber((s) => s.clockIn)));
+    const name = (s: Shift) => byId.get(s.staffId)?.name;
+    return [
+      { id: 'newest', label: 'Newest first', compare: newest },
+      { id: 'oldest', label: 'Oldest first', compare: descending(newest) },
+      { id: 'name', label: 'Name A to Z', compare: thenBy(byText(name), newest) },
+      { id: 'hours-desc', label: 'Longest first', compare: descending(byNumber((s) => shiftMinutes(s, now))) },
+    ];
+  }, [byId, now]);
+
   const logged = useMemo(
-    () => (person === 'all' ? inRange : inRange.filter((s) => s.staffId === person)),
-    [inRange, person],
+    () =>
+      sortRows(person === 'all' ? inRange : inRange.filter((s) => s.staffId === person), shiftSorts, sort),
+    [inRange, person, shiftSorts, sort],
   );
 
   const totals = useMemo(() => {
@@ -240,14 +255,17 @@ export function AdminTimecards() {
           <h2 className="panel__title" id="log-title">
             Shifts
           </h2>
-          <FilterSelect value={person} onChange={setPerson} label="Filter shifts by staff">
-            <option value="all">Everyone</option>
-            {staff.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.name}
-              </option>
-            ))}
-          </FilterSelect>
+          <div className="timecards__log-tools">
+            <SortSelect value={sort} onChange={setSort} options={shiftSorts} />
+            <FilterSelect value={person} onChange={setPerson} label="Filter shifts by staff">
+              <option value="all">Everyone</option>
+              {staff.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
+              ))}
+            </FilterSelect>
+          </div>
         </div>
 
         {logged.length === 0 ? (

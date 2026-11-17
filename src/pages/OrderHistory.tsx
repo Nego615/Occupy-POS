@@ -2,8 +2,9 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import './OrderHistory.css';
 import { FilterSelect } from '../components/FilterSelect';
+import { SortSelect, TimeFilterControl } from '../components/ListControls';
 import { Money, Mono } from '../components/Mono';
-import { ORDER_CHIP, OrderDetail } from '../components/OrderDetail';
+import { OrderDetail, orderChip } from '../components/OrderDetail';
 import { Pill, PillRow } from '../components/Pill';
 import { PrintableReceipt } from '../components/PrintableReceipt';
 import { ReceiptEdge } from '../components/Receipt';
@@ -12,6 +13,7 @@ import { StatusChip } from '../components/StatusChip';
 import { orderItemCount, orderNetTotal, orderTotal, type Order } from '../data/orders';
 import { LOCATION_GROUPS } from '../data/locations';
 import {
+  ORDER_SORTS,
   PAYMENTS,
   STATUSES,
   countByStatus,
@@ -20,18 +22,12 @@ import {
   type PaymentFilter,
   type StatusFilter,
 } from '../lib/orderFilters';
+import { momentInFilter, sortRows, timeFilter, type TimeFilter } from '../lib/listView';
 import { usePos } from '../lib/store';
-
-type RangeId = 'today' | 'week' | 'all';
 
 /** The list renders plainly, so it caps rather than trying to draw thousands of rows. */
 const MAX_ROWS = 100;
 
-const RANGES: { id: RangeId; label: string; maxDaysAgo: number }[] = [
-  { id: 'today', label: 'Today', maxDaysAgo: 0 },
-  { id: 'week', label: 'This week', maxDaysAgo: 6 },
-  { id: 'all', label: 'All time', maxDaysAgo: Infinity },
-];
 
 /** `all`, `walk-in`, a whole kind (`kind:table`), or one location's id. */
 type PlaceFilter = string;
@@ -43,7 +39,8 @@ type PlaceFilter = string;
 export function OrderHistory({ onOpenTab }: { onOpenTab?: (orderId: number) => void } = {}) {
   const navigate = useNavigate();
   const { orders: allOrders, tabs, canSeeTab, locations, switchTab } = usePos();
-  const [range, setRange] = useState<RangeId>('today');
+  const [time, setTime] = useState<TimeFilter>(() => timeFilter('today'));
+  const [sort, setSort] = useState('newest');
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState<StatusFilter>('all');
   const [place, setPlace] = useState<PlaceFilter>('all');
@@ -58,7 +55,8 @@ export function OrderHistory({ onOpenTab }: { onOpenTab?: (orderId: number) => v
       : allOrders.filter((o) => !(o.status === 'occupied' && hidden.has(o.id)));
   }, [allOrders, tabs, canSeeTab]);
 
-  const filtersActive = status !== 'all' || place !== 'all' || payment !== 'all';
+  const filtersActive =
+    status !== 'all' || place !== 'all' || payment !== 'all' || time.hours !== null || query.trim() !== '';
 
   /**
    * Older orders predate location ids and only carry the tab name, so fall
@@ -75,10 +73,9 @@ export function OrderHistory({ onOpenTab }: { onOpenTab?: (orderId: number) => v
   // Everything except the status filter — the status pills count against this,
   // so each pill says how many orders picking it would show.
   const beforeStatus = useMemo(() => {
-    const maxDaysAgo = RANGES.find((r) => r.id === range)!.maxDaysAgo;
     const q = query.trim().toLowerCase();
     return orders.filter((order) => {
-      if (order.daysAgo > maxDaysAgo) return false;
+      if (!momentInFilter(order.at, time)) return false;
       if (!matchesPayment(order, payment)) return false;
       if (place !== 'all') {
         const location = locationOf(order);
@@ -92,13 +89,18 @@ export function OrderHistory({ onOpenTab }: { onOpenTab?: (orderId: number) => v
       }
       return matchesQuery(order, q);
     });
-  }, [orders, range, query, place, payment, locationOf]);
+  }, [orders, time, query, place, payment, locationOf]);
 
   const statusCounts = useMemo(() => countByStatus(beforeStatus), [beforeStatus]);
 
   const visible = useMemo(
-    () => (status === 'all' ? beforeStatus : beforeStatus.filter((o) => o.status === status)),
-    [beforeStatus, status],
+    () =>
+      sortRows(
+        status === 'all' ? beforeStatus : beforeStatus.filter((o) => o.status === status),
+        ORDER_SORTS,
+        sort,
+      ),
+    [beforeStatus, status, sort],
   );
 
   const paidTotal = useMemo(
@@ -110,6 +112,8 @@ export function OrderHistory({ onOpenTab }: { onOpenTab?: (orderId: number) => v
   );
 
   function clearFilters() {
+    setQuery('');
+    setTime((t) => ({ ...t, hours: null }));
     setStatus('all');
     setPlace('all');
     setPayment('all');
@@ -129,16 +133,15 @@ export function OrderHistory({ onOpenTab }: { onOpenTab?: (orderId: number) => v
           <SearchField
             value={query}
             onChange={setQuery}
-            placeholder="Search by tab, item, or amount"
-            label="Search orders by tab, item, or amount"
+            placeholder="Search docket #, tab, item, or amount"
+            label="Search orders by docket number, tab, item, or amount"
           />
-          <PillRow label="Date range">
-            {RANGES.map((r) => (
-              <Pill key={r.id} active={r.id === range} onClick={() => setRange(r.id)}>
-                {r.label}
-              </Pill>
-            ))}
-          </PillRow>
+          <TimeFilterControl
+            value={time}
+            onChange={setTime}
+            presets={['today', 'yesterday', '7d', 'all']}
+            withHours
+          />
         </div>
 
         <div className="history__filters">
@@ -151,6 +154,7 @@ export function OrderHistory({ onOpenTab }: { onOpenTab?: (orderId: number) => v
           </PillRow>
 
           <div className="history__selects">
+            <SortSelect value={sort} onChange={setSort} options={ORDER_SORTS} />
             <FilterSelect value={place} onChange={setPlace} label="Table or room">
               <option value="all">Any place</option>
               <option value="walk-in">Walk-in</option>
@@ -206,14 +210,14 @@ export function OrderHistory({ onOpenTab }: { onOpenTab?: (orderId: number) => v
           <p className="history__empty">
             {filtersActive ? (
               <>
-                No orders match these filters —{' '}
+                No orders match these filters.{' '}
                 <button type="button" className="history__clear" onClick={clearFilters}>
-                  clear filters
+                  Clear filters
                 </button>{' '}
-                or widen the date range.
+                or widen the dates.
               </>
             ) : (
-              'No orders match — try a different tab, item, or amount.'
+              'No orders in this time. Pick a wider range, like 7 days.'
             )}
           </p>
         ) : (
@@ -237,8 +241,8 @@ export function OrderHistory({ onOpenTab }: { onOpenTab?: (orderId: number) => v
                     {order.method ? ` · ${order.method}` : ''}
                   </span>
                 </span>
-                <StatusChip status={ORDER_CHIP[order.status].status} size="sm">
-                  {ORDER_CHIP[order.status].label}
+                <StatusChip status={orderChip(order).status} size="sm">
+                  {orderChip(order).label}
                 </StatusChip>
                 <Money value={orderTotal(order)} className="order-row__amount" />
               </button>
@@ -249,9 +253,8 @@ export function OrderHistory({ onOpenTab }: { onOpenTab?: (orderId: number) => v
 
         {visible.length > shown.length && (
           <p className="history__more">
-            Showing the most recent <Mono>{shown.length}</Mono> of{' '}
-            <Mono>{visible.length}</Mono> orders — search or narrow the range to find an
-            older one.
+            Showing the first <Mono>{shown.length}</Mono> of <Mono>{visible.length}</Mono>{' '}
+            orders. Search a docket number or narrow the dates to find the rest.
           </p>
         )}
       </main>
