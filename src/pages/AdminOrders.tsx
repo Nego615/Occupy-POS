@@ -152,8 +152,8 @@ export function AdminOrders() {
         <SearchField
           value={query}
           onChange={setQuery}
-          placeholder="Search docket #, tab, item, amount, or card"
-          label="Search orders by docket number, tab, item, amount, or card"
+          placeholder="Search docket #, tab, customer, item, amount, or card"
+          label="Search orders by docket number, tab, customer, item, amount, or card"
         />
         <TimeFilterControl
           value={time}
@@ -283,7 +283,10 @@ export function AdminOrders() {
                         </button>
                       </td>
                       <td className="orders-row__tab">
-                        <span className="orders-row__name">{order.name}</span>
+                        <span className="orders-row__name">
+                          {order.name}
+                          {order.customerName && <span className="order-row__customer"> · {order.customerName}</span>}
+                        </span>
                         <span className="orders-row__items">{itemSummary(order)}</span>
                       </td>
                       <td className="orders-row__when">

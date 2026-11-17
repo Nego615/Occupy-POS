@@ -22,6 +22,13 @@
   border-radius: 22px;
   background: var(--panel);
   color: var(--on-panel);
+  /* The customer button (Register.css) reads its colours from these. */
+  --card-ink: var(--on-panel);
+  --card-ink-soft: rgba(255, 249, 238, 0.6);
+}
+
+.retail-sale .tab-card__customer--set {
+  background: rgba(255, 249, 238, 0.14);
 }
 
 .retail-sale__top {

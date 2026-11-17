@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import './Tender.css';
 import { Button } from '../components/Button';
+import { ClientPicker } from '../components/ClientPicker';
 import { Icon, type IconName } from '../components/Icon';
 import { Money, Mono } from '../components/Mono';
 import { PrintableReceipt } from '../components/PrintableReceipt';
@@ -64,7 +65,7 @@ export function Tender() {
   const back = (useLocation().state as { from?: string } | null)?.from ?? '/desk';
   const fromDesk = back.startsWith('/desk');
   const backLabel = fromDesk ? 'counter' : 'register';
-  const { tab, cart, totals, takePayment, removePayment, settings } = usePos();
+  const { tab, cart, totals, takePayment, removePayment, settings, chargeToClient, clients } = usePos();
   const { tipsEnabled, tipPresets, defaultTip } = settings;
   const currency = activeCurrency();
   // Only the methods Settings accepts, in their usual order.
@@ -89,6 +90,11 @@ export function Tender() {
   const rate = exchangeRate(settings);
   const local = rate ? costCurrency() : null;
   const [cashIn, setCashIn] = useState<'sales' | 'local'>('sales');
+  // Putting what's left on a regular's account, as a debt, instead of taking payment.
+  const [onAccount, setOnAccount] = useState(false);
+  // The customer named on the register is offered first.
+  const [clientId, setClientId] = useState<string | null>(tab.customerId ?? null);
+  const [accountError, setAccountError] = useState<string | null>(null);
 
   const amountDue = totals.total;
   const customValid = customTip === '' || isAmountText(customTip);
@@ -173,6 +179,26 @@ export function Tender() {
     const closed = takePayment(payment, chosenTip);
     if (closed !== null) setCharged(snapshot);
     resetEntry();
+  }
+
+  function putOnAccount() {
+    if (!clientId) return;
+    const client = clients.find((c) => c.id === clientId);
+    const snapshot: Charged = {
+      tab: tab.name,
+      orderId: tab.orderId,
+      total,
+      method: `On account · ${client?.name ?? 'client'}`,
+      change: 0,
+      localChange: 0,
+      at: formatTime(new Date()),
+    };
+    const error = chargeToClient(tab.orderId, clientId, chosenTip);
+    if (error) {
+      setAccountError(error);
+      return;
+    }
+    setCharged(snapshot);
   }
 
   if (charged) {
@@ -349,21 +375,56 @@ export function Tender() {
                 <button
                   key={m}
                   type="button"
-                  className={m === method ? 'method method--active' : 'method'}
+                  className={m === method && !onAccount ? 'method method--active' : 'method'}
                   onClick={() => {
                     setMethod(m);
+                    setOnAccount(false);
                     setTenderedText('');
                     setRef('');
                   }}
-                  aria-pressed={m === method}
+                  aria-pressed={m === method && !onAccount}
                 >
                   <Icon name={TENDER_ICON[m]} size={22} className="method__icon" />
                   {TENDER_LABEL[m]}
                 </button>
               ))}
+              <button
+                type="button"
+                className={onAccount ? 'method method--active' : 'method'}
+                onClick={() => {
+                  setOnAccount(true);
+                  setAccountError(null);
+                }}
+                aria-pressed={onAccount}
+              >
+                <Icon name="people" size={22} className="method__icon" />
+                On account
+              </button>
             </div>
 
-            {canSplit && (
+            {onAccount && (
+              <div className="tender__account">
+                <p className="tender__account-hint">
+                  {paid > 0 ? 'What’s left' : 'The whole bill'} goes on the client’s account as a debt, to be paid off
+                  later from the counter’s Clients page.
+                </p>
+                <ClientPicker
+                  value={clientId}
+                  onChange={(id) => {
+                    setClientId(id);
+                    setAccountError(null);
+                  }}
+                  amount={remaining}
+                />
+                {accountError && (
+                  <p className="tender__account-error" role="alert">
+                    {accountError}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {!onAccount && canSplit && (
               <div className="tender__split">
                 <div className="tender__split-row" role="group" aria-label="Split the bill">
                   {evenSplits.map((n) => (
@@ -429,7 +490,7 @@ export function Tender() {
               </div>
             )}
 
-            {method === 'cash' && (
+            {!onAccount && method === 'cash' && (
               <div className="tender__cash">
                 {local && (
                   <div className="tender__split-row" role="group" aria-label="Cash in">
@@ -474,7 +535,7 @@ export function Tender() {
               </div>
             )}
 
-            {method !== 'cash' && (
+            {!onAccount && method !== 'cash' && (
               <div className="tender__custom tender__ref">
                 <label htmlFor="pay-ref">
                   {method === 'card' ? 'Card last 4 / approval' : 'Transaction ID'}
@@ -495,10 +556,16 @@ export function Tender() {
       </div>
 
       <div className="tender__footer">
-        <Button size="lg" className="tender__charge" onClick={take} disabled={!amountValid}>
-          {finishes ? 'Charge' : 'Take'} <Money value={amount} />
-          {!finishes && ' · part payment'}
-        </Button>
+        {onAccount ? (
+          <Button size="lg" className="tender__charge" onClick={putOnAccount} disabled={!clientId || remaining <= 0}>
+            Put <Money value={remaining} /> on account
+          </Button>
+        ) : (
+          <Button size="lg" className="tender__charge" onClick={take} disabled={!amountValid}>
+            {finishes ? 'Charge' : 'Take'} <Money value={amount} />
+            {!finishes && ' · part payment'}
+          </Button>
+        )}
         <button
           type="button"
           className="tender__cancel"

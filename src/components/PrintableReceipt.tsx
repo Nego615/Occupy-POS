@@ -2,6 +2,7 @@ import { createPortal } from 'react-dom';
 import './PrintableReceipt.css';
 import { formatMoney } from './Mono';
 import { lineContents } from '../data/catalog';
+import { orderOwed } from '../data/clients';
 import {
   changeGiven,
   localChange,
@@ -22,12 +23,13 @@ import { usePos } from '../lib/store';
  * order data.
  */
 export function PrintableReceipt({ order: given }: { order: Order }) {
-  const { settings, allStaff: staff, locations } = usePos();
+  const { settings, allStaff: staff, locations, clients } = usePos();
   // An order from before the shop switched currencies prints as it was taken.
   const order = given.recordedIn?.original ?? given;
   const currency = receiptCurrency(given);
   const money = (value: number) => formatMoney(value, currency);
   const room = order.roomId ? locations.find((l) => l.id === order.roomId)?.name ?? 'room' : null;
+  const client = order.clientId ? clients.find((c) => c.id === order.clientId)?.name ?? 'a client' : null;
   const discount = orderDiscount(order);
   const change = changeGiven(order.payments);
   // Cash taken in the cost currency, and its change — all in that currency.
@@ -49,9 +51,12 @@ export function PrintableReceipt({ order: given }: { order: Order }) {
           {order.status === 'occupied' ? 'Opened' : 'Closed'}{' '}
           <span className="mono">{order.time}</span>
         </div>
+        {/* On an account, the line below already names them. */}
+        {order.customerName && !order.clientId && <div>For {order.customerName}</div>}
         {cashier && <div>Served by {cashier}</div>}
-        {order.status === 'charged' && <div>Charged to {room}</div>}
-        {order.status === 'paid' && room && <div>Settled with {room}</div>}
+        {order.status === 'charged' && <div>{client ? `On ${client}’s account` : `Charged to ${room}`}</div>}
+        {order.status === 'paid' && room && !client && <div>Settled with {room}</div>}
+        {order.status === 'paid' && client && <div>Paid off on {client}’s account</div>}
         {order.payments.length === 0 && order.status !== 'charged' && <div>Not yet tendered</div>}
         {order.status === 'refunded' && <div>REFUNDED</div>}
       </div>
@@ -132,6 +137,12 @@ export function PrintableReceipt({ order: given }: { order: Order }) {
             <span className="mono">{money(-r.amount)}</span>
           </div>
         ))}
+        {client && order.status === 'charged' && (
+          <div className="print-receipt__row print-receipt__total">
+            <span>Owing</span>
+            <span className="mono">{money(orderOwed(order))}</span>
+          </div>
+        )}
       </div>
 
       <div className="print-receipt__foot">

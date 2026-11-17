@@ -343,7 +343,7 @@ const ACTIVITY_LABEL = {
   paid: 'Paid',
   occupied: 'Tab open',
   refunded: 'Refunded',
-  charged: 'On room bill',
+  charged: 'Owing',
 } as const;
 
 function chartSummary(bars: { day: string; value: number }[], peak: number): string {

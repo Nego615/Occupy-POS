@@ -114,6 +114,12 @@ export type InventoryStore = {
    * the cost currency, stamped with the rate. Called only by the switch.
    */
   convertForSwitch: (rate: number, to: Currency) => void;
+  /**
+   * Empties part of the inventory records, for a reset: `stock` zeroes what's
+   * on hand and drops the ledger and counts; `purchases` drops suppliers,
+   * purchase orders and bills.
+   */
+  clearInventory: (parts: { stock: boolean; purchases: boolean }) => void;
 };
 
 /**
@@ -486,6 +492,23 @@ export function useInventory(
     setBills((prev) => stampRate(prev, rate));
   }, []);
 
+  const clearInventory = useCallback(
+    ({ stock, purchases }: { stock: boolean; purchases: boolean }) => {
+      if (stock) {
+        setMovements([]);
+        setStockCounts([]);
+        setCountDraft(null);
+        setCatalog((prev) => prev.map((item) => (item.stock === 0 ? item : { ...item, stock: 0 })));
+      }
+      if (purchases) {
+        setSuppliers([]);
+        setPurchaseOrders([]);
+        setBills([]);
+      }
+    },
+    [setCatalog],
+  );
+
   return useMemo(
     () => ({
       movements,
@@ -512,6 +535,7 @@ export function useInventory(
       postShiftCount,
       discardCount,
       convertForSwitch,
+      clearInventory,
     }),
     [
       movements,
@@ -538,6 +562,7 @@ export function useInventory(
       postShiftCount,
       discardCount,
       convertForSwitch,
+      clearInventory,
     ],
   );
 }

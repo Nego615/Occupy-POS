@@ -133,8 +133,8 @@ export function OrderHistory({ onOpenTab }: { onOpenTab?: (orderId: number) => v
           <SearchField
             value={query}
             onChange={setQuery}
-            placeholder="Search docket #, tab, item, or amount"
-            label="Search orders by docket number, tab, item, or amount"
+            placeholder="Search docket #, tab, customer, item, or amount"
+            label="Search orders by docket number, tab, customer, item, or amount"
           />
           <TimeFilterControl
             value={time}
@@ -233,7 +233,10 @@ export function OrderHistory({ onOpenTab }: { onOpenTab?: (orderId: number) => v
               >
                 <Mono className="order-row__id">{`#${order.id}`}</Mono>
                 <span className="order-row__main">
-                  <span className="order-row__name">{order.name}</span>
+                  <span className="order-row__name">
+                    {order.name}
+                    {order.customerName && <span className="order-row__customer"> · {order.customerName}</span>}
+                  </span>
                   <span className="order-row__meta">
                     <Mono>{orderItemCount(order)}</Mono>
                     {orderItemCount(order) === 1 ? ' item · ' : ' items · '}

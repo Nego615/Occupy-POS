@@ -26,7 +26,7 @@ export function AddOnPrice({ price }: { price: number }) {
  */
 export function AddOnDialog({ item, onClose }: { item: CatalogItem | null; onClose: () => void }) {
   const ref = useRef<HTMLDialogElement>(null);
-  const { catalog, categories, cart, promotions, addItem } = usePos();
+  const { tabCatalog: catalog, categories, cart, promotions, addItem } = usePos();
   const [serving, setServing] = useState(WHOLE);
   const [picked, setPicked] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);

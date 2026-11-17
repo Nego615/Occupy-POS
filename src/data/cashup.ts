@@ -1,5 +1,6 @@
 import { costCurrency, roundMoney, type CurrencyCode } from '../lib/currency';
 import type { OrderRecord, Payment, TenderMethod } from './orders';
+import type { ShiftReport } from './shiftReport';
 
 export const TENDER_METHODS: TenderMethod[] = ['cash', 'card', 'mobile'];
 
@@ -21,7 +22,9 @@ export type CashUp = {
   refunded: ByMethod;
   /** How many payments were taken. */
   payments: number;
-  /** float + cash taken − cash refunded. */
+  /** Cash paid out of this drawer for expenses. */
+  paidOut?: number;
+  /** float + cash taken − cash refunded − paid out. */
   expectedCash: number;
   countedCash: number;
   /** The drawer of cash taken in the cost currency, when the shop takes it — counted on its own. */
@@ -31,6 +34,8 @@ export type CashUp = {
   closingStock?: Record<string, number>;
   /** The stock count taken as it closed, when anything was counted. */
   countId?: string;
+  /** What the shift came to — sales, debts, expenses, open tabs. Absent on older cash-ups. */
+  report?: ShiftReport;
 };
 
 /** Cash in the cost currency, in its own drawer: amounts in that currency. */
@@ -39,7 +44,9 @@ export type LocalDrawer = {
   float: number;
   taken: number;
   refunded: number;
-  /** float + taken − refunded. */
+  /** Paid out of this drawer for expenses. */
+  paidOut?: number;
+  /** float + taken − refunded − paid out. */
   expected: number;
   counted: number;
 };
@@ -122,16 +129,17 @@ export function shiftTotals(
 
 /**
  * What should be in the drawer: the float plus cash taken, less cash handed
- * back — leaving out cash in the cost currency, which has its own drawer.
+ * back and `paidOut` for expenses — leaving out cash in the cost currency,
+ * which has its own drawer.
  */
-export function expectedCash(float: number, totals: ShiftTotals): number {
+export function expectedCash(float: number, totals: ShiftTotals, paidOut = 0): number {
   const { value } = totals.local;
-  return roundMoney(float + totals.taken.cash - value.taken - (totals.refunded.cash - value.refunded));
+  return roundMoney(float + totals.taken.cash - value.taken - (totals.refunded.cash - value.refunded) - paidOut);
 }
 
 /** What should be in the cost-currency drawer, in that currency. */
-export function expectedLocalCash(float: number, totals: ShiftTotals): number {
-  return roundMoney(float + totals.local.taken - totals.local.refunded, costCurrency());
+export function expectedLocalCash(float: number, totals: ShiftTotals, paidOut = 0): number {
+  return roundMoney(float + totals.local.taken - totals.local.refunded - paidOut, costCurrency());
 }
 
 /** Where the current shift began: the last cash-up's close, or the start of today. */

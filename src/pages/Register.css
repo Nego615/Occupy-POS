@@ -330,6 +330,47 @@
   line-height: 1;
 }
 
+/* Whose order it is: a quiet prompt until a name is picked, then the name itself. */
+.tab-card__customer {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  align-self: flex-start;
+  margin-top: 4px;
+  padding: 3px 10px;
+  border: 1px dashed var(--card-ink-soft);
+  border-radius: var(--radius-pill);
+  background: none;
+  color: var(--card-ink);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.tab-card__customer::after {
+  content: '';
+  position: absolute;
+  inset: 50% 0 auto;
+  transform: translateY(-50%);
+  height: var(--hit-area);
+}
+
+.tab-card__customer--set {
+  border-style: solid;
+  border-color: transparent;
+  background: rgba(43, 24, 16, 0.1);
+}
+
+.tab-card__customer strong {
+  font-weight: 800;
+  max-width: 18ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .tab-card__meta {
   display: flex;
   align-items: center;

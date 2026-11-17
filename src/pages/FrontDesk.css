@@ -308,3 +308,109 @@
 .desk__stock-input[aria-invalid='true'] {
   border-color: var(--occupied);
 }
+
+/* ---------- Clients ---------- */
+
+.clients__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.clients__back {
+  align-self: flex-start;
+  margin-bottom: 8px;
+}
+
+.clients__history {
+  border-top: 1px solid var(--line);
+}
+
+/* ---------- Shift report and close ---------- */
+
+.shift-report__table td {
+  white-space: nowrap;
+}
+
+.shift-report__table th {
+  font-weight: 500;
+}
+
+.shift-report__total th,
+.shift-report__total td {
+  font-weight: 800;
+}
+
+.shift-report__meta {
+  color: var(--ink-soft);
+  font-size: 12.5px;
+}
+
+.desk__times {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.desk__presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.desk__error {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--occupied);
+}
+
+.desk__expense {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 13.5px;
+}
+
+.desk__expense-name {
+  flex: 1;
+  min-width: 0;
+}
+
+.desk__expense-name small {
+  display: block;
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
+.desk__expense-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.desk__expense-form > .desk__field--wide {
+  grid-column: 1 / -1;
+}
+
+.desk__expense-remove {
+  font-size: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+
+.desk__expense-remove:hover {
+  background: var(--surface-hover);
+  color: var(--ink);
+}

@@ -14,7 +14,7 @@ export const STATUSES: { id: StatusFilter; label: string }[] = [
   { id: 'all', label: 'All' },
   { id: 'occupied', label: 'Open' },
   { id: 'paid', label: 'Paid' },
-  { id: 'charged', label: 'On room bill' },
+  { id: 'charged', label: 'Owing' },
   { id: 'refunded', label: 'Refunded' },
 ];
 
@@ -42,6 +42,7 @@ export function matchesQuery(order: Order, q: string): boolean {
   if (!q) return true;
   return (
     order.name.toLowerCase().includes(q) ||
+    (order.customerName?.toLowerCase().includes(q) ?? false) ||
     `#${order.id}`.includes(q) ||
     order.lines.some((l) => l.name.toLowerCase().includes(q) || (l.note?.toLowerCase().includes(q) ?? false)) ||
     order.payments.some((p) => p.ref?.toLowerCase().includes(q) ?? false) ||

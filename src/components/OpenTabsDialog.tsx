@@ -75,7 +75,7 @@ export function OpenTabsDialog({ open, onClose }: { open: boolean; onClose: () =
           (kind === 'seated' && r.tab.locationId !== null) ||
           (kind === 'walk-in' && r.tab.locationId === null) ||
           (kind === 'bill' && !!r.tab.billRequestedAt)) &&
-        matchesSearch(query, orderNo(r.tab.orderId), r.row.name, r.row.total, ...r.row.items),
+        matchesSearch(query, orderNo(r.tab.orderId), r.row.name, r.tab.customerName, r.row.total, ...r.row.items),
     );
     const byId = new Map(matching.map((r) => [r.tab.orderId, r]));
     return sortRows(
@@ -118,8 +118,8 @@ export function OpenTabsDialog({ open, onClose }: { open: boolean; onClose: () =
               <SearchField
                 value={query}
                 onChange={setQuery}
-                placeholder="Docket #, table, or item"
-                label="Search open tabs by docket number, table, or item"
+                placeholder="Docket #, table, customer, or item"
+                label="Search open tabs by docket number, table, customer, or item"
               />
               <div className="open-tabs__filters">
                 <PillRow label="Show">
@@ -165,7 +165,10 @@ export function OpenTabsDialog({ open, onClose }: { open: boolean; onClose: () =
                       onClick={() => pick(t.orderId)}
                       aria-current={isCurrent || undefined}
                     >
-                      <span className="open-tab__name">{row.name}</span>
+                      <span className="open-tab__name">
+                        {row.name}
+                        {t.customerName && <span className="open-tab__customer"> · {t.customerName}</span>}
+                      </span>
                       {orderNo(t.orderId) && <Mono className="open-tab__id">{orderNo(t.orderId)}</Mono>}
                       <span className="open-tab__meta">
                         <Mono>{totals.itemCount}</Mono> {totals.itemCount === 1 ? 'item' : 'items'} · since{' '}

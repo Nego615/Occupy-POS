@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import './Register.css';
 import { AddOnDialog } from '../components/AddOnDialog';
 import { AssignTabDialog } from '../components/AssignTabDialog';
+import { CustomerDialog } from '../components/CustomerDialog';
 import { Button } from '../components/Button';
 import { DocketDialog, LineDialog, PortionDialog, PriceDialog } from '../components/CounterDialogs';
 import { PrintableReceipt } from '../components/PrintableReceipt';
@@ -68,6 +69,7 @@ export function Register() {
   const [chosenShelf, setCategory] = useState<Shelf | null>(null);
   const [meal, setMeal] = useState<SetMeal | null>(null);
   const [assigning, setAssigning] = useState(false);
+  const [namingCustomer, setNamingCustomer] = useState(false);
   const [browsingTabs, setBrowsingTabs] = useState(false);
   const [confirmingClear, setConfirmingClear] = useState(false);
   const [query, setQuery] = useState('');
@@ -92,7 +94,7 @@ export function Register() {
     tab,
     cart,
     totals,
-    catalog,
+    tabCatalog: catalog,
     addItem,
     addOpenPriceItem,
     addCustomAmount,
@@ -520,6 +522,26 @@ export function Register() {
               </span>
             </div>
             <BigMoney value={partPaid ? dueNow : totals.total} className="tab-card__amount" />
+            {/* Optional: whose order it is. Goes on the docket and receipt. */}
+            <button
+              type="button"
+              className={tab.customerName ? 'tab-card__customer tab-card__customer--set' : 'tab-card__customer'}
+              onClick={() => setNamingCustomer(true)}
+              aria-label={tab.customerName ? `For ${tab.customerName} — change customer` : 'Add a customer name'}
+            >
+              {tab.customerName ? (
+                <>
+                  For <strong>{tab.customerName}</strong>
+                  <span className="tab-card__caret" aria-hidden="true">
+                    ▾
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span aria-hidden="true">+</span> Customer
+                </>
+              )}
+            </button>
             <div className="tab-card__meta">
               {/* A tab takes its order number with its first item. */}
               {orderNo(tab.orderId) ? (
@@ -549,6 +571,7 @@ export function Register() {
         </div>
 
         <AssignTabDialog open={assigning} onClose={() => setAssigning(false)} />
+        <CustomerDialog open={namingCustomer} onClose={() => setNamingCustomer(false)} />
         <OpenTabsDialog open={browsingTabs} onClose={() => setBrowsingTabs(false)} />
 
         <div className="cart__items">

@@ -10,17 +10,21 @@ import { Button } from '../components/Button';
 import { TabDiscountDialog } from '../components/CounterDialogs';
 import { Icon, type IconName } from '../components/Icon';
 import { SortSelect } from '../components/ListControls';
-import { InCurrency, Money, Mono } from '../components/Mono';
+import { CostMoney, InCurrency, Money, Mono } from '../components/Mono';
 import { OrderDetail } from '../components/OrderDetail';
 import { Pill, PillGroup, PillRow } from '../components/Pill';
 import { PrintableCashUp, PrintableFolio } from '../components/PrintableSlip';
 import { PrintableReceipt } from '../components/PrintableReceipt';
 import { ReceiptEdge, SummaryRow } from '../components/Receipt';
 import { SearchField } from '../components/SearchField';
+import { MethodTable, ShiftReportSections, shiftLength } from '../components/ShiftReport';
 import { StatusChip } from '../components/StatusChip';
 import { TopBar } from '../components/TopBar';
-import { TENDER_METHODS, expectedCash, expectedLocalCash, shiftStart, shiftTotals, type CashUp } from '../data/cashup';
+import { expectedCash, expectedLocalCash, shiftStart, shiftTotals, type CashUp } from '../data/cashup';
 import { inAnyCategory } from '../data/catalog';
+import { EXPENSE_CATEGORIES, expenseCategoryLabel, type ExpenseCategoryId } from '../data/expenses';
+import { PAYMENT_METHOD_LABEL, todayIso, type PaymentMethod } from '../data/inventory';
+import { shiftReport, tillPaidOut } from '../data/shiftReport';
 import {
   TENDER_LABEL,
   orderItemCount,
@@ -49,9 +53,11 @@ import { cashUpStock, countResult } from '../lib/shiftStock';
 import { usePos } from '../lib/store';
 import { BILL_QUEUE_SORTS } from '../lib/tabSorts';
 import { formatTime, useNow } from '../lib/useClock';
+import { ClientsView } from './ClientsView';
 import { OrderHistory } from './OrderHistory';
+import { ClientPicker } from '../components/ClientPicker';
 
-type View = 'bills' | 'rooms' | 'receipts' | 'cashup';
+type View = 'bills' | 'rooms' | 'clients' | 'receipts' | 'cashup';
 
 type BillFilter = 'all' | 'sent' | 'part-paid' | 'open';
 
@@ -83,6 +89,7 @@ const FOLIO_SORTS: SortOption<Folio>[] = [
 const VIEWS: { id: View; label: string }[] = [
   { id: 'bills', label: 'Bills' },
   { id: 'rooms', label: 'Rooms' },
+  { id: 'clients', label: 'Clients' },
   { id: 'receipts', label: 'Receipts' },
   { id: 'cashup', label: 'Cash-up' },
 ];
@@ -96,6 +103,19 @@ function parseAmount(text: string, currency?: Currency): number | null {
   const t = text.trim().replace(/,/g, '');
   if (!t || !isAmountText(t, currency)) return null;
   return roundMoney(Number.parseFloat(t), currency);
+}
+
+/** An ISO timestamp as a datetime-local input value, in local time: "2026-11-17T18:30". */
+function isoToLocal(iso: string): string {
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/** A datetime-local input value back to an ISO timestamp, or null when it isn't one. */
+function localToIso(text: string): string | null {
+  const t = new Date(text).getTime();
+  return Number.isNaN(t) ? null : new Date(t).toISOString();
 }
 
 /** "4:12 PM" today, "Tue 4:12 PM" otherwise. */
@@ -117,8 +137,10 @@ export function FrontDesk() {
   const view: View = VIEWS.some((v) => v.id === params.get('view')) ? (params.get('view') as View) : 'bills';
 
   const billCount = tabs.filter((t) => t.cart.length > 0).length;
-  const roomCount = new Set(orders.filter((o) => o.status === 'charged').map((o) => o.roomId)).size;
-  const counts: Partial<Record<View, number>> = { bills: billCount, rooms: roomCount };
+  const charged = orders.filter((o) => o.status === 'charged');
+  const roomCount = new Set(charged.filter((o) => !o.clientId).map((o) => o.roomId)).size;
+  const clientCount = new Set(charged.filter((o) => o.clientId).map((o) => o.clientId)).size;
+  const counts: Partial<Record<View, number>> = { bills: billCount, rooms: roomCount, clients: clientCount };
 
   const show = (next: View, extra: Record<string, string> = {}) => setParams({ view: next, ...extra });
 
@@ -149,6 +171,7 @@ export function FrontDesk() {
       <motion.div key={view} className="counter__page" variants={swapIn} initial="hidden" animate="shown">
         {view === 'bills' && <BillsView selectedParam={Number(params.get('bill')) || null} />}
         {view === 'rooms' && <RoomsView onShowBill={(id) => show('bills', { bill: String(id) })} />}
+        {view === 'clients' && <ClientsView />}
         {view === 'receipts' && <OrderHistory onOpenTab={(id) => show('bills', { bill: String(id) })} />}
         {view === 'cashup' && <CashUpView />}
       </motion.div>
@@ -165,9 +188,12 @@ export function FrontDesk() {
  */
 function BillsView({ selectedParam }: { selectedParam: number | null }) {
   const navigate = useNavigate();
-  const { tabs, orders, locations, switchTab, chargeToRoom } = usePos();
+  const { tabs, orders, locations, switchTab, chargeToRoom, chargeToClient } = usePos();
   const [picked, setPicked] = useState<number | null>(selectedParam);
   const [roomFor, setRoomFor] = useState<string | null>(null);
+  // Putting the bill on a client's account: picking who, then confirming.
+  const [accountFor, setAccountFor] = useState<string | null | undefined>(undefined);
+  const [accountError, setAccountError] = useState<string | null>(null);
   const [discounting, setDiscounting] = useState(false);
   const [query, setQuery] = useState('');
   const [billFilter, setBillFilter] = useState<BillFilter>('all');
@@ -205,7 +231,7 @@ function BillsView({ selectedParam }: { selectedParam: number | null }) {
     const matching = allBills.filter(
       (b) =>
         (billFilter === 'all' || billState(b) === billFilter) &&
-        matchesSearch(query, `#${b.tab.orderId}`, b.row.name, b.row.total, ...b.row.items),
+        matchesSearch(query, `#${b.tab.orderId}`, b.row.name, b.tab.customerName, b.row.total, ...b.row.items),
     );
     const byId = new Map(matching.map((b) => [b.tab.orderId, b.tab]));
     return sortRows(
@@ -222,6 +248,15 @@ function BillsView({ selectedParam }: { selectedParam: number | null }) {
   function select(orderId: number) {
     setPicked(orderId);
     setRoomFor(null);
+    setAccountFor(undefined);
+    setAccountError(null);
+  }
+
+  function confirmAccount() {
+    if (!selectedTab || !accountFor) return;
+    const error = chargeToClient(selectedTab.orderId, accountFor);
+    if (error) setAccountError(error);
+    else setAccountFor(undefined);
   }
 
   function takePayment(orderId: number) {
@@ -306,7 +341,10 @@ function BillsView({ selectedParam }: { selectedParam: number | null }) {
                 >
                   <Mono className="order-row__id">{`#${t.orderId}`}</Mono>
                   <span className="order-row__main">
-                    <span className="order-row__name">{t.name}</span>
+                    <span className="order-row__name">
+                      {t.name}
+                      {t.customerName && <span className="order-row__customer"> · {t.customerName}</span>}
+                    </span>
                     <span className="order-row__meta">
                       <Mono>{orderItemCount(order)}</Mono>
                       {orderItemCount(order) === 1 ? ' item' : ' items'} · opened <Mono>{t.openedAt}</Mono>
@@ -359,7 +397,31 @@ function BillsView({ selectedParam }: { selectedParam: number | null }) {
                     />
                   </div>
                 )}
-                {roomFor !== null ? (
+                {accountFor !== undefined ? (
+                  <div className="desk__room-charge">
+                    <ClientPicker
+                      value={accountFor}
+                      onChange={(id) => {
+                        setAccountFor(id);
+                        setAccountError(null);
+                      }}
+                      amount={round(orderTotal(selected) - paidAmount(selectedTab.payments))}
+                    />
+                    {accountError && (
+                      <p className="desk__hint desk__hint--warn" role="alert">
+                        {accountError}
+                      </p>
+                    )}
+                    <div className="desk__row">
+                      <Button variant="secondary" onClick={() => setAccountFor(undefined)}>
+                        Cancel
+                      </Button>
+                      <Button onClick={confirmAccount} disabled={!accountFor}>
+                        Put <Money value={round(orderTotal(selected) - paidAmount(selectedTab.payments))} /> on account
+                      </Button>
+                    </div>
+                  </div>
+                ) : roomFor !== null ? (
                   <div className="desk__room-charge">
                     <label className="detail__refund-field">
                       <span>Charge to</span>
@@ -405,8 +467,14 @@ function BillsView({ selectedParam }: { selectedParam: number | null }) {
                         Charge to room
                       </Button>
                     </div>
+                    <Button variant="secondary" block onClick={() => setAccountFor(selectedTab.customerId ?? null)}>
+                      Put on a client’s account
+                    </Button>
                     {selectedTab.payments.length > 0 && (
-                      <p className="desk__hint">Part-paid bills can only be paid off — no new discounts or room charges.</p>
+                      <p className="desk__hint">
+                        Part-paid bills can be paid off or have the rest put on a client’s account — no new discounts
+                        or room charges.
+                      </p>
                     )}
                     {rooms.length === 0 && (
                       <p className="desk__hint">Add rooms under Admin → Tables &amp; rooms to charge bills to them.</p>
@@ -454,7 +522,7 @@ function RoomsView({ onShowBill }: { onShowBill: (orderId: number) => void }) {
   const folios = useMemo(() => {
     const byRoom = new Map<string, OrderRecord[]>();
     for (const o of orders) {
-      if (o.status !== 'charged' || !o.roomId) continue;
+      if (o.status !== 'charged' || !o.roomId || o.clientId) continue;
       byRoom.set(o.roomId, [...(byRoom.get(o.roomId) ?? []), o]);
     }
     return [...byRoom].map(([roomId, charges]) => ({
@@ -784,22 +852,73 @@ const STOCK_COUNT = /^\d{1,5}(\.\d{1,2})?$/;
  * the drawer count that closes it. Closed shifts are listed for reprinting.
  */
 function CashUpView() {
-  const { orders, tabs, cashUps, closeShift, allStaff, settings, catalog, categories } = usePos();
+  const {
+    orders,
+    tabs,
+    cashUps,
+    closeShift,
+    allStaff,
+    settings,
+    catalog,
+    categories,
+    expenses,
+    addExpense,
+    deleteExpense,
+    me,
+  } = usePos();
   const currency = activeCurrency();
+  const cost = costCurrency();
   // A second drawer for cash taken in what the shop buys in, when it does.
   const local = exchangeRate(settings) ? costCurrency() : null;
   const now = useNow(30_000);
-  const from = shiftStart(cashUps, new Date(now));
+  const nowIso = new Date(now).toISOString();
+  // The earliest the shift can start: where the last one closed.
+  const earliest = shiftStart(cashUps, new Date(now));
+
+  // The shift's times: null means from the last cash-up, and up to now.
+  const [startText, setStartText] = useState<string | null>(null);
+  const [endText, setEndText] = useState<string | null>(null);
+  const to = endText ? localToIso(endText) : nowIso;
+  const chosenStart = startText ? localToIso(startText) : earliest;
+  // A start picked in the same minute the last shift closed is that close.
+  const from =
+    chosenStart && chosenStart < earliest && Date.parse(earliest) - Date.parse(chosenStart) < 60_000
+      ? earliest
+      : chosenStart;
+  const timeError = !from || !to
+    ? 'Pick when it started and ended.'
+    : from < earliest
+      ? `It can’t start before the last cash-up closed, at ${shortWhen(earliest)}.`
+      : to > nowIso
+        ? 'It can’t end in the future.'
+        : to <= from
+          ? 'It has to end after it starts.'
+          : null;
+  const span = timeError ? { from: earliest, to: nowIso } : { from: from!, to: to! };
+
+  const closedOrders = useMemo(() => orders.filter((o) => o.status !== 'occupied'), [orders]);
+  const openPayments = useMemo(() => tabs.flatMap((t) => t.payments), [tabs]);
   const totals = useMemo(
-    () =>
-      shiftTotals(
-        orders.filter((o) => o.status !== 'occupied'),
-        tabs.flatMap((t) => t.payments),
-        from,
-        new Date(now).toISOString(),
-      ),
-    [orders, tabs, from, now],
+    () => shiftTotals(closedOrders, openPayments, span.from, span.to),
+    [closedOrders, openPayments, span.from, span.to],
   );
+  // Payments between the last cash-up and a later start would be in no shift at all.
+  const gap = useMemo(
+    () => (span.from > earliest ? shiftTotals(closedOrders, openPayments, earliest, span.from) : null),
+    [closedOrders, openPayments, earliest, span.from],
+  );
+  const report = useMemo(
+    () => shiftReport(orders, expenses, span.from, span.to),
+    [orders, expenses, span.from, span.to],
+  );
+  const shiftExpenses = useMemo(
+    () => expenses.filter((e) => e.at && e.at > span.from && e.at <= span.to),
+    [expenses, span.from, span.to],
+  );
+  // Paid from the till: out of the cost-currency drawer when there is one.
+  const paidOut = tillPaidOut(expenses, span.from, span.to);
+  const mainPaidOut = local ? 0 : paidOut;
+  const localPaidOut = local ? paidOut : 0;
 
   const [floatText, setFloatText] = useState(() => String(cashUps[0]?.float ?? 0));
   const [countedText, setCountedText] = useState('');
@@ -809,14 +928,39 @@ function CashUpView() {
   const [confirming, setConfirming] = useState(false);
   const [printing, setPrinting] = useState<CashUp | null>(null);
 
+  // An expense logged from here.
+  const [expDesc, setExpDesc] = useState('');
+  const [expCategory, setExpCategory] = useState<ExpenseCategoryId>('supplies');
+  const [expAmount, setExpAmount] = useState('');
+  const [expPaid, setExpPaid] = useState<'till' | PaymentMethod>('till');
+  const expValue = parseAmount(expAmount, cost);
+  const expValid = expDesc.trim() !== '' && expValue !== null && expValue > 0;
+
+  function logExpense() {
+    if (!expValid) return;
+    addExpense({
+      date: todayIso(),
+      // Inside the shift being closed, even when it ends before now.
+      at: endText && !timeError ? span.to : new Date().toISOString(),
+      category: expCategory,
+      description: expDesc.trim(),
+      amount: expValue!,
+      method: expPaid === 'till' ? 'cash' : expPaid,
+      ...(expPaid === 'till' ? { fromTill: true as const } : {}),
+      by: me?.name ?? '',
+    });
+    setExpDesc('');
+    setExpAmount('');
+    setConfirming(false);
+  }
+
   const float = parseAmount(floatText);
   const counted = parseAmount(countedText);
-  const expected = expectedCash(float ?? 0, totals);
+  const expected = expectedCash(float ?? 0, totals, mainPaidOut);
   const variance = counted !== null ? round(counted - expected) : null;
-  const net = TENDER_METHODS.reduce((sum, m) => sum + totals.taken[m] - totals.refunded[m], 0);
   const localFloat = local ? parseAmount(localFloatText, local) : null;
   const localCounted = local ? parseAmount(localCountedText, local) : null;
-  const localExpected = expectedLocalCash(localFloat ?? 0, totals);
+  const localExpected = expectedLocalCash(localFloat ?? 0, totals, localPaidOut);
   const localVariance = local && localCounted !== null ? roundMoney(localCounted - localExpected, local) : null;
   // The shelf count, for the categories Settings says to count at every cash-up.
   const toCount = useMemo(
@@ -838,6 +982,7 @@ function CashUpView() {
   const stockDone = Object.keys(stockCounted).length;
 
   const valid =
+    !timeError &&
     float !== null &&
     counted !== null &&
     (!local || (localFloat !== null && localCounted !== null)) &&
@@ -855,12 +1000,22 @@ function CashUpView() {
       note,
       ...(local ? { local: { float: localFloat!, counted: localCounted! } } : {}),
       ...(stockDone > 0 ? { stock: stockCounted } : {}),
+      ...(startText ? { openedAt: span.from } : {}),
+      ...(endText ? { closedAt: span.to } : {}),
     });
     setPrinting(cashUp);
     setStockText({});
     setCountedText('');
     setLocalCountedText('');
     setNote('');
+    setStartText(null);
+    setEndText(null);
+    setConfirming(false);
+  }
+
+  /** Starts the shift `hours` before it ends. */
+  function lastHours(hours: number) {
+    setStartText(isoToLocal(new Date(Date.parse(span.to) - hours * 3_600_000).toISOString()));
     setConfirming(false);
   }
 
@@ -869,61 +1024,42 @@ function CashUpView() {
   const shiftCurrency = (c: CashUp) =>
     beforeSwitch(c.closedAt, settings.currencySwitch) ? currencyOf(settings.currencySwitch.from) : undefined;
 
+  const shown = printing
+    ? {
+        from: printing.openedAt,
+        to: printing.closedAt,
+        taken: printing.taken,
+        refunded: printing.refunded,
+        payments: printing.payments,
+        report: printing.report,
+      }
+    : { from: span.from, to: span.to, taken: totals.taken, refunded: totals.refunded, payments: totals.payments, report };
+
   return (
     <div className="history__body">
       <main className="history__list">
-        <h1 className="desk__heading">This shift</h1>
-        <p className="history__summary">
-          Since <Mono>{shortWhen(from)}</Mono> · <Mono>{totals.payments}</Mono>{' '}
-          {totals.payments === 1 ? 'payment' : 'payments'}
-        </p>
-
-        <table className="desk__table">
-          <thead>
-            <tr>
-              <th scope="col">Method</th>
-              <th scope="col">Taken</th>
-              <th scope="col">Refunded</th>
-              <th scope="col">Net</th>
-            </tr>
-          </thead>
-          <tbody>
-            {TENDER_METHODS.map((m) => (
-              <tr key={m}>
-                <th scope="row">{TENDER_LABEL[m]}</th>
-                <td>
-                  <Money value={totals.taken[m]} />
-                </td>
-                <td>
-                  <Money value={-totals.refunded[m]} />
-                </td>
-                <td>
-                  <Money value={totals.taken[m] - totals.refunded[m]} />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-          <tfoot>
-            <tr>
-              <th scope="row">Total</th>
-              <td>
-                <Money value={TENDER_METHODS.reduce((s, m) => s + totals.taken[m], 0)} />
-              </td>
-              <td>
-                <Money value={-TENDER_METHODS.reduce((s, m) => s + totals.refunded[m], 0)} />
-              </td>
-              <td>
-                <Money value={net} />
-              </td>
-            </tr>
-          </tfoot>
-        </table>
-        {local && totals.local.taken > 0 && (
+        <InCurrency currency={printing ? shiftCurrency(printing) : undefined}>
+          <h1 className="desk__heading">{printing ? 'Shift report' : 'This shift'}</h1>
           <p className="history__summary">
-            Cash includes <Money value={totals.local.taken} currency={local} /> taken in {local.symbol}, for{' '}
-            <Money value={totals.local.value.taken} /> of bills — it’s counted in its own drawer.
+            <Mono>{shortWhen(shown.from)}</Mono> – <Mono>{printing || endText ? shortWhen(shown.to) : 'now'}</Mono> ·{' '}
+            {shiftLength(shown.from, shown.to)} · <Mono>{shown.payments}</Mono>{' '}
+            {shown.payments === 1 ? 'payment' : 'payments'}
+            {printing && <> · closed by {nameOf(printing.by)}</>}
           </p>
-        )}
+
+          <MethodTable taken={shown.taken} refunded={shown.refunded} />
+          {!printing && local && totals.local.taken > 0 && (
+            <p className="history__summary">
+              Cash includes <Money value={totals.local.taken} currency={local} /> taken in {local.symbol}, for{' '}
+              <Money value={totals.local.value.taken} /> of bills — it’s counted in its own drawer.
+            </p>
+          )}
+          {shown.report ? (
+            <ShiftReportSections report={shown.report} />
+          ) : (
+            <p className="history__summary">This shift was closed before shift reports were kept.</p>
+          )}
+        </InCurrency>
 
         {cashUps.length > 0 && (
           <>
@@ -944,8 +1080,8 @@ function CashUpView() {
                         <Mono>{shortWhen(c.openedAt)}</Mono> – <Mono>{shortWhen(c.closedAt)}</Mono>
                       </span>
                       <span className="order-row__meta">
-                        {nameOf(c.by)} · <Mono>{c.payments}</Mono> payments · counted{' '}
-                        <Money value={c.countedCash} />
+                        {nameOf(c.by)} · {shiftLength(c.openedAt, c.closedAt)} · <Mono>{c.payments}</Mono> payments ·
+                        counted <Money value={c.countedCash} />
                         {c.local && (
                           <>
                             {' '}
@@ -988,9 +1124,16 @@ function CashUpView() {
                 </InCurrency>
               )}
               <StockResult cashUp={printing} />
+              {printing.report && (
+                <p className="desk__hint">
+                  Net sales <Money value={printing.report.sales.net} /> · expenses{' '}
+                  <CostMoney value={printing.report.expensesTotal} /> · <Mono>{printing.report.openTabs.count}</Mono>{' '}
+                  open {printing.report.openTabs.count === 1 ? 'tab' : 'tabs'}
+                </p>
+              )}
               <div className="desk__row">
                 <Button variant="secondary" onClick={() => window.print()}>
-                  Print cash-up
+                  Print report
                 </Button>
                 <Button onClick={() => setPrinting(null)}>Done</Button>
               </div>
@@ -1000,10 +1143,170 @@ function CashUpView() {
         ) : (
           <>
             <div className="detail__head">
-              <h2 className="detail__title">Count the drawer</h2>
-              <div className="detail__sub">Closing starts a new shift from now.</div>
+              <h2 className="detail__title">Close the shift</h2>
+              <div className="detail__sub">The report is made as it closes. The next shift starts where this one ends.</div>
             </div>
             <div className="desk__actions desk__drawer">
+              <h3 className="desk__drawer-title">Shift times</h3>
+              <div className="desk__times">
+                <label className="desk__field">
+                  <span>Started</span>
+                  <input
+                    className="desk__input mono"
+                    type="datetime-local"
+                    value={startText ?? isoToLocal(earliest)}
+                    min={isoToLocal(earliest)}
+                    max={isoToLocal(span.to)}
+                    onChange={(e) => {
+                      setStartText(e.target.value || null);
+                      setConfirming(false);
+                    }}
+                  />
+                </label>
+                <label className="desk__field">
+                  <span>Ended</span>
+                  <input
+                    className="desk__input mono"
+                    type="datetime-local"
+                    value={endText ?? isoToLocal(nowIso)}
+                    max={isoToLocal(nowIso)}
+                    onChange={(e) => {
+                      setEndText(e.target.value || null);
+                      setConfirming(false);
+                    }}
+                  />
+                </label>
+              </div>
+              <div className="desk__presets" role="group" aria-label="Shift length">
+                {[6, 8, 10, 12].map((h) => (
+                  <Pill
+                    key={h}
+                    active={!!startText && Math.abs(Date.parse(span.to) - Date.parse(span.from) - h * 3_600_000) < 60_000}
+                    disabled={Date.parse(span.to) - h * 3_600_000 < Date.parse(earliest) - 60_000}
+                    onClick={() => lastHours(h)}
+                  >
+                    Last {h} h
+                  </Pill>
+                ))}
+                {(startText || endText) && (
+                  <Pill
+                    onClick={() => {
+                      setStartText(null);
+                      setEndText(null);
+                      setConfirming(false);
+                    }}
+                  >
+                    Since last cash-up
+                  </Pill>
+                )}
+              </div>
+              {timeError ? (
+                <p className="desk__error" role="alert">
+                  {timeError}
+                </p>
+              ) : (
+                <p className="desk__hint">
+                  {shiftLength(span.from, span.to)} long.
+                  {gap && gap.payments > 0 && (
+                    <>
+                      {' '}
+                      <Mono>{gap.payments}</Mono> {gap.payments === 1 ? 'payment' : 'payments'} taken between{' '}
+                      <Mono>{shortWhen(earliest)}</Mono> and the start won’t be in any cash-up.
+                    </>
+                  )}
+                  {endText && ' Anything taken after it ends goes in the next shift.'}
+                </p>
+              )}
+
+              <h3 className="desk__drawer-title">Expenses this shift</h3>
+              {shiftExpenses.length === 0 && <p className="desk__hint">None yet. Add anything paid out below.</p>}
+              {shiftExpenses.map((e) => (
+                <div key={e.id} className="desk__expense">
+                  <span className="desk__expense-name">
+                    {e.description}
+                    <small>
+                      {expenseCategoryLabel(e.category)} · {e.fromTill ? 'from the till' : PAYMENT_METHOD_LABEL[e.method]}
+                    </small>
+                  </span>
+                  <CostMoney value={e.amount} />
+                  <button
+                    type="button"
+                    className="desk__expense-remove"
+                    aria-label={`Remove ${e.description}`}
+                    onClick={() => {
+                      deleteExpense(e.id);
+                      setConfirming(false);
+                    }}
+                  >
+                    <span aria-hidden="true">×</span>
+                  </button>
+                </div>
+              ))}
+              <div className="desk__expense-form">
+                <label className="desk__field desk__field--wide">
+                  <span>What for</span>
+                  <input
+                    className="desk__input"
+                    type="text"
+                    value={expDesc}
+                    maxLength={80}
+                    placeholder="Ice, charcoal, transport…"
+                    onChange={(e) => setExpDesc(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && logExpense()}
+                  />
+                </label>
+                <label className="desk__field">
+                  <span>Amount</span>
+                  <span className="desk__money">
+                    <span className="mono" aria-hidden="true">
+                      {cost.symbol}
+                    </span>
+                    <input
+                      className="mono"
+                      type="text"
+                      inputMode={cost.decimals === 0 ? 'numeric' : 'decimal'}
+                      value={expAmount}
+                      aria-invalid={expAmount.trim() !== '' && expValue === null}
+                      onChange={(e) => setExpAmount(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && logExpense()}
+                    />
+                  </span>
+                </label>
+                <label className="desk__field">
+                  <span>Category</span>
+                  <select
+                    className="desk__input"
+                    value={expCategory}
+                    onChange={(e) => setExpCategory(e.target.value as ExpenseCategoryId)}
+                  >
+                    {EXPENSE_CATEGORIES.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="desk__field desk__field--wide">
+                  <span>Paid with</span>
+                  <select
+                    className="desk__input"
+                    value={expPaid}
+                    onChange={(e) => setExpPaid(e.target.value as 'till' | PaymentMethod)}
+                  >
+                    <option value="till">Cash from the till{local ? ` (${local.symbol} drawer)` : ''}</option>
+                    <option value="cash">Cash from elsewhere</option>
+                    <option value="mobile">{PAYMENT_METHOD_LABEL.mobile}</option>
+                    <option value="bank">{PAYMENT_METHOD_LABEL.bank}</option>
+                  </select>
+                </label>
+                <div className="desk__field--wide">
+                  <Button variant="secondary" block onClick={logExpense} disabled={!expValid}>
+                    Add expense
+                  </Button>
+                </div>
+              </div>
+
+              <h3 className="desk__drawer-title">Count the drawer</h3>
               <label className="desk__field">
                 <span>Opening float</span>
                 <span className="desk__money">
@@ -1025,6 +1328,7 @@ function CashUpView() {
               {/* Cash taken in the cost currency is in the other drawer. */}
               <SummaryRow label="Cash taken" value={round(totals.taken.cash - totals.local.value.taken)} />
               <SummaryRow label="Cash refunded" value={-round(totals.refunded.cash - totals.local.value.refunded)} />
+              {mainPaidOut > 0 && <SummaryRow label="Paid out for expenses" value={-mainPaidOut} />}
               <SummaryRow label="Cash expected" value={expected} total />
               <label className="desk__field">
                 <span>Cash counted</span>
@@ -1079,6 +1383,7 @@ function CashUpView() {
                   </label>
                   <SummaryRow label="Cash taken" value={totals.local.taken} />
                   <SummaryRow label="Cash refunded" value={-totals.local.refunded} />
+                  {localPaidOut > 0 && <SummaryRow label="Paid out for expenses" value={-localPaidOut} />}
                   <SummaryRow label="Cash expected" value={localExpected} total />
                   <label className="desk__field">
                     <span>Cash counted</span>

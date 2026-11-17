@@ -45,4 +45,8 @@ export type Expense = {
   method: PaymentMethod;
   /** Staff name, frozen. */
   by: string;
+  /** ISO timestamp it was logged — which shift it falls in. Absent on older expenses. */
+  at?: string;
+  /** Paid in cash out of the till: it comes off the cash expected at cash-up. */
+  fromTill?: true;
 };
