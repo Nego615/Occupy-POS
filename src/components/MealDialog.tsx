@@ -18,7 +18,7 @@ import { Money, Mono } from './Mono';
  */
 export function MealDialog({ meal, onClose }: { meal: SetMeal | null; onClose: () => void }) {
   const ref = useRef<HTMLDialogElement>(null);
-  const { catalog, categories, cart, addMeal } = usePos();
+  const { tabCatalog: catalog, categories, cart, addMeal } = usePos();
   // Each course's picks, by item id, in the order they were tapped.
   const [picks, setPicks] = useState<string[][]>([]);
   // The add-ons picked with each pick, by course and then the pick's item id.

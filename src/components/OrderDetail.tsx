@@ -23,6 +23,7 @@ import {
   type OrderStatus,
 } from '../data/orders';
 import { lineContents } from '../data/catalog';
+import { orderOwed } from '../data/clients';
 import { convertPrice, receiptCurrency } from '../lib/currencySwitch';
 import { editBlocker } from '../lib/orderEdits';
 import { activeCurrency, currencyOf, formatCurrency } from '../lib/currency';
@@ -37,8 +38,10 @@ export const ORDER_CHIP: Record<OrderStatus, { status: StatusKind; label: string
 };
 
 /** The chip for an order — a deleted open tab reads as deleted, not open. */
-export function orderChip(order: Pick<Order, 'status' | 'deleted'>): { status: StatusKind; label: string } {
-  return order.deleted && order.status === 'occupied' ? { status: 'refunded', label: 'Deleted tab' } : ORDER_CHIP[order.status];
+export function orderChip(order: Pick<Order, 'status' | 'deleted' | 'clientId'>): { status: StatusKind; label: string } {
+  if (order.deleted && order.status === 'occupied') return { status: 'refunded', label: 'Deleted tab' };
+  if (order.status === 'charged' && order.clientId) return { status: 'occupied', label: 'On account' };
+  return ORDER_CHIP[order.status];
 }
 
 export type OrderDetailProps = {
@@ -72,11 +75,13 @@ export function OrderDetail({
   headingLevel: Heading = 'h2',
   openActions,
 }: OrderDetailProps) {
-  const { me, can, allStaff: staff, catalog, settings, refundOrder, restoreOrder, locations } = usePos();
+  const { me, can, allStaff: staff, catalog, settings, refundOrder, restoreOrder, locations, clients } = usePos();
   // An order from before the shop switched currencies shows as it was taken.
   const order = given.recordedIn?.original ?? given;
   const currency = receiptCurrency(given);
   const room = order.roomId ? locations.find((l) => l.id === order.roomId)?.name ?? 'a room' : null;
+  const client = order.clientId ? clients.find((c) => c.id === order.clientId)?.name ?? 'a client' : null;
+  const owed = orderOwed(order);
   // Units to refund per line index, while the refund panel is open.
   const [refunding, setRefunding] = useState<Map<number, number> | null>(null);
   const [reason, setReason] = useState<string>(REFUND_REASONS[0]);
@@ -145,13 +150,18 @@ export function OrderDetail({
           {order.name} · <Mono>{`#${order.id}`}</Mono>
         </Heading>
         <div className="detail__sub">
+          {order.customerName && !order.clientId && <>For {order.customerName} · </>}
           {closedLabel} <Mono>{when ?? order.time}</Mono>
-          {order.method
-            ? ` · ${order.method}`
-            : order.status === 'charged'
-              ? ` · On ${room}’s bill`
-              : ' · Not yet tendered'}
-          {order.status === 'paid' && room && ` · settled with ${room}`}
+          {client
+            ? order.status === 'charged'
+              ? ` · On ${client}’s account`
+              : ` · paid off on ${client}’s account`
+            : order.method
+              ? ` · ${order.method}`
+              : order.status === 'charged'
+                ? ` · On ${room}’s bill`
+                : ' · Not yet tendered'}
+          {order.status === 'paid' && room && !client && ` · settled with ${room}`}
           {server && ` · served by ${server}`}
           {cashier && (server ? (cashier === server ? '' : ` · paid with ${cashier}`) : ` · ${cashier}`)}
         </div>
@@ -228,7 +238,7 @@ export function OrderDetail({
         <SummaryRow label="Tax" value={order.tax} />
         {(settings.tipsEnabled || order.tip > 0) && <SummaryRow label="Tip" value={order.tip} />}
         <SummaryRow label="Total" value={orderTotal(order)} total />
-        {order.payments.length > 1 &&
+        {(order.payments.length > 1 || (client && order.payments.length > 0)) &&
           order.payments.map((p, i) => (
             <SummaryRow
               key={i}
@@ -254,6 +264,7 @@ export function OrderDetail({
         {(order.refunds ?? []).map((r) => (
           <SummaryRow key={r.id} label={`Refund · ${r.reason}`} value={-r.amount} />
         ))}
+        {client && order.status === 'charged' && <SummaryRow label="Still owing" value={owed} total />}
       </div>
 
       {refunding && (

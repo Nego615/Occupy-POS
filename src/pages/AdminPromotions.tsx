@@ -97,7 +97,8 @@ export function AdminPromotions() {
                 </tr>
               </thead>
               <tbody>
-                {promotions.map((p) => {
+                {/* Saved oldest first; listed newest first. */}
+                {[...promotions].reverse().map((p) => {
                   const isSelected = p.id === selectedId;
                   return (
                     <tr

@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import './Inventory.css';
 import { Button } from '../components/Button';
+import { ListCount, SortSelect, TimeFilterControl } from '../components/ListControls';
+import { SearchField } from '../components/SearchField';
 import { CostMoney, Mono, formatCost } from '../components/Mono';
 import { Pill, PillRow } from '../components/Pill';
 import { PrintablePurchaseOrder } from '../components/PrintablePurchaseOrder';
@@ -15,6 +17,19 @@ import {
 import { exchangeRate } from '../data/settings';
 import { activeCurrency, costCurrency, isAmountText, toCost } from '../lib/currency';
 import { lastPaid, purchaseTotal, shortLines } from '../lib/inventory';
+import {
+  ANY_TIME,
+  byNumber,
+  byText,
+  descending,
+  inTimeFilter,
+  matchesSearch,
+  sortRows,
+  thenBy,
+  timeFilterActive,
+  type SortOption,
+  type TimeFilter,
+} from '../lib/listView';
 import { usePos } from '../lib/store';
 import { useRevealPanel } from '../lib/useRevealPanel';
 
@@ -25,6 +40,27 @@ const FILTERS: { id: Filter; label: string; statuses: PurchaseStatus[] }[] = [
   { id: 'received', label: 'Received', statuses: ['received', 'closed'] },
   { id: 'cancelled', label: 'Cancelled', statuses: ['cancelled'] },
   { id: 'all', label: 'All', statuses: ['draft', 'ordered', 'partial', 'received', 'closed', 'cancelled'] },
+];
+
+type PurchaseRow = PurchaseOrder & { supplier: string };
+
+/** Newest is by when the order was started; ties go to the higher PO number. */
+const PO_SORTS: SortOption<PurchaseRow>[] = [
+  {
+    id: 'newest',
+    label: 'Newest first',
+    compare: thenBy(descending(byText((p) => p.createdAt)), descending(byText((p) => p.id))),
+  },
+  { id: 'oldest', label: 'Oldest first', compare: thenBy(byText((p) => p.createdAt), byText((p) => p.id)) },
+  { id: 'number-desc', label: 'PO number high to low', compare: descending(byText((p) => p.id)) },
+  { id: 'number-asc', label: 'PO number low to high', compare: byText((p) => p.id) },
+  { id: 'expected', label: 'Expected soonest', compare: byText((p) => p.expectedAt ?? '9999') },
+  { id: 'total-desc', label: 'Total high to low', compare: descending(byNumber(purchaseTotal)) },
+  {
+    id: 'supplier',
+    label: 'Supplier A to Z',
+    compare: thenBy(byText((p) => p.supplier), descending(byText((p) => p.createdAt))),
+  },
 ];
 
 /** Signal color only where there's a state to act on; drafts get a plain tag. */
@@ -47,21 +83,47 @@ export function AdminPurchases() {
   const [params, setParams] = useSearchParams();
   const { purchaseOrders, suppliers, settings } = usePos();
   const [filter, setFilter] = useState<Filter>('open');
+  const [time, setTime] = useState<TimeFilter>(ANY_TIME);
+  const [query, setQuery] = useState('');
+  const [sort, setSort] = useState('newest');
 
   // `?po=PO-1004`, or `?po=new` for a fresh draft.
   const selectedId = params.get('po');
   const panelRef = useRevealPanel<HTMLElement>(selectedId);
   const select = (id: string) => setParams({ po: id }, { replace: true });
 
+  const supplierName = (id: string) => suppliers.find((s) => s.id === id)?.name ?? 'Unknown supplier';
+
+  // Everything but the status, so each status pill counts what picking it would show.
+  const matching = useMemo(
+    () =>
+      purchaseOrders
+        .map((p) => ({ ...p, supplier: suppliers.find((s) => s.id === p.supplierId)?.name ?? 'Unknown supplier' }))
+        .filter(
+          (p) =>
+            inTimeFilter(p.createdAt, time) &&
+            matchesSearch(query, p.id, p.supplier, p.notes, ...p.lines.map((l) => l.name)),
+        ),
+    [purchaseOrders, suppliers, time, query],
+  );
+
   const visible = useMemo(() => {
     const statuses = FILTERS.find((f) => f.id === filter)!.statuses;
-    return purchaseOrders.filter((p) => statuses.includes(p.status));
-  }, [purchaseOrders, filter]);
+    return sortRows(
+      matching.filter((p) => statuses.includes(p.status)),
+      PO_SORTS,
+      sort,
+    );
+  }, [matching, filter, sort]);
 
   const count = (f: Filter) =>
-    purchaseOrders.filter((p) => FILTERS.find((x) => x.id === f)!.statuses.includes(p.status)).length;
+    matching.filter((p) => FILTERS.find((x) => x.id === f)!.statuses.includes(p.status)).length;
 
-  const supplierName = (id: string) => suppliers.find((s) => s.id === id)?.name ?? 'Unknown supplier';
+  const filtersActive = query.trim() !== '' || timeFilterActive(time);
+  function clearFilters() {
+    setQuery('');
+    setTime(ANY_TIME);
+  }
   const selected = purchaseOrders.find((p) => p.id === selectedId) ?? null;
 
   return (
@@ -76,6 +138,16 @@ export function AdminPurchases() {
         </div>
       </div>
 
+      <div className="list-tools">
+        <SearchField
+          value={query}
+          onChange={setQuery}
+          placeholder="Search PO number, supplier, or item"
+          label="Search purchase orders"
+        />
+        <TimeFilterControl value={time} onChange={setTime} presets={['this-month', 'last-month', 'all']} />
+      </div>
+
       <div className="inv-toolbar">
         <PillRow label="Show">
           {FILTERS.map((f) => (
@@ -84,13 +156,20 @@ export function AdminPurchases() {
             </Pill>
           ))}
         </PillRow>
+        <SortSelect value={sort} onChange={setSort} options={PO_SORTS} />
       </div>
+
+      <ListCount count={visible.length} noun="purchase order" onClear={filtersActive ? clearFilters : undefined} />
 
       <div className="inv-layout">
         <section className="panel inv-table-wrap" aria-label="Purchase orders">
           {visible.length === 0 ? (
             <p className="inv-empty">
-              {filter === 'open' ? 'No open purchase orders.' : 'Nothing here.'}
+              {filtersActive
+                ? 'No purchase orders match. Try another search or clear the filters.'
+                : filter === 'open'
+                  ? 'No open purchase orders.'
+                  : 'Nothing here.'}
             </p>
           ) : (
             <table className="inv-table">

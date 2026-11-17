@@ -574,3 +574,25 @@
     padding: 14px 16px 18px;
   }
 }
+
+/* ---------- On account ---------- */
+
+.tender__account {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.tender__account-hint {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+.tender__account-error {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--occupied);
+}

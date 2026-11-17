@@ -1,35 +1,52 @@
 import { useEffect, useRef, useState } from 'react';
 import './AssignTabDialog.css';
+import './OpenTabsDialog.css';
+import { locationName } from '../data/locations';
 import { computeTotals, mergeLines } from '../lib/cart';
-import { orderNo, usePos, type OpenTab } from '../lib/store';
+import { holdsManyTabs, orderNo, usePos, type OpenTab } from '../lib/store';
 import { Button } from './Button';
 import { FloorGrid } from './FloorGrid';
 import { Money, Mono } from './Mono';
 import { StatusChip } from './StatusChip';
 
 /**
- * Moves the register's tab to a table or room. Picking one that already has a
- * tab merges the two instead. Built on native <dialog> so focus
+ * Moves the register's tab to a table or room. A room that already has a tab
+ * merges the two instead; a table with tabs running asks whether to merge into
+ * one of them or seat this one alongside. Built on native <dialog> so focus
  * trapping and Escape-to-close come for free.
  */
 export function AssignTabDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const ref = useRef<HTMLDialogElement>(null);
-  const { tab, tabs, locations, assignTab, mergeTab } = usePos();
+  const { tab, tabs, locations, assignTab, mergeTab, canSeeTab } = usePos();
   // A walk-in is picked on purpose — a fresh tab isn't one until someone says so.
   const walkIn = tab.locationId === null && (tab.walkIn || locations.length === 0);
   const [mergeTarget, setMergeTarget] = useState<OpenTab | null>(null);
+  /** A table with tabs running, while asking whether to merge or sit alongside. */
+  const [seating, setSeating] = useState<string | null>(null);
 
   useEffect(() => {
     const dialog = ref.current;
     if (!dialog) return;
     if (open && !dialog.open) dialog.showModal();
     if (!open && dialog.open) dialog.close();
-    if (!open) setMergeTarget(null);
+    if (!open) {
+      setMergeTarget(null);
+      setSeating(null);
+    }
   }, [open]);
 
   // A table or room that already has a tab takes this one's items straight
   // in. Only a merge that's refused (a part-paid bill) stops to say why.
   function pick(locationId: string | null) {
+    const sharing =
+      locationId !== null &&
+      locationId !== tab.locationId &&
+      holdsManyTabs(locations, locationId) &&
+      tabs.some((t) => t.locationId === locationId && t.orderId !== tab.orderId && canSeeTab(t));
+    if (sharing) {
+      setSeating(locationId);
+      return;
+    }
     if (assignTab(locationId)) {
       onClose();
       return;
@@ -48,6 +65,19 @@ export function AssignTabDialog({ open, onClose }: { open: boolean; onClose: () 
     onClose();
   }
 
+  /** From the table's choice: straight in, or to the summary that says why it can't. */
+  function mergeFromTable(target: OpenTab) {
+    if (mergeTab(target.orderId)) {
+      onClose();
+      return;
+    }
+    setMergeTarget(target);
+  }
+
+  function seatAlongside() {
+    if (seating !== null && assignTab(seating)) onClose();
+  }
+
   return (
     <dialog
       ref={ref}
@@ -60,7 +90,7 @@ export function AssignTabDialog({ open, onClose }: { open: boolean; onClose: () 
       <div className="assign__body">
         <header className="assign__head">
           <h2 id="assign-title" className="assign__title">
-            {mergeTarget ? 'Merge tabs' : 'Assign tab'} {orderNo(tab.orderId) && <Mono>{orderNo(tab.orderId)}</Mono>}
+            {mergeTarget ? 'Merge tabs' : seating ? locationName(locations, seating) : 'Assign tab'} {orderNo(tab.orderId) && <Mono>{orderNo(tab.orderId)}</Mono>}
           </h2>
           <button
             type="button"
@@ -78,6 +108,13 @@ export function AssignTabDialog({ open, onClose }: { open: boolean; onClose: () 
             target={mergeTarget}
             onMerge={() => merge(mergeTarget)}
             onBack={() => setMergeTarget(null)}
+          />
+        ) : seating ? (
+          <TableChoice
+            locationId={seating}
+            onMerge={mergeFromTable}
+            onAlongside={seatAlongside}
+            onBack={() => setSeating(null)}
           />
         ) : (
           <div className="assign__floor">
@@ -104,6 +141,64 @@ export function AssignTabDialog({ open, onClose }: { open: boolean; onClose: () 
   );
 }
 
+/** A table with tabs running: fold this tab into one of them, or seat it there as its own. */
+function TableChoice({
+  locationId,
+  onMerge,
+  onAlongside,
+  onBack,
+}: {
+  locationId: string;
+  onMerge: (target: OpenTab) => void;
+  onAlongside: () => void;
+  onBack: () => void;
+}) {
+  const { tab, tabs, locations, settings, canSeeTab } = usePos();
+  const name = locationName(locations, locationId);
+  const here = tabs
+    .filter((t) => t.locationId === locationId && t.orderId !== tab.orderId && canSeeTab(t))
+    .sort((a, b) => a.openedIso.localeCompare(b.openedIso));
+  const empty = tab.cart.length === 0;
+
+  return (
+    <div className="merge">
+      <p className="merge__lead">
+        {name} already has {here.length === 1 ? 'a tab' : <><Mono>{here.length}</Mono> tabs</>} open.{' '}
+        {empty
+          ? 'Switch to one of them, or seat this tab there as well.'
+          : 'Merge this tab into one of them, or seat it there as a tab of its own.'}
+      </p>
+
+      <div className="open-tabs">
+        {here.map((t) => {
+          const totals = computeTotals(t.cart, settings.taxRate, t.discount);
+          return (
+            <button key={t.orderId} type="button" className="open-tab" onClick={() => onMerge(t)}>
+              <span className="open-tab__name">
+                {empty ? 'Switch to' : 'Merge into'} {orderNo(t.orderId) ?? 'the new tab'}
+              </span>
+              <span className="open-tab__meta">
+                <Mono>{totals.itemCount}</Mono> {totals.itemCount === 1 ? 'item' : 'items'} · since{' '}
+                <Mono>{t.openedAt}</Mono>
+              </span>
+              <Money value={totals.total} className="open-tab__total" />
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="merge__actions">
+        <Button variant="secondary" onClick={onBack}>
+          Back
+        </Button>
+        <Button onClick={onAlongside} autoFocus>
+          Seat as a separate tab
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function MergeConfirm({
   source,
   target,
@@ -115,7 +210,7 @@ function MergeConfirm({
   onMerge: () => void;
   onBack: () => void;
 }) {
-  const { settings } = usePos();
+  const { settings, locations } = usePos();
   const sourceTotals = computeTotals(source.cart, settings.taxRate, source.discount);
   const targetTotals = computeTotals(target.cart, settings.taxRate, target.discount);
   const combined = computeTotals(mergeLines(target.cart, source.cart), settings.taxRate, target.discount);
@@ -139,7 +234,7 @@ function MergeConfirm({
         ) : (
           'a tab'
         )}{' '}
-        open — each table or room holds one tab at a time.
+        open{target.locationId && !holdsManyTabs(locations, target.locationId) ? ' — a room holds one tab at a time' : ''}.
       </p>
 
       {empty ? (

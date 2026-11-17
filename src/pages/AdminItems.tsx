@@ -2,10 +2,14 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import './AdminItems.css';
 import { Button } from '../components/Button';
+import { SortSelect } from '../components/ListControls';
 import { Money, Mono } from '../components/Mono';
 import { Pill, PillRow } from '../components/Pill';
+import { SearchField } from '../components/SearchField';
 import { StatusChip } from '../components/StatusChip';
 import { categoryPath, categoryTree, inCategory, stockState, type CatalogItem, type CategoryId } from '../data/catalog';
+import { ITEM_SORTS, withAddedOrder } from '../lib/itemSorts';
+import { matchesSearch, sortRows } from '../lib/listView';
 import { usePos } from '../lib/store';
 
 /** A category, or `restock`: tracked items that are low or sold out. */
@@ -26,19 +30,24 @@ export function AdminItems() {
   const { catalog, categories: allCategories, settings, can, canEditCategory } = usePos();
   const restock = (item: CatalogItem) => needsRestock(item, settings.lowStockDefault);
   const [filter, setFilter] = useState<Filter>('all');
+  const [query, setQuery] = useState('');
+  const [sort, setSort] = useState('newest');
 
   const wholeMenu = can('catalog');
   const categories = categoryTree(allCategories)
     .map(({ category }) => category)
     .filter((c) => canEditCategory(c.id));
-  const mine = wholeMenu ? catalog : catalog.filter((i) => canEditCategory(i.category));
+  // Recently added first unless another order is picked, so what was just added is at the top.
+  const sorted = sortRows(withAddedOrder(catalog), ITEM_SORTS, sort).map((r) => r.item);
+  const mine = wholeMenu ? sorted : sorted.filter((i) => canEditCategory(i.category));
   const restockCount = mine.filter(restock).length;
-  const items =
+  const items = (
     filter === 'all'
       ? mine
       : filter === 'restock'
         ? mine.filter(restock)
-        : mine.filter((i) => inCategory(allCategories, i.category, filter));
+        : mine.filter((i) => inCategory(allCategories, i.category, filter))
+  ).filter((i) => matchesSearch(query, i.name, categoryPath(allCategories, i.category), i.description));
 
   return (
     <>
@@ -64,6 +73,11 @@ export function AdminItems() {
         </div>
       </div>
 
+      <div className="list-tools">
+        <SearchField value={query} onChange={setQuery} placeholder="Search items" label="Search items" />
+        <SortSelect value={sort} onChange={setSort} options={ITEM_SORTS} />
+      </div>
+
       <PillRow label="Filter items" className="admin-items__filters">
         <Pill active={filter === 'all'} onClick={() => setFilter('all')}>
           All
@@ -85,11 +99,13 @@ export function AdminItems() {
 
         {items.length === 0 && (
           <p className="admin-items__empty">
-            {filter === 'restock'
-              ? 'Everything tracked is well stocked.'
-              : categories.length === 0 && !wholeMenu
-                ? 'No categories are open to the kitchen yet — a manager can pick them in Settings, under Kitchen menu.'
-                : 'No items here yet — add one with New item.'}
+            {query.trim()
+              ? 'No items match that search.'
+              : filter === 'restock'
+                ? 'Everything tracked is well stocked.'
+                : categories.length === 0 && !wholeMenu
+                  ? 'No categories are open to the kitchen yet — a manager can pick them in Settings, under Kitchen menu.'
+                  : 'No items here yet — add one with New item.'}
           </p>
         )}
 

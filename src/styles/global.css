@@ -287,3 +287,10 @@ optgroup {
     transform: translateY(4px);
   }
 }
+
+/* A customer's name beside a tab or order name in any list: there, but quieter. */
+.order-row__customer,
+.open-tab__customer {
+  font-weight: 500;
+  color: var(--ink-soft);
+}

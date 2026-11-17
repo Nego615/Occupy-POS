@@ -19,7 +19,7 @@ export function VariantDialog({
   onPick: (variant: CatalogItem) => void;
   onClose: () => void;
 }) {
-  const { cart, catalog, promotions, categories, settings } = usePos();
+  const { cart, tabCatalog: catalog, promotions, categories, settings } = usePos();
   const onTab = itemQuantities(cart);
   const variants = product ? variantsOf(catalog, product.id).filter((v) => v.available) : [];
 

@@ -2,7 +2,10 @@ import { CATALOG, TAX_RATE, type AddOnPick, type Pour } from './catalog';
 import { HISTORY_DAYS, dateOfDaysAgo, daysAgoOf } from './history';
 import { currencyOf, roundMoney, type CurrencyCode } from '../lib/currency';
 
-/** `charged` is closed onto a room's bill, to be paid when the room settles up. */
+/**
+ * `charged` is closed unpaid: onto a room's bill, to be paid when the room
+ * settles up, or onto a client's account as a debt.
+ */
 export type OrderStatus = 'paid' | 'occupied' | 'refunded' | 'charged';
 
 /** How money was taken. Card is a standalone terminal; mobile is M-Pesa, Tigo Pesa, Airtel Money and the like. */
@@ -124,7 +127,13 @@ export type OrderRecord = {
   refundedBy?: string;
   /** The room it was charged to, when it went on a room's bill instead of being paid on the spot. */
   roomId?: string;
-  /** ISO timestamp a room charge was paid off with the rest of the room's bill. */
+  /** The client whose account it went on, as a debt. Any payments on it until then are part payments. */
+  clientId?: string;
+  /** The client the order was for — picked on the register, or the account it went on. */
+  customerId?: string;
+  /** Their name as it was when the order closed, so it reads the same if they're renamed. */
+  customerName?: string;
+  /** ISO timestamp a room charge or debt was paid off. */
   settledAt?: string;
   /** Changes made after it closed, oldest first. */
   edits?: OrderEdit[];

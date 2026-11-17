@@ -7,6 +7,7 @@ import { Button } from '../../../components/Button';
 import { LineDialog, PriceDialog } from '../../../components/CounterDialogs';
 import { ItemTile } from '../../../components/ItemTile';
 import { BigMoney, Money, Mono } from '../../../components/Mono';
+import { CustomerDialog } from '../../../components/CustomerDialog';
 import { OpenTabsDialog } from '../../../components/OpenTabsDialog';
 import { Pill, PillRow } from '../../../components/Pill';
 import { SummaryRow } from '../../../components/Receipt';
@@ -48,7 +49,7 @@ export function RetailRegister() {
     tab,
     cart,
     totals,
-    catalog,
+    tabCatalog: catalog,
     products,
     categories,
     promotions,
@@ -71,6 +72,7 @@ export function RetailRegister() {
   const [choosing, setChoosing] = useState<Product | null>(null);
   const [editingLine, setEditingLine] = useState<string | null>(null);
   const [browsing, setBrowsing] = useState(false);
+  const [namingCustomer, setNamingCustomer] = useState(false);
   const [confirmingClear, setConfirmingClear] = useState(false);
   /** Why the last scan rang nothing up, until the next one or a keystroke. */
   const [scanNote, setScanNote] = useState<string | null>(null);
@@ -309,6 +311,7 @@ export function RetailRegister() {
           </button>
         </div>
         <OpenTabsDialog open={browsing} onClose={() => setBrowsing(false)} />
+        <CustomerDialog open={namingCustomer} onClose={() => setNamingCustomer(false)} />
 
         <div className="retail-sale">
           <div className="retail-sale__top">
@@ -318,6 +321,24 @@ export function RetailRegister() {
             </span>
           </div>
           <BigMoney value={partPaid ? due : totals.total} className="retail-sale__amount" />
+          {/* Optional: whose sale it is. Goes on the receipt. */}
+          <button
+            type="button"
+            className={tab.customerName ? 'tab-card__customer tab-card__customer--set' : 'tab-card__customer'}
+            onClick={() => setNamingCustomer(true)}
+            aria-label={tab.customerName ? `For ${tab.customerName} — change customer` : 'Add a customer name'}
+          >
+            {tab.customerName ? (
+              <>
+                For <strong>{tab.customerName}</strong>
+                <span aria-hidden="true">▾</span>
+              </>
+            ) : (
+              <>
+                <span aria-hidden="true">+</span> Customer
+              </>
+            )}
+          </button>
           {hasItems && !partPaid && editsSale && (
             <button
               type="button"

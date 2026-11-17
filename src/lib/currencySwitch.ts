@@ -149,9 +149,14 @@ export function switchBlockers(input: {
 }): string[] {
   const { tabs, orders, cashUps, now = new Date() } = input;
   const out: string[] = [];
-  const rooms = new Set(orders.filter((o) => o.status === 'charged').map((o) => o.roomId)).size;
+  const owing = orders.filter((o) => o.status === 'charged' && !o.deleted);
+  const rooms = new Set(owing.filter((o) => !o.clientId).map((o) => o.roomId)).size;
   if (rooms > 0) {
     out.push(`${rooms} ${rooms === 1 ? 'room has a bill' : 'rooms have bills'} not yet settled — settle at the counter first.`);
+  }
+  const clients = new Set(owing.filter((o) => o.clientId).map((o) => o.clientId)).size;
+  if (clients > 0) {
+    out.push(`${clients} ${clients === 1 ? 'client owes' : 'clients owe'} on account — settle their debts at the counter first.`);
   }
   const taken = shiftTotals(orders, tabs.flatMap((t) => t.payments), shiftStart(cashUps, now), now.toISOString()).payments;
   if (taken > 0) {

@@ -5,6 +5,7 @@ import {
   CATEGORIES,
   categoryLineage,
   inAnyCategory,
+  roundStock,
   stockFits,
   titleCase,
   withTitleCaseNames,
@@ -19,7 +20,9 @@ import {
 import type { Product } from '../data/products';
 import { DEFAULT_SETTINGS, exchangeRate, withSwitchCurrencies, type Settings } from '../data/settings';
 import type { Expense } from '../data/expenses';
+import { allocatePayment, clientBalance, debtsOf, withinLimit, type Client } from '../data/clients';
 import { expectedCash, expectedLocalCash, shiftStart, shiftTotals, type CashUp } from '../data/cashup';
+import { shiftReport, tillPaidOut } from '../data/shiftReport';
 import {
   PROMOTIONS,
   SET_MEALS,
@@ -117,9 +120,10 @@ import {
 } from './cart';
 import { salaried, type PayrollRun } from './payroll';
 import { costDue, currencyOf, setActiveCurrency, setCostCurrency, type CurrencyCode } from './currency';
-import { convertMenu, convertTab, readOrder, stampRate, switchBlockers } from './currencySwitch';
+import { convertMenu, convertPrice, convertTab, readOrder, stampRate, switchBlockers } from './currencySwitch';
 import { useBusiness } from './business';
 import type { PosRepository, Snapshot } from './persist';
+import type { StockEntry } from './inventory';
 import { useInventory, type InventoryStore } from './useInventory';
 import { restored, useNextId, usePersist, useRemote } from './usePersist';
 import { formatTime } from './useClock';
@@ -135,6 +139,8 @@ type StoredTab = {
   openedIso: string;
   /** Staff id of whoever opened it — set by the first person to ring anything up on it. */
   openedBy?: string;
+  /** The client it's for, picked on the register. Offered first when the bill goes on account. */
+  customerId?: string;
   cart: CartLine[];
   /** Lines already on a printed docket. Whatever's on the cart beyond this is the current order. */
   printed?: Printed;
@@ -153,6 +159,12 @@ type StoredTab = {
   billRequestedAt?: string;
   /** Items taken off it from Orders by a manager — joins the order's edit log when it closes. */
   edits?: OrderEdit[];
+  /**
+   * Stock this tab has already drawn, by item. Items come off the shelf as
+   * they're rung up, so this follows the cart; the bill closing draws only
+   * whatever it's still short. Missing on tabs from before this was kept.
+   */
+  drawn?: Record<string, number>;
 };
 
 export type OpenTab = StoredTab & {
@@ -160,6 +172,8 @@ export type OpenTab = StoredTab & {
   name: string;
   /** Display time it was opened — "4:41 PM". */
   openedAt: string;
+  /** The name of the client it's for, when one's picked. */
+  customerName?: string;
 };
 
 /**
@@ -220,6 +234,11 @@ const INITIAL_TABS = (): StoredTab[] => [
 type PosStore = {
   /** The item catalog. Edits from the item editor land here. */
   catalog: CatalogItem[];
+  /**
+   * The catalog with stock as the register's tab sees it: on the shelf plus
+   * what the tab has already drawn. Use it for "can this go on the tab" checks.
+   */
+  tabCatalog: CatalogItem[];
   updateItem: (id: string, patch: Partial<CatalogItem>) => void;
   /** Adds an item to the catalog and returns it with its new id. */
   createItem: (item: Omit<CatalogItem, 'id'>) => CatalogItem;
@@ -320,10 +339,12 @@ type PosStore = {
    */
   removeFromTab: (orderId: number, qty: Record<string, number>, reason: string) => string | null;
   /**
-   * Puts a location's tab on the register — its open tab if it has one,
-   * otherwise a fresh one. `null` starts a new walk-in.
+   * Puts a location's tab on the register — an open one there the signed-in
+   * person can see, otherwise a fresh one. With `newTab`, a table always gets
+   * a fresh one: a table holds any number of tabs, a room one. `null` starts
+   * a new walk-in.
    */
-  openTab: (locationId: string | null) => void;
+  openTab: (locationId: string | null, newTab?: boolean) => void;
   /** Puts an existing open tab on the register. Refused for a tab the signed-in person can't see. */
   switchTab: (orderId: number) => void;
   /**
@@ -333,7 +354,8 @@ type PosStore = {
   canSeeTab: (tab: Pick<OpenTab, 'openedBy'>) => boolean;
   /**
    * Moves the register's tab to a table or room (or back to walk-in).
-   * A location holds one tab at a time, so an occupied one is refused.
+   * A table takes any number of tabs; a room holds one, so an occupied room
+   * is refused.
    */
   assignTab: (locationId: string | null) => boolean;
   /**
@@ -353,6 +375,8 @@ type PosStore = {
   removePayment: (index: number) => void;
   /** Sends the register's tab to the counter to be paid. */
   requestBill: () => void;
+  /** Puts the register's tab in a client's name, or takes the name off with null. */
+  setTabCustomer: (clientId: string | null) => void;
   /**
    * The current order on the register's tab — what's been added since its
    * last docket — as an order to print, and marks it printed so it joins the
@@ -374,6 +398,26 @@ type PosStore = {
     roomId: string,
     payment: Pick<Payment, 'method' | 'ref'> & { local?: Pick<LocalCash, 'currency' | 'rate'> },
   ) => number;
+  /** Regulars the shop keeps accounts for, archived ones included. */
+  clients: Client[];
+  /** Adds a client, or updates one when `id` is given. Returns it. */
+  saveClient: (data: Omit<Client, 'id' | 'createdAt'> & { id?: string }) => Client;
+  /**
+   * Removes a client. Refused (an error) while they owe anything; one with
+   * past debts is archived instead, so their history keeps its name.
+   */
+  removeClient: (id: string) => string | null;
+  /**
+   * Closes the register's tab, or open tab `orderId`, onto a client's account
+   * as a debt. Anything already paid toward it stays as a part payment; `tip`
+   * is the tip if none is fixed yet. Returns an error, or null once it's done.
+   */
+  chargeToClient: (orderId: number, clientId: string, tip?: number) => string | null;
+  /**
+   * Takes a payment toward a client's debts, oldest bill first; bills it
+   * covers are settled. Capped at what they owe. Returns how much went on.
+   */
+  payDebt: (clientId: string, payment: Payment) => number;
   /** Closed counter shifts, newest first. */
   cashUps: CashUp[];
   /** Closes the current shift with the drawer count, and starts the next. */
@@ -387,6 +431,10 @@ type PosStore = {
     note?: string;
     local?: { float: number; counted: number };
     stock?: Record<string, number>;
+    /** When the shift began, if not at the last cash-up. Never before it. */
+    openedAt?: string;
+    /** When it ended, if before now. */
+    closedAt?: string;
   }) => CashUp;
   /** Whether `itemId` is made in the kitchen, per Settings' kitchen categories. */
   isKitchenItem: (itemId: string) => boolean;
@@ -485,11 +533,24 @@ type PosStore = {
   /** Manager correction — times, break, or a missed clock-out. */
   updateShift: (id: string, patch: Partial<Omit<ShiftRecord, 'id' | 'staffId' | 'date'>>) => void;
   removeShift: (id: string) => void;
+  /**
+   * Empties the chosen parts of the shop's records and keeps the rest — staff,
+   * settings, tables and categories always stay. Synced like any other edit.
+   */
+  resetData: (parts: ResetPart[]) => void;
   /** Wipes everything saved and starts again from the new-shop setup. */
   resetAllData: () => Promise<void>;
 } & InventoryStore;
 
+/** What a partial reset can clear. */
+export type ResetPart = 'sales' | 'stock' | 'catalog' | 'purchases' | 'expenses' | 'staffRecords';
+
 const PosContext = createContext<PosStore | null>(null);
+
+/** Whether a location seats more than one tab at once — tables do; rooms keep one bill. */
+export function holdsManyTabs(locations: Location[], locationId: string): boolean {
+  return locations.find((l) => l.id === locationId)?.kind !== 'room';
+}
 
 /**
  * An empty walk-in tab carries nothing worth keeping, so it's dropped as soon
@@ -530,6 +591,7 @@ export function newShopSnapshot(
     settings,
     kitchenTickets: [],
     cashUps: [],
+    clients: [],
     movements: [],
     suppliers: [],
     purchaseOrders: [],
@@ -576,6 +638,44 @@ function freshTab(orderId: number, locationId: string | null, openedBy?: string)
     sent: [],
     payments: [],
   };
+}
+
+/** How a tab's stock movements are labelled in the ledger. */
+function tabRef(orderId: number): string {
+  return isDraftId(orderId) ? 'Open tab' : `Order #${orderId}`;
+}
+
+/**
+ * The stock entries that bring what `tab` has drawn in line with `cart` —
+ * more rung up comes off the shelf, anything taken off goes back — and the
+ * tally it has drawn afterwards.
+ */
+function drawDown(
+  tab: Pick<StoredTab, 'drawn'>,
+  cart: CartLine[],
+  ref: string,
+): { drawn: Record<string, number>; entries: StockEntry[] } {
+  const want = itemQuantities(cart);
+  const had = tab.drawn ?? {};
+  const entries: StockEntry[] = [];
+  for (const itemId of new Set([...want.keys(), ...Object.keys(had)])) {
+    const change = roundStock((had[itemId] ?? 0) - (want.get(itemId) ?? 0));
+    if (change === 0) continue;
+    entries.push(
+      change < 0
+        ? { itemId, change, reason: 'sale', ref }
+        : { itemId, change, reason: 'refund', ref, note: 'Taken off the tab' },
+    );
+  }
+  return { drawn: Object.fromEntries([...want].filter(([, qty]) => qty !== 0)), entries };
+}
+
+/** Two tabs' drawn stock, as one tab's once they're merged. */
+function mergeDrawn(a: StoredTab['drawn'], b: StoredTab['drawn']): StoredTab['drawn'] {
+  if (!a && !b) return undefined;
+  const sum: Record<string, number> = { ...a };
+  for (const [itemId, qty] of Object.entries(b ?? {})) sum[itemId] = roundStock((sum[itemId] ?? 0) + qty);
+  return sum;
 }
 
 /**
@@ -637,6 +737,8 @@ function tabAsOrder(tab: OpenTab, taxRate: number): Order {
     status: 'occupied',
     at: tab.openedIso,
     ...(tab.openedBy ? { servedBy: tab.openedBy } : {}),
+    ...(tab.customerId ? { customerId: tab.customerId } : {}),
+    ...(tab.customerName ? { customerName: tab.customerName } : {}),
     lines: toOrderLines(tab.cart),
     ...(totals.orderDiscount > 0 && tab.discount
       ? { discount: totals.orderDiscount, discountLabel: discountLabel(tab.discount) }
@@ -726,6 +828,7 @@ export function PosProvider({
   // Today's rate, stamped on whatever's bought or paid out in the cost currency.
   const rate = exchangeRate(settings);
   const [cashUps, setCashUps] = useState<CashUp[]>(() => restored(snapshot, 'cashUps', []));
+  const [clients, setClients] = useState<Client[]>(() => restored(snapshot, 'clients', []));
   const [kitchenTickets, setKitchenTickets] = useState<KitchenTicket[]>(() =>
     restored(snapshot, 'kitchenTickets', () => seedTickets().sort((a, b) => a.sentAt - b.sentAt)),
   );
@@ -754,6 +857,7 @@ export function PosProvider({
   usePersist(repo, 'settings', settings);
   usePersist(repo, 'kitchenTickets', kitchenTickets);
   usePersist(repo, 'cashUps', cashUps);
+  usePersist(repo, 'clients', clients);
 
   // Changes from the other screens signed in to this shop.
   useRemote(repo, 'tabs', setTabs);
@@ -765,6 +869,7 @@ export function PosProvider({
   useRemote(repo, 'promotions', setPromotions);
   useRemote(repo, 'setMeals', setSetMeals);
   useRemote(repo, 'staff', setStaff);
+  useRemote(repo, 'clients', setClients);
   useRemote(repo, 'payrollRuns', setPayrollRuns);
   useRemote(repo, 'expenses', setExpenses);
   useRemote(repo, 'shifts', setShifts);
@@ -824,14 +929,44 @@ export function PosProvider({
 
   // Someone who can't see the register's tab (a server signing in after
   // another) gets a fresh walk-in of their own instead.
+  // Anyone else signing in — after a sign-out or an auto-lock — starts on a
+  // fresh walk-in too, even when they may see every tab, so their sale never
+  // lands on the last person's docket. Others' tabs stay a tap away.
+  const lastSignedIn = useRef<string | null>(null);
   useEffect(() => {
     if (!me) return;
+    const arrived = lastSignedIn.current !== me.id;
+    lastSignedIn.current = me.id;
     const active = storedTabs.find((t) => t.orderId === activeId);
-    if (!active || canSeeTab(active)) return;
+    if (!active) return;
+    const someoneElses = !!active.openedBy && active.openedBy !== me.id;
+    if (canSeeTab(active) && !(arrived && someoneElses)) return;
     const fresh = freshTab(draftId(), null, me.id);
     setTabs((prev) => [...pruneIdle(prev, fresh.orderId), fresh]);
     setActiveId(fresh.orderId);
   }, [me, storedTabs, activeId, canSeeTab, nextOrderId]);
+
+  // A tab whose number already belongs to a closed order. Opened before that
+  // order closed, it's the same bill brought back by a screen that was still
+  // adding to it as it was paid — it goes, so it can't be paid twice. Opened
+  // after, it's a new tab that was handed a clashing number: it takes a fresh one.
+  useEffect(() => {
+    const closedAt = new Map(closedRecords.map((o) => [o.id, o.deleted?.at ?? o.at]));
+    const clashes = storedTabs.filter((t) => !isDraftId(t.orderId) && closedAt.has(t.orderId));
+    if (clashes.length === 0) return;
+    const renumber = new Map<number, number>();
+    for (const t of clashes) {
+      if (t.openedIso > closedAt.get(t.orderId)!) renumber.set(t.orderId, nextOrderId());
+    }
+    setTabs((prev) =>
+      prev.flatMap((t) => {
+        if (!closedAt.has(t.orderId) || isDraftId(t.orderId)) return [t];
+        const fresh = renumber.get(t.orderId);
+        return fresh === undefined ? [] : [{ ...t, orderId: fresh }];
+      }),
+    );
+    if (renumber.has(activeId)) setActiveId(renumber.get(activeId)!);
+  }, [storedTabs, closedRecords, activeId, nextOrderId]);
 
   // Suppliers, purchases, bills, and the stock ledger. Stock moves only through it.
   const inventory = useInventory(catalog, setCatalog, me, repo, snapshot);
@@ -843,8 +978,9 @@ export function PosProvider({
         ...t,
         name: locationName(locations, t.locationId),
         openedAt: formatTime(new Date(t.openedIso)),
+        ...(t.customerId ? { customerName: clients.find((c) => c.id === t.customerId)?.name } : {}),
       })),
-    [storedTabs, locations],
+    [storedTabs, locations, clients],
   );
 
   // There is always an active tab; fall back defensively rather than crash.
@@ -877,12 +1013,19 @@ export function PosProvider({
       const id = numbered.current.get(activeId) ?? activeId;
       // An empty tab takes the next order number with its first item.
       const current = storedTabs.find((t) => t.orderId === id);
-      const number =
-        isDraftId(id) && current && update(claim(current)).cart.length > 0 ? nextOrderId() : null;
+      const preview = current && update(claim(current));
+      const number = isDraftId(id) && preview && preview.cart.length > 0 ? nextOrderId() : null;
+      // What's rung up comes off the shelf now; what's taken off goes back.
+      const draw =
+        current && preview && preview.cart !== current.cart
+          ? drawDown(current, preview.cart, tabRef(number ?? id))
+          : null;
+      if (draw) logStock(draw.entries);
       setTabs((prev) =>
         prev.map((t) => {
           if (t.orderId !== id) return t;
-          const next = update(claim(t));
+          const updated = update(claim(t));
+          const next = draw ? { ...updated, drawn: draw.drawn } : updated;
           return number !== null && next.cart.length > 0 ? { ...next, orderId: number } : next;
         }),
       );
@@ -891,8 +1034,16 @@ export function PosProvider({
         setActiveId(number);
       }
     },
-    [activeId, me, storedTabs, nextOrderId],
+    [activeId, me, storedTabs, nextOrderId, logStock],
   );
+
+  // Stock as the register's tab sees it: what's on the shelf plus what this
+  // tab has already drawn, since its own items are still its to sell.
+  const tabCatalog = useMemo(() => {
+    const drawn = tab.drawn;
+    if (!drawn) return catalog;
+    return catalog.map((i) => (drawn[i.id] ? { ...i, stock: roundStock(i.stock + drawn[i.id]) } : i));
+  }, [catalog, tab.drawn]);
 
   const updateActiveCart = useCallback(
     (update: (lines: CartLine[]) => CartLine[]) => {
@@ -910,22 +1061,23 @@ export function PosProvider({
     (item: CatalogItem, portion?: Portion, addOns: AddOnPick[] = []) => {
       const promo = bestPromo(promotions, item, new Date(), categories);
       const line = withAddOns(portionLine(item, portion ?? null, promo, catalog), addOns);
-      if (!lineFits(cart, line, catalog)) return false;
-      updateActiveCart((lines) => (lineFits(lines, line, catalog) ? addLine(lines, line) : lines));
+      if (!lineFits(cart, line, tabCatalog)) return false;
+      updateActiveCart((lines) => (lineFits(lines, line, tabCatalog) ? addLine(lines, line) : lines));
       return true;
     },
-    [updateActiveCart, promotions, categories, cart, catalog],
+    [updateActiveCart, promotions, categories, cart, catalog, tabCatalog],
   );
 
   const addOpenPriceItem = useCallback(
     (item: CatalogItem, price: number) => {
       if (!(price > 0)) return;
+      const onShelf = tabCatalog.find((i) => i.id === item.id) ?? item;
       updateActiveCart((lines) => {
         const inCart = itemQuantities(lines).get(item.id) ?? 0;
-        return stockFits(item, inCart) ? addLine(lines, openPriceLine(item, price)) : lines;
+        return stockFits(onShelf, inCart) ? addLine(lines, openPriceLine(item, price)) : lines;
       });
     },
-    [updateActiveCart],
+    [updateActiveCart, tabCatalog],
   );
 
   const addCustomAmount = useCallback(
@@ -945,11 +1097,11 @@ export function PosProvider({
       const anyPicked = picks.some((p) => (Array.isArray(p) ? p.length > 0 : !!p));
       if (picks.length !== meal.courses.length || !anyPicked) return false;
       const line = mealLine(meal, picks, addOns);
-      if (!lineFits(cart, line, catalog)) return false;
+      if (!lineFits(cart, line, tabCatalog)) return false;
       updateActiveCart((lines) => addLine(lines, line));
       return true;
     },
-    [cart, catalog, updateActiveCart],
+    [cart, tabCatalog, updateActiveCart],
   );
 
   // A retail shop has no kitchen, so nothing it sells is sent to one.
@@ -1002,16 +1154,18 @@ export function PosProvider({
   const replaceActiveCart = useCallback(
     (next: CartLine[]) => {
       const { sent, voids } = takeVoids(next, tab.sent);
+      const { drawn, entries } = drawDown(tab, next, tabRef(tab.orderId));
+      logStock(entries);
       setTabs((prev) =>
         prev.map((t) =>
           t.orderId === tab.orderId
-            ? { ...t, cart: next, sent, ...(t.printed ? { printed: trimPrinted(next, t.printed) } : {}) }
+            ? { ...t, cart: next, sent, drawn, ...(t.printed ? { printed: trimPrinted(next, t.printed) } : {}) }
             : t,
         ),
       );
       if (voids.length > 0) fireTicket(tab, voids, 'void');
     },
-    [tab, fireTicket],
+    [tab, fireTicket, logStock],
   );
 
   const setQty = useCallback(
@@ -1020,10 +1174,10 @@ export function PosProvider({
       // Only increases are capped — stepping down always works, even if the
       // line already holds more than is now on hand.
       const next =
-        qty > current ? Math.min(qty, Math.max(current, lineCap(cart, key, catalog))) : qty;
+        qty > current ? Math.min(qty, Math.max(current, lineCap(cart, key, tabCatalog))) : qty;
       replaceActiveCart(setLineQty(cart, key, next));
     },
-    [replaceActiveCart, cart, catalog],
+    [replaceActiveCart, cart, tabCatalog],
   );
 
   // A note changes what the kitchen makes, so a sent line that gains or
@@ -1074,10 +1228,13 @@ export function PosProvider({
   );
 
   const openTab = useCallback(
-    (locationId: string | null) => {
-      const existing = locationId
-        ? storedTabs.find((t) => t.locationId === locationId)
-        : undefined;
+    (locationId: string | null, newTab = false) => {
+      const shared = locationId !== null && holdsManyTabs(locations, locationId);
+      // A room's one tab is its tab, whoever opened it; at a table, only one of your own.
+      const existing =
+        locationId === null || (shared && newTab)
+          ? undefined
+          : storedTabs.find((t) => t.locationId === locationId && (!shared || canSeeTab(t)));
       if (existing) {
         switchTab(existing.orderId);
         return;
@@ -1089,13 +1246,14 @@ export function PosProvider({
       setTabs((prev) => [...pruneIdle(leaveActive(prev, fresh.orderId), fresh.orderId), fresh]);
       setActiveId(fresh.orderId);
     },
-    [storedTabs, switchTab, me, leaveActive, activeId],
+    [storedTabs, switchTab, me, leaveActive, activeId, locations, canSeeTab],
   );
 
   const assignTab = useCallback(
     (locationId: string | null) => {
       const taken =
         locationId !== null &&
+        !holdsManyTabs(locations, locationId) &&
         storedTabs.some((t) => t.locationId === locationId && t.orderId !== activeId);
       if (taken) return false;
       setTabs((prev) =>
@@ -1109,7 +1267,7 @@ export function PosProvider({
       );
       return true;
     },
-    [storedTabs, activeId, me],
+    [storedTabs, activeId, me, locations],
   );
 
   const mergeTab = useCallback(
@@ -1140,6 +1298,8 @@ export function PosProvider({
                   // What the kitchen already has from either tab stays sent.
                   sent: addSent(t.sent, source.sent),
                   printed: addPrinted(t.printed, source.printed),
+                  // Both tabs' items are already off the shelf.
+                  drawn: mergeDrawn(t.drawn, source.drawn),
                   ...(t.edits || source.edits ? { edits: [...(t.edits ?? []), ...(source.edits ?? [])] } : {}),
                 }
               : t,
@@ -1152,11 +1312,18 @@ export function PosProvider({
   );
 
   /**
-   * Closes open tab `orderId` — paid with `payments`, or onto a room's bill.
+   * Closes open tab `orderId` — paid with `payments`, onto a room's bill, or
+   * onto a client's account with whatever was paid so far.
    * If it was this register's tab, a fresh walk-in takes its place.
    */
   const closeTab = useCallback(
-    (orderId: number, close: { payments: Payment[]; tip: number } | { roomId: string }) => {
+    (
+      orderId: number,
+      close:
+        | { payments: Payment[]; tip: number }
+        | { roomId: string }
+        | { clientId: string; payments: Payment[]; tip: number },
+    ) => {
       const closing = tabs.find((t) => t.orderId === orderId);
       if (!closing) return;
       const closingTotals = computeTotals(closing.cart, settings.taxRate, closing.discount);
@@ -1167,26 +1334,26 @@ export function PosProvider({
       const unsentNow = unsentLines(closing.cart, closing.sent, isKitchenItem);
       if (unsentNow.length > 0) fireTicket(closing, unsentNow, 'order');
 
-      // Stock is drawn down when the bill closes, not when an item lands on a
-      // tab. A set meal draws down each of its picks.
-      logStock(
-        [...itemQuantities(closing.cart)].map(([itemId, qty]) => ({
-          itemId,
-          change: -qty,
-          reason: 'sale' as const,
-          ref: `Order #${orderId}`,
-        })),
-      );
+      // Items came off the shelf as they were rung up, so closing draws only
+      // what the tab is still short — all of it, for a tab from before that.
+      // A set meal draws down each of its picks.
+      logStock(drawDown(closing, closing.cart, `Order #${orderId}`).entries);
 
       const onRoom = 'roomId' in close;
+      const onAccount = 'clientId' in close;
+      // Whose order it was: the account it went on, or the name picked on the register.
+      const customerId = onAccount ? close.clientId : closing.customerId;
+      const customerName = customerId ? clients.find((c) => c.id === customerId)?.name : undefined;
       const record: OrderRecord = {
         id: orderId,
         name: closing.name,
         locationId: closing.locationId ?? undefined,
-        status: onRoom ? 'charged' : 'paid',
+        status: onRoom || onAccount ? 'charged' : 'paid',
         at: new Date().toISOString(),
         staffId: me?.id,
         ...(closing.openedBy ? { servedBy: closing.openedBy } : {}),
+        ...(customerId ? { customerId } : {}),
+        ...(customerName ? { customerName } : {}),
         lines,
         ...(closingTotals.orderDiscount > 0 && closing.discount
           ? {
@@ -1199,6 +1366,7 @@ export function PosProvider({
         tip: onRoom ? 0 : close.tip,
         payments: onRoom ? [] : close.payments,
         ...(onRoom ? { roomId: close.roomId } : {}),
+        ...(onAccount ? { clientId: close.clientId } : {}),
         ...(closing.edits?.length ? { edits: closing.edits } : {}),
       };
       setClosedOrders((prev) => [record, ...prev]);
@@ -1217,7 +1385,7 @@ export function PosProvider({
       ]);
       setActiveId(fresh.orderId);
     },
-    [tabs, activeId, settings.taxRate, isKitchenItem, fireTicket, logStock, catalog, me],
+    [tabs, activeId, settings.taxRate, isKitchenItem, fireTicket, logStock, catalog, me, clients],
   );
 
   const deleteTab = useCallback(
@@ -1229,7 +1397,9 @@ export function PosProvider({
       if (!reason.trim()) return 'Say why it’s being deleted.';
 
       // Kept as a deleted order, so who deleted what, and why, can be looked up.
-      // Nothing was drawn from stock while it was open, so none goes back.
+      // Whatever it drew from stock while it was open goes back.
+      const restock = drawDown(doomed, [], `Order #${orderId} · deleted`).entries;
+      logStock(restock);
       const totalsHere = computeTotals(doomed.cart, settings.taxRate, doomed.discount);
       const record: OrderRecord = {
         id: orderId,
@@ -1242,7 +1412,7 @@ export function PosProvider({
         tax: totalsHere.tax,
         tip: 0,
         payments: [],
-        deleted: { at: new Date().toISOString(), by: me.id, reason: reason.trim(), restocked: false },
+        deleted: { at: new Date().toISOString(), by: me.id, reason: reason.trim(), restocked: restock.length > 0 },
         ...(doomed.edits?.length ? { edits: doomed.edits } : {}),
       };
       if (doomed.cart.length > 0) setClosedOrders((prev) => [record, ...prev]);
@@ -1256,7 +1426,7 @@ export function PosProvider({
       setActiveId(fresh.orderId);
       return null;
     },
-    [me, settings, tabs, activeId, catalog],
+    [me, settings, tabs, activeId, catalog, logStock],
   );
 
   const removeFromTab = useCallback(
@@ -1285,6 +1455,9 @@ export function PosProvider({
       };
       // The kitchen stops on anything it was sent that's no longer on the tab.
       const { sent, voids } = takeVoids(cart, target.sent);
+      // What came off goes back on the shelf.
+      const { drawn, entries: restock } = drawDown(target, cart, `Order #${orderId} · edited`);
+      logStock(restock);
       setTabs((prev) =>
         prev.map((t) =>
           t.orderId === orderId
@@ -1292,6 +1465,7 @@ export function PosProvider({
                 ...t,
                 cart,
                 sent,
+                drawn,
                 ...(t.printed ? { printed: trimPrinted(cart, t.printed) } : {}),
                 edits: [...(t.edits ?? []), entry],
               }
@@ -1301,7 +1475,7 @@ export function PosProvider({
       if (voids.length > 0) fireTicket(target, voids, 'void');
       return null;
     },
-    [me, settings, tabs, fireTicket],
+    [me, settings, tabs, fireTicket, logStock],
   );
 
   const takePayment = useCallback(
@@ -1328,6 +1502,21 @@ export function PosProvider({
     const at = new Date().toISOString();
     updateActiveTab((t) => ({ ...t, billRequestedAt: t.billRequestedAt ?? at }));
   }, [cart.length, updateActiveTab]);
+
+  // Straight onto the stored tab: naming the customer isn't ringing anything
+  // up, so it neither claims the tab nor gives it an order number.
+  const setTabCustomer = useCallback(
+    (clientId: string | null) => {
+      setTabs((prev) =>
+        prev.map((t) => {
+          if (t.orderId !== activeId) return t;
+          const { customerId: _old, ...rest } = t;
+          return clientId ? { ...rest, customerId: clientId } : rest;
+        }),
+      );
+    },
+    [activeId],
+  );
 
   const printDocket = useCallback(() => {
     const current = unprintedLines(tab.cart, tab.printed);
@@ -1381,6 +1570,77 @@ export function PosProvider({
     [liveRecords, me],
   );
 
+  const saveClient = useCallback(
+    (data: Omit<Client, 'id' | 'createdAt'> & { id?: string }) => {
+      const existing = data.id ? clients.find((c) => c.id === data.id) : undefined;
+      const tidy = (s?: string) => s?.trim() || undefined;
+      const fields = {
+        name: titleCase(data.name.trim()),
+        phone: tidy(data.phone),
+        note: tidy(data.note),
+        creditLimit: data.creditLimit !== undefined && data.creditLimit > 0 ? data.creditLimit : undefined,
+      };
+      const client: Client = existing
+        ? { ...existing, ...fields, ...(data.archived ? { archived: true } : { archived: undefined }) }
+        : {
+            id: slugId(fields.name, 'client', new Set(clients.map((c) => c.id))),
+            createdAt: new Date().toISOString(),
+            ...fields,
+          };
+      // Blank fields are left off rather than saved empty.
+      const clean = Object.fromEntries(Object.entries(client).filter(([, v]) => v !== undefined)) as Client;
+      setClients((prev) => (existing ? prev.map((c) => (c.id === clean.id ? clean : c)) : [...prev, clean]));
+      return clean;
+    },
+    [clients],
+  );
+
+  const removeClient = useCallback(
+    (id: string) => {
+      if (clientBalance(liveRecords, id) > 0) return 'They still owe — settle their account first.';
+      const hasHistory = closedRecords.some((o) => o.clientId === id);
+      setClients((prev) =>
+        hasHistory ? prev.map((c) => (c.id === id ? { ...c, archived: true } : c)) : prev.filter((c) => c.id !== id),
+      );
+      return null;
+    },
+    [liveRecords, closedRecords],
+  );
+
+  const chargeToClient = useCallback(
+    (orderId: number, clientId: string, tip?: number) => {
+      const charging = tabs.find((t) => t.orderId === orderId);
+      const client = clients.find((c) => c.id === clientId && !c.archived);
+      if (!charging || charging.cart.length === 0) return 'That bill isn’t open any more.';
+      if (!client) return 'Pick a client.';
+      const fixedTip = charging.tip ?? tip ?? 0;
+      const owedHere = round(
+        computeTotals(charging.cart, settings.taxRate, charging.discount).total + fixedTip - paidAmount(charging.payments),
+      );
+      if (owedHere <= 0) return 'This bill is already paid.';
+      if (!withinLimit(client, clientBalance(liveRecords, clientId), owedHere)) {
+        return `That would take ${client.name} over their limit.`;
+      }
+      closeTab(orderId, { clientId, payments: charging.payments, tip: fixedTip });
+      return null;
+    },
+    [tabs, clients, settings.taxRate, liveRecords, closeTab],
+  );
+
+  const payDebt = useCallback(
+    (clientId: string, payment: Payment) => {
+      if (!(payment.amount > 0)) return 0;
+      const at = new Date().toISOString();
+      // Stamped for the cash-up: when it came in, and who took it.
+      const stamped: Payment = { ...payment, at, ...(me ? { by: me.id } : {}) };
+      const { orders: paid, applied } = allocatePayment(debtsOf(liveRecords, clientId), stamped, at);
+      if (applied <= 0) return 0;
+      setClosedOrders((prev) => prev.map((o) => paid.get(o.id) ?? o));
+      return applied;
+    },
+    [liveRecords, me],
+  );
+
   const closeShift = useCallback(
     (count: {
       float: number;
@@ -1388,11 +1648,17 @@ export function PosProvider({
       note?: string;
       local?: { float: number; counted: number };
       stock?: Record<string, number>;
+      openedAt?: string;
+      closedAt?: string;
     }) => {
-      const openedAt = shiftStart(cashUps);
+      const earliest = shiftStart(cashUps);
+      const now = new Date().toISOString();
+      // A chosen end is never in the future, and a chosen start never overlaps the last shift.
+      const closedAt = count.closedAt && count.closedAt < now ? new Date(count.closedAt).toISOString() : now;
+      const chosenStart = count.openedAt ? new Date(count.openedAt).toISOString() : earliest;
+      const openedAt = chosenStart > earliest && chosenStart < closedAt ? chosenStart : earliest;
       // The count goes in first, so its corrections fall inside the shift it closes.
       const stockCount = count.stock ? inventory.postShiftCount(count.stock) : null;
-      const closedAt = new Date().toISOString();
       // What's on the shelf as the next shift opens: the count where there was one.
       const closingStock = Object.fromEntries(
         catalog.filter((i) => !i.untracked).map((i) => [i.id, count.stock?.[i.id] ?? i.stock]),
@@ -1403,6 +1669,10 @@ export function PosProvider({
         openedAt,
         closedAt,
       );
+      // Expenses paid from the till come out of the cost-currency drawer when there is one.
+      const paidOut = tillPaidOut(expenses, openedAt, closedAt);
+      const localDrawer = !!(count.local && rate);
+      const mainPaidOut = localDrawer ? 0 : paidOut;
       const cashUp: CashUp = {
         id: `cashup-${Date.now().toString(36)}`,
         openedAt,
@@ -1412,16 +1682,18 @@ export function PosProvider({
         taken: totals.taken,
         refunded: totals.refunded,
         payments: totals.payments,
-        expectedCash: expectedCash(count.float, totals),
+        ...(mainPaidOut ? { paidOut: mainPaidOut } : {}),
+        expectedCash: expectedCash(count.float, totals, mainPaidOut),
         countedCash: count.countedCash,
-        ...(count.local && rate
+        ...(count.local && localDrawer
           ? {
               local: {
                 currency: settings.costCurrency!,
                 float: count.local.float,
                 taken: totals.local.taken,
                 refunded: totals.local.refunded,
-                expected: expectedLocalCash(count.local.float, totals),
+                ...(paidOut ? { paidOut } : {}),
+                expected: expectedLocalCash(count.local.float, totals, paidOut),
                 counted: count.local.counted,
               },
             }
@@ -1429,11 +1701,12 @@ export function PosProvider({
         ...(count.note?.trim() ? { note: count.note.trim() } : {}),
         closingStock,
         ...(stockCount ? { countId: stockCount.id } : {}),
+        report: shiftReport(orders, expenses, openedAt, closedAt),
       };
       setCashUps((prev) => [cashUp, ...prev]);
       return cashUp;
     },
-    [cashUps, liveRecords, storedTabs, me, rate, settings.costCurrency, inventory, catalog],
+    [cashUps, liveRecords, storedTabs, me, rate, settings.costCurrency, inventory, catalog, expenses, orders],
   );
 
   const removePayment = useCallback(
@@ -1946,6 +2219,7 @@ export function PosProvider({
     // Time plus a random tail, so two devices logging at once never collide.
     const expense = {
       ...data,
+      at: data.at ?? new Date().toISOString(),
       id: `exp-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
       ...(rate ? { rate } : {}),
     };
@@ -1976,6 +2250,11 @@ export function PosProvider({
       setSetMeals(menu.setMeals);
       setPromotions(menu.promotions);
       setTabs((prev) => prev.map((t) => convertTab(t, rate, target, step)));
+      setClients((prev) =>
+        prev.map((c) =>
+          c.creditLimit === undefined ? c : { ...c, creditLimit: convertPrice(c.creditLimit, rate, target, step) },
+        ),
+      );
       convertForSwitch(rate, target);
       setExpenses((prev) => stampRate(prev, rate));
       setPayrollRuns((prev) => stampRate(prev, rate));
@@ -1991,6 +2270,34 @@ export function PosProvider({
       return { settings: next };
     },
     [tabs, liveRecords, cashUps, settings, catalog, setMeals, promotions, setSyncedCatalog, convertForSwitch],
+  );
+
+  const { clearInventory } = inventory;
+  const resetData = useCallback(
+    (parts: ResetPart[]) => {
+      const has = (part: ResetPart) => parts.includes(part);
+      if (has('sales')) {
+        // The register's tab goes too; a fresh walk-in takes its place.
+        setTabs([]);
+        setClosedOrders([]);
+        setCashUps([]);
+        setKitchenTickets([]);
+      }
+      if (has('catalog')) {
+        setSyncedCatalog([]);
+        setProducts([]);
+        setPromotions([]);
+        setSetMeals([]);
+      }
+      if (has('expenses')) setExpenses([]);
+      if (has('staffRecords')) {
+        setShifts([]);
+        setPayrollRuns([]);
+      }
+      // The ledger is per item, so items going takes their stock with them.
+      clearInventory({ stock: has('stock') || has('catalog'), purchases: has('purchases') });
+    },
+    [setSyncedCatalog, clearInventory],
   );
 
   const resetAllData = useCallback(async () => {
@@ -2012,6 +2319,7 @@ export function PosProvider({
       totals,
       orders,
       catalog,
+      tabCatalog,
       locations,
       addItem,
       addOpenPriceItem,
@@ -2039,9 +2347,15 @@ export function PosProvider({
       takePayment,
       removePayment,
       requestBill,
+      setTabCustomer,
       printDocket,
       chargeToRoom,
       settleRoom,
+      clients,
+      saveClient,
+      removeClient,
+      chargeToClient,
+      payDebt,
       cashUps,
       closeShift,
       isKitchenItem,
@@ -2098,6 +2412,7 @@ export function PosProvider({
       settings,
       updateSettings: setSettings,
       switchSalesCurrency,
+      resetData,
       resetAllData,
       ...inventory,
     }),
@@ -2108,6 +2423,7 @@ export function PosProvider({
       totals,
       orders,
       catalog,
+      tabCatalog,
       locations,
       addItem,
       addOpenPriceItem,
@@ -2135,9 +2451,15 @@ export function PosProvider({
       takePayment,
       removePayment,
       requestBill,
+      setTabCustomer,
       printDocket,
       chargeToRoom,
       settleRoom,
+      clients,
+      saveClient,
+      removeClient,
+      chargeToClient,
+      payDebt,
       cashUps,
       closeShift,
       isKitchenItem,
@@ -2193,6 +2515,7 @@ export function PosProvider({
       deleteExpense,
       settings,
       switchSalesCurrency,
+      resetData,
       resetAllData,
       inventory,
     ],

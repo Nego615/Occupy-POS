@@ -3,6 +3,8 @@ import { Link, useSearchParams } from 'react-router';
 import './Inventory.css';
 import { Button } from '../components/Button';
 import { FilterSelect } from '../components/FilterSelect';
+import { ListCount, SortSelect, TimeFilterControl } from '../components/ListControls';
+import { SearchField } from '../components/SearchField';
 import { CostMoney, Mono, formatCost } from '../components/Mono';
 import { Pill, PillRow } from '../components/Pill';
 import { StatusChip } from '../components/StatusChip';
@@ -16,10 +18,42 @@ import {
 } from '../data/inventory';
 import { activeCurrency, costCurrency, isAmountText } from '../lib/currency';
 import { billStatus, type BillStatus } from '../lib/inventory';
+import {
+  ANY_TIME,
+  byNumber,
+  byText,
+  descending,
+  inTimeFilter,
+  matchesSearch,
+  sortRows,
+  thenBy,
+  timeFilterActive,
+  type SortOption,
+  type TimeFilter,
+} from '../lib/listView';
 import { usePos } from '../lib/store';
 import { useRevealPanel } from '../lib/useRevealPanel';
 
 type Filter = 'unpaid' | 'overdue' | 'paid' | 'all';
+
+type BillRow = { bill: SupplierBill; status: BillStatus; supplier: string };
+
+const BILL_SORTS: SortOption<BillRow>[] = [
+  {
+    id: 'newest',
+    label: 'Newest first',
+    compare: thenBy(descending(byText((r) => r.bill.issuedAt)), descending(byText((r) => r.bill.id))),
+  },
+  { id: 'oldest', label: 'Oldest first', compare: thenBy(byText((r) => r.bill.issuedAt), byText((r) => r.bill.id)) },
+  { id: 'due', label: 'Due soonest', compare: byText((r) => r.bill.dueAt) },
+  { id: 'balance-desc', label: 'Most owed first', compare: descending(byNumber((r) => r.status.balance)) },
+  { id: 'amount-desc', label: 'Amount high to low', compare: descending(byNumber((r) => r.bill.amount)) },
+  {
+    id: 'supplier',
+    label: 'Supplier A to Z',
+    compare: thenBy(byText((r) => r.supplier), descending(byText((r) => r.bill.issuedAt))),
+  },
+];
 
 function StateTag({ status }: { status: BillStatus }) {
   if (status.state === 'paid') {
@@ -58,6 +92,9 @@ export function AdminBills() {
   const [params, setParams] = useSearchParams();
   const { bills, suppliers, settings } = usePos();
   const [filter, setFilter] = useState<Filter>('unpaid');
+  const [time, setTime] = useState<TimeFilter>(ANY_TIME);
+  const [query, setQuery] = useState('');
+  const [sort, setSort] = useState('newest');
   const supplier = params.get('supplier') ?? 'all';
   const selectedId = params.get('bill');
   const panelRef = useRevealPanel<HTMLElement>(selectedId);
@@ -74,7 +111,15 @@ export function AdminBills() {
     );
   }
 
-  const rows = useMemo(() => bills.map((b) => ({ bill: b, status: billStatus(b) })), [bills]);
+  const rows = useMemo<BillRow[]>(
+    () =>
+      bills.map((b) => ({
+        bill: b,
+        status: billStatus(b),
+        supplier: suppliers.find((s) => s.id === b.supplierId)?.name ?? 'Unknown supplier',
+      })),
+    [bills, suppliers],
+  );
 
   const today = todayIso();
   const summary = useMemo(() => {
@@ -91,8 +136,10 @@ export function AdminBills() {
     };
   }, [rows, bills, today]);
 
-  const visible = rows
+  const filtered = rows
     .filter((r) => supplier === 'all' || r.bill.supplierId === supplier)
+    .filter((r) => inTimeFilter(r.bill.issuedAt, time))
+    .filter((r) => matchesSearch(query, r.supplier, r.bill.reference, r.bill.poId, r.bill.amount))
     .filter((r) =>
       filter === 'all'
         ? true
@@ -101,9 +148,14 @@ export function AdminBills() {
           : filter === 'overdue'
             ? r.status.state === 'overdue'
             : r.status.balance > 0,
-    )
-    // Most urgent first: earliest due date on top.
-    .sort((a, b) => (a.bill.dueAt < b.bill.dueAt ? -1 : 1));
+    );
+  const visible = sortRows(filtered, BILL_SORTS, sort);
+  const filtersActive = query.trim() !== '' || supplier !== 'all' || timeFilterActive(time);
+  function clearFilters() {
+    setQuery('');
+    setTime(ANY_TIME);
+    setParam('supplier', 'all');
+  }
 
   const supplierName = (id: string) => suppliers.find((s) => s.id === id)?.name ?? 'Unknown supplier';
   const selected = rows.find((r) => r.bill.id === selectedId) ?? null;
@@ -133,6 +185,16 @@ export function AdminBills() {
         <Tile label="Paid this month" value={formatCost(summary.paidThisMonth)} />
       </div>
 
+      <div className="list-tools">
+        <SearchField
+          value={query}
+          onChange={setQuery}
+          placeholder="Search supplier, invoice, or PO number"
+          label="Search bills"
+        />
+        <TimeFilterControl value={time} onChange={setTime} presets={['this-month', 'last-month', 'all']} />
+      </div>
+
       <div className="inv-toolbar">
         <PillRow label="Show">
           {(['unpaid', 'overdue', 'paid', 'all'] as Filter[]).map((f) => (
@@ -141,21 +203,30 @@ export function AdminBills() {
             </Pill>
           ))}
         </PillRow>
-        <FilterSelect value={supplier} onChange={(v) => setParam('supplier', v)} label="Supplier">
-          <option value="all">Every supplier</option>
-          {suppliers.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-            </option>
-          ))}
-        </FilterSelect>
+        <div className="inv-toolbar__right">
+          <SortSelect value={sort} onChange={setSort} options={BILL_SORTS} />
+          <FilterSelect value={supplier} onChange={(v) => setParam('supplier', v)} label="Supplier">
+            <option value="all">Every supplier</option>
+            {suppliers.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </FilterSelect>
+        </div>
       </div>
+
+      <ListCount count={visible.length} noun="bill" onClear={filtersActive ? clearFilters : undefined} />
 
       <div className="inv-layout">
         <section className="panel inv-table-wrap" aria-label="Bills">
           {visible.length === 0 ? (
             <p className="inv-empty">
-              {filter === 'unpaid' || filter === 'overdue' ? 'Nothing owed here.' : 'No bills match.'}
+              {filtersActive
+                ? 'No bills match. Try another search or clear the filters.'
+                : filter === 'unpaid' || filter === 'overdue'
+                  ? 'Nothing owed here.'
+                  : 'No bills yet.'}
             </p>
           ) : (
             <table className="inv-table">

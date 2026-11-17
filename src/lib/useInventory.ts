@@ -114,6 +114,12 @@ export type InventoryStore = {
    * the cost currency, stamped with the rate. Called only by the switch.
    */
   convertForSwitch: (rate: number, to: Currency) => void;
+  /**
+   * Empties part of the inventory records, for a reset: `stock` zeroes what's
+   * on hand and drops the ledger and counts; `purchases` drops suppliers,
+   * purchase orders and bills.
+   */
+  clearInventory: (parts: { stock: boolean; purchases: boolean }) => void;
 };
 
 /**
@@ -167,12 +173,17 @@ export function useInventory(
 
   // With several screens selling at once, each writes its own idea of an
   // item's stock. The ledger is the agreed record, so on-hand numbers are
-  // re-added from it — every screen lands on the same figure.
+  // re-added from it — every screen lands on the same figure. Redone when the
+  // catalog changes too: another screen's copy of an item can arrive after its
+  // sale did, carrying the stock from before this screen's own sales.
   const shared = repo.subscribe !== undefined;
+  const ledger = useMemo(() => {
+    const sums = new Map<string, number>();
+    for (const m of movements) sums.set(m.itemId, (sums.get(m.itemId) ?? 0) + m.change);
+    return sums;
+  }, [movements]);
   useEffect(() => {
     if (!shared) return;
-    const ledger = new Map<string, number>();
-    for (const m of movements) ledger.set(m.itemId, (ledger.get(m.itemId) ?? 0) + m.change);
     setCatalog((prev) => {
       let changed = false;
       const next = prev.map((item) => {
@@ -183,7 +194,7 @@ export function useInventory(
       });
       return changed ? next : prev;
     });
-  }, [shared, movements, setCatalog]);
+  }, [shared, ledger, catalog, setCatalog]);
 
   const logStock = useCallback(
     (entries: StockEntry[]) => {
@@ -481,6 +492,23 @@ export function useInventory(
     setBills((prev) => stampRate(prev, rate));
   }, []);
 
+  const clearInventory = useCallback(
+    ({ stock, purchases }: { stock: boolean; purchases: boolean }) => {
+      if (stock) {
+        setMovements([]);
+        setStockCounts([]);
+        setCountDraft(null);
+        setCatalog((prev) => prev.map((item) => (item.stock === 0 ? item : { ...item, stock: 0 })));
+      }
+      if (purchases) {
+        setSuppliers([]);
+        setPurchaseOrders([]);
+        setBills([]);
+      }
+    },
+    [setCatalog],
+  );
+
   return useMemo(
     () => ({
       movements,
@@ -507,6 +535,7 @@ export function useInventory(
       postShiftCount,
       discardCount,
       convertForSwitch,
+      clearInventory,
     }),
     [
       movements,
@@ -533,6 +562,7 @@ export function useInventory(
       postShiftCount,
       discardCount,
       convertForSwitch,
+      clearInventory,
     ],
   );
 }

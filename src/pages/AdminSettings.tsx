@@ -4,6 +4,7 @@ import { BrandMark } from '../components/BrandMark';
 import { Button } from '../components/Button';
 import { FilterSelect } from '../components/FilterSelect';
 import { Mono } from '../components/Mono';
+import { ResetDataDialog } from '../components/ResetDataDialog';
 import { Switch } from '../components/Switch';
 import {
   categoryLabel,
@@ -27,6 +28,7 @@ import {
   formatCurrency,
   type CurrencyCode,
 } from '../lib/currency';
+import { useBusiness } from '../lib/business';
 import { signOutDevice, unsyncedCount } from '../lib/cloud';
 import { convertPrice, switchBlockers } from '../lib/currencySwitch';
 import { LOGO_TYPES, readLogo } from '../lib/logo';
@@ -212,8 +214,8 @@ function fromDraft(d: Draft, current: Settings): { settings: Settings } | { erro
  * open tabs. Everything takes effect across the app as soon as it's saved.
  */
 export function AdminSettings() {
-  const { settings, updateSettings, resetAllData, categories, orders, expenses, payrollRuns, bills, purchaseOrders } =
-    usePos();
+  const { settings, updateSettings, categories, orders, expenses, payrollRuns, bills, purchaseOrders } = usePos();
+  const { retail } = useBusiness();
   // Once anything's been bought, paid out, or sold, the currencies it was kept in are fixed.
   const hasHistory =
     orders.some((o) => o.status !== 'occupied') ||
@@ -221,7 +223,7 @@ export function AdminSettings() {
     payrollRuns.length > 0 ||
     bills.length > 0 ||
     purchaseOrders.length > 0;
-  const [confirmingReset, setConfirmingReset] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const [confirmingUnlink, setConfirmingUnlink] = useState(false);
   const [shopEmail, setShopEmail] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft>(() => toDraft(settings));
@@ -861,21 +863,17 @@ export function AdminSettings() {
         )}
         <Row
           id="resetData"
-          label="Start over"
-          hint={`Deletes every order, stock movement, and setting saved ${
-            shopEmail ? 'for this shop, on every device,' : 'here'
-          } and starts the shop setup again. This can’t be undone.`}
+          label="Reset data"
+          hint={`Deletes the parts you pick — sales, stock, ${retail ? 'products' : 'the menu'}, and more — or everything, ${
+            shopEmail ? 'for this shop, on every device' : 'saved here'
+          }. Asks for ${shopEmail ? 'the shop account password' : 'an owner or manager PIN'} first. This can’t be undone.`}
         >
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => (confirmingReset ? resetAllData() : setConfirmingReset(true))}
-            onBlur={() => setConfirmingReset(false)}
-          >
-            {confirmingReset ? 'Confirm — delete everything' : 'Reset all data'}
+          <Button variant="secondary" size="sm" onClick={() => setResetting(true)}>
+            Reset data…
           </Button>
         </Row>
       </Section>
+      <ResetDataDialog open={resetting} shopEmail={shopEmail} onClose={() => setResetting(false)} />
 
       {/* Stays in view at the bottom of the page while there's something to save. */}
       <div className={dirty || savedAt ? 'save-bar save-bar--on' : 'save-bar'} aria-live="polite">

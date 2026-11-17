@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router';
 import './AdminOrders.css';
 import { Button } from '../components/Button';
 import { FilterSelect } from '../components/FilterSelect';
+import { SortSelect, TimeFilterControl } from '../components/ListControls';
 import { Money, Mono } from '../components/Mono';
 import { OrderDetail, orderChip } from '../components/OrderDetail';
 import { Pill, PillRow } from '../components/Pill';
@@ -13,6 +14,7 @@ import { StatusChip } from '../components/StatusChip';
 import { orderItemCount, orderNetTotal, orderRefundTotal, orderTotal, type Order } from '../data/orders';
 import { downloadCsv, money, ordersCsv } from '../lib/analytics';
 import {
+  ORDER_SORTS,
   PAYMENTS,
   STATUSES,
   countByStatus,
@@ -23,19 +25,18 @@ import {
   type StaffFilter,
   type StatusFilter,
 } from '../lib/orderFilters';
+import { momentInFilter, sortRows, timeFilter, type TimeFilter } from '../lib/listView';
 import { usePos } from '../lib/store';
 
-type RangeId = 'today' | 'week' | 'month' | 'all';
+/** A column header's two orders: [first click, second click]. */
+type ColumnSort = readonly [string, string];
 
-const RANGES: { id: RangeId; label: string; maxDaysAgo: number }[] = [
-  { id: 'today', label: 'Today', maxDaysAgo: 0 },
-  { id: 'week', label: '7 days', maxDaysAgo: 6 },
-  { id: 'month', label: '30 days', maxDaysAgo: 29 },
-  { id: 'all', label: 'All time', maxDaysAgo: Infinity },
-];
-
-type SortKey = 'when' | 'total';
-type Sort = { key: SortKey; dir: 'asc' | 'desc' };
+const COLUMN_SORTS = {
+  docket: ['docket-desc', 'docket-asc'],
+  name: ['name', 'name-desc'],
+  when: ['newest', 'oldest'],
+  total: ['total-desc', 'total-asc'],
+} as const satisfies Record<string, ColumnSort>;
 
 /** Rows drawn per page; "Show more" adds another page. */
 const PAGE_SIZE = 50;
@@ -49,41 +50,38 @@ const PAGE_SIZE = 50;
 export function AdminOrders() {
   const navigate = useNavigate();
   const { orders, deletedOrders, switchTab, settings, staff, allStaff, can } = usePos();
-  const [range, setRange] = useState<RangeId>('week');
+  const [time, setTime] = useState<TimeFilter>(() => timeFilter('7d'));
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState<StatusFilter>('all');
   const [payment, setPayment] = useState<PaymentFilter>('all');
   const [person, setPerson] = useState<StaffFilter>('all');
   // Deleted orders are kept apart from the rest, and shown only on request.
   const [showDeleted, setShowDeleted] = useState(false);
-  const [sort, setSort] = useState<Sort>({ key: 'when', dir: 'desc' });
+  const [sort, setSort] = useState('newest');
   const [selectedId, setSelectedId] = useState<number | null>(null);
 
-  const filtersActive = status !== 'all' || payment !== 'all' || person !== 'all' || query.trim() !== '';
+  const filtersActive =
+    status !== 'all' || payment !== 'all' || person !== 'all' || query.trim() !== '' || time.hours !== null;
 
   // Everything except status, so each status pill counts what picking it would show.
   const beforeStatus = useMemo(() => {
-    const maxDaysAgo = RANGES.find((r) => r.id === range)!.maxDaysAgo;
     const q = query.trim().toLowerCase();
     return (showDeleted ? deletedOrders : orders).filter(
       (o) =>
-        o.daysAgo <= maxDaysAgo &&
+        momentInFilter(o.at, time) &&
         matchesPayment(o, payment) &&
         matchesStaff(o, person, allStaff) &&
         matchesQuery(o, q),
     );
-  }, [orders, deletedOrders, showDeleted, range, query, payment, person, allStaff]);
+  }, [orders, deletedOrders, showDeleted, time, query, payment, person, allStaff]);
 
   const statusCounts = useMemo(() => countByStatus(beforeStatus), [beforeStatus]);
 
   const visible = useMemo(() => {
     const filtered =
       status === 'all' || showDeleted ? beforeStatus : beforeStatus.filter((o) => o.status === status);
-    // The store already lists newest first, so "when" is just that order.
-    if (sort.key === 'when') return sort.dir === 'desc' ? filtered : [...filtered].reverse();
-    const sign = sort.dir === 'desc' ? -1 : 1;
-    return [...filtered].sort((a, b) => sign * (orderTotal(a) - orderTotal(b)));
-  }, [beforeStatus, status, sort]);
+    return sortRows(filtered, ORDER_SORTS, sort);
+  }, [beforeStatus, status, showDeleted, sort]);
 
   const summary = useMemo(() => {
     const paid = visible.filter((o) => o.status === 'paid');
@@ -100,7 +98,7 @@ export function AdminOrders() {
   }, [visible]);
 
   // A new filter or sort starts back at the first page.
-  const pagingKey = `${range}|${query}|${status}|${payment}|${person}|${showDeleted}|${sort.key}|${sort.dir}`;
+  const pagingKey = `${JSON.stringify(time)}|${query}|${status}|${payment}|${person}|${showDeleted}|${sort}`;
   const [paging, setPaging] = useState({ key: pagingKey, limit: PAGE_SIZE });
   const limit = paging.key === pagingKey ? paging.limit : PAGE_SIZE;
   const shown = visible.slice(0, limit);
@@ -111,16 +109,14 @@ export function AdminOrders() {
     setSelectedId(id);
   }
 
-  function toggleSort(key: SortKey) {
-    setSort((prev) =>
-      prev.key === key
-        ? { key, dir: prev.dir === 'desc' ? 'asc' : 'desc' }
-        : { key, dir: 'desc' },
-    );
+  /** First click sorts the column its usual way round; the next flips it. */
+  function toggleSort([first, second]: ColumnSort) {
+    setSort((prev) => (prev === first ? second : first));
   }
 
   function clearFilters() {
     setQuery('');
+    setTime((t) => ({ ...t, hours: null }));
     setStatus('all');
     setPayment('all');
     setPerson('all');
@@ -129,7 +125,7 @@ export function AdminOrders() {
   function exportCsv() {
     downloadCsv(
       ordersCsv(visible),
-      `occupy-orders-${range}-${new Date().toISOString().slice(0, 10)}.csv`,
+      `occupy-orders-${time.preset}-${new Date().toISOString().slice(0, 10)}.csv`,
     );
   }
 
@@ -156,16 +152,15 @@ export function AdminOrders() {
         <SearchField
           value={query}
           onChange={setQuery}
-          placeholder="Search by order #, tab, item, amount, or card"
-          label="Search orders"
+          placeholder="Search docket #, tab, customer, item, amount, or card"
+          label="Search orders by docket number, tab, customer, item, amount, or card"
         />
-        <PillRow label="Date range">
-          {RANGES.map((r) => (
-            <Pill key={r.id} active={r.id === range} onClick={() => setRange(r.id)}>
-              {r.label}
-            </Pill>
-          ))}
-        </PillRow>
+        <TimeFilterControl
+          value={time}
+          onChange={setTime}
+          presets={['today', 'yesterday', '7d', '30d', 'all']}
+          withHours
+        />
       </div>
 
       <div className="orders-filters">
@@ -189,6 +184,7 @@ export function AdminOrders() {
           )}
         </PillRow>
         <div className="orders-filters__right">
+          <SortSelect value={sort} onChange={setSort} options={ORDER_SORTS} />
           <StaffFilterSelect value={person} onChange={setPerson} staff={staff} />
           <FilterSelect
             value={payment}
@@ -237,24 +233,24 @@ export function AdminOrders() {
                   <button type="button" className="orders-clear" onClick={clearFilters}>
                     Clear filters
                   </button>{' '}
-                  or widen the date range.
+                  or widen the dates.
                 </>
               ) : (
-                'Try a wider date range.'
+                'Pick a wider range, like 30 days.'
               )}
             </p>
           ) : (
             <table className="orders-table">
               <thead>
                 <tr>
-                  <th scope="col">Order</th>
-                  <th scope="col">Tab</th>
-                  <SortHeader label="When" sortKey="when" sort={sort} onSort={toggleSort} />
+                  <SortHeader label="Docket" pair={COLUMN_SORTS.docket} sort={sort} onSort={toggleSort} />
+                  <SortHeader label="Tab" pair={COLUMN_SORTS.name} sort={sort} onSort={toggleSort} />
+                  <SortHeader label="When" pair={COLUMN_SORTS.when} sort={sort} onSort={toggleSort} />
                   <th scope="col">Payment</th>
                   <th scope="col">Status</th>
                   <SortHeader
                     label="Total"
-                    sortKey="total"
+                    pair={COLUMN_SORTS.total}
                     sort={sort}
                     onSort={toggleSort}
                     numeric
@@ -287,7 +283,10 @@ export function AdminOrders() {
                         </button>
                       </td>
                       <td className="orders-row__tab">
-                        <span className="orders-row__name">{order.name}</span>
+                        <span className="orders-row__name">
+                          {order.name}
+                          {order.customerName && <span className="order-row__customer"> · {order.customerName}</span>}
+                        </span>
                         <span className="orders-row__items">{itemSummary(order)}</span>
                       </td>
                       <td className="orders-row__when">
@@ -364,25 +363,29 @@ function SummaryTile({ label, value, note }: { label: string; value: string; not
 
 function SortHeader({
   label,
-  sortKey,
+  pair,
   sort,
   onSort,
   numeric = false,
 }: {
   label: string;
-  sortKey: SortKey;
-  sort: Sort;
-  onSort: (key: SortKey) => void;
+  /** The sort ids this column switches between. */
+  pair: ColumnSort;
+  sort: string;
+  onSort: (pair: ColumnSort) => void;
   numeric?: boolean;
 }) {
-  const active = sort.key === sortKey;
-  const ariaSort = active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none';
+  const active = pair.includes(sort);
+  // Names start A to Z, which is ascending; every other column starts high.
+  const startsAscending = pair[0] === 'name';
+  const ascending = active && (sort === pair[0]) === startsAscending;
+  const ariaSort = active ? (ascending ? 'ascending' : 'descending') : 'none';
   return (
     <th scope="col" aria-sort={ariaSort} className={numeric ? 'orders-th--num' : undefined}>
-      <button type="button" className="orders-sort" onClick={() => onSort(sortKey)}>
+      <button type="button" className="orders-sort" onClick={() => onSort(pair)}>
         {label}
         <span className="orders-sort__arrow" aria-hidden="true">
-          {active ? (sort.dir === 'asc' ? '↑' : '↓') : '↕'}
+          {active ? (ascending ? '↑' : '↓') : '↕'}
         </span>
       </button>
     </th>

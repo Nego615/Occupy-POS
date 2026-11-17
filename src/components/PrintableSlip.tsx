@@ -14,7 +14,8 @@ import {
   type OrderRecord,
 } from '../data/orders';
 import { stationLabel } from '../data/settings';
-import { currencyOf, type Currency } from '../lib/currency';
+import { costCurrency, currencyOf, type Currency } from '../lib/currency';
+import type { ShiftReport } from '../data/shiftReport';
 import { cashUpStock, countResult, formatUnits } from '../lib/shiftStock';
 import { usePos } from '../lib/store';
 
@@ -93,6 +94,7 @@ export function PrintableDocket({ order, kind }: { order: Order; kind: DocketKin
       head={
         <>
           <div className={kitchen ? 'print-receipt__brand' : undefined}>{order.name}</div>
+          {order.customerName && <div>For {order.customerName}</div>}
           <div>
             {kitchen ? 'Kitchen docket' : 'Order docket'} · <span className="mono">#{order.id}</span>
           </div>
@@ -200,7 +202,7 @@ export function PrintableCashUp({ cashUp, currency }: { cashUp: CashUp; currency
     <Slip
       head={
         <>
-          <div>Shift cash-up</div>
+          <div>Shift report</div>
           <div>
             {when(cashUp.openedAt)} – {when(cashUp.closedAt)}
           </div>
@@ -224,6 +226,7 @@ export function PrintableCashUp({ cashUp, currency }: { cashUp: CashUp; currency
       </div>
       <div className="print-receipt__totals">
         <Row label="Opening float" value={cashUp.float} currency={currency} />
+        {cashUp.paidOut ? <Row label="Paid out for expenses" value={-cashUp.paidOut} currency={currency} /> : null}
         <Row label="Cash expected" value={cashUp.expectedCash} currency={currency} />
         <Row label="Cash counted" value={cashUp.countedCash} currency={currency} />
         <Row
@@ -234,9 +237,72 @@ export function PrintableCashUp({ cashUp, currency }: { cashUp: CashUp; currency
         />
       </div>
       {cashUp.local && <LocalDrawerRows drawer={cashUp.local} />}
+      {cashUp.report && <ReportRows report={cashUp.report} currency={currency} />}
       {cashUp.countId && <ShelfCountRows cashUp={cashUp} />}
       {cashUp.note && <div className="print-receipt__part">{cashUp.note}</div>}
     </Slip>
+  );
+}
+
+/** The shift report on the tape: sales, debts, expenses, open tabs, best sellers. */
+function ReportRows({ report, currency }: { report: ShiftReport; currency?: Currency }) {
+  const { sales } = report;
+  const cost = costCurrency();
+  const head = (label: string) => (
+    <div className="print-receipt__row">
+      <strong>{label}</strong>
+    </div>
+  );
+  return (
+    <>
+      <div className="print-receipt__lines">
+        {head(`Sales · ${sales.bills} bills · ${sales.items} items`)}
+        <Row label="Gross sales" value={sales.gross} currency={currency} />
+        <Row label="Discounts" value={-sales.discounts} currency={currency} />
+        <Row label="Tax" value={sales.tax} currency={currency} />
+        <Row label="Tips" value={sales.tips} currency={currency} />
+        <Row label="Refunds" value={-sales.refunds} currency={currency} />
+        <Row label="Net sales" value={sales.net} total currency={currency} />
+      </div>
+      <div className="print-receipt__lines">
+        {head("Debts and rooms")}
+        <Row label={`On account · ${report.onAccount.bills}`} value={report.onAccount.amount} currency={currency} />
+        <Row label="Debts paid off" value={report.debtsCollected} currency={currency} />
+        <Row label={`Owed by ${report.owing.clients} clients`} value={report.owing.amount} currency={currency} />
+        {(report.toRooms.bills > 0 || report.roomsOwing.bills > 0 || report.roomsSettled > 0) && (
+          <>
+            <Row label={`To rooms · ${report.toRooms.bills}`} value={report.toRooms.amount} currency={currency} />
+            <Row label="Room bills paid" value={report.roomsSettled} currency={currency} />
+            <Row label={`Rooms owing · ${report.roomsOwing.bills}`} value={report.roomsOwing.amount} currency={currency} />
+          </>
+        )}
+      </div>
+      <div className="print-receipt__lines">
+        {head(`Expenses · ${report.expenses.length}`)}
+        {report.expenses.map((e) => (
+          <Row key={e.id} label={e.fromTill ? `${e.description} (till)` : e.description} value={-e.amount} currency={cost} />
+        ))}
+        <Row label="Total expenses" value={-report.expensesTotal} currency={cost} />
+        <Row label="Net less expenses" value={report.netAfterExpenses} total currency={currency} />
+      </div>
+      <div className="print-receipt__lines">
+        {head(`Open tabs · ${report.openTabs.count}`)}
+        {report.openTabs.tabs.map((t, i) => (
+          <Row key={`${t.name}-${i}`} label={t.name} value={t.total} currency={currency} />
+        ))}
+        {report.openTabs.count > 0 && (
+          <Row label="Still to pay" value={report.openTabs.total - report.openTabs.paid} total currency={currency} />
+        )}
+      </div>
+      {sales.top.length > 0 && (
+        <div className="print-receipt__lines">
+          {head("Best sellers")}
+          {sales.top.map((r) => (
+            <Row key={r.name} label={`${r.qty} × ${r.name}`} value={r.total} currency={currency} />
+          ))}
+        </div>
+      )}
+    </>
   );
 }
 
@@ -280,6 +346,7 @@ function LocalDrawerRows({ drawer }: { drawer: LocalDrawer }) {
     <div className="print-receipt__totals">
       <Row label={`${currency.symbol} float`} value={drawer.float} currency={currency} />
       <Row label={`${currency.symbol} cash taken, less refunds`} value={drawer.taken - drawer.refunded} currency={currency} />
+      {drawer.paidOut ? <Row label={`${currency.symbol} paid out for expenses`} value={-drawer.paidOut} currency={currency} /> : null}
       <Row label={`${currency.symbol} expected`} value={drawer.expected} currency={currency} />
       <Row label={`${currency.symbol} counted`} value={drawer.counted} currency={currency} />
       <Row

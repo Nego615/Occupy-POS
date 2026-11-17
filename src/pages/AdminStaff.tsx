@@ -4,23 +4,37 @@ import './AdminStaff.css';
 import { Avatar } from '../components/Avatar';
 import { Button } from '../components/Button';
 import { FilterSelect } from '../components/FilterSelect';
+import { SortSelect } from '../components/ListControls';
 import { Mono } from '../components/Mono';
 import { Pill, PillRow } from '../components/Pill';
+import { SearchField } from '../components/SearchField';
 import { Switch } from '../components/Switch';
 import {
   KITCHEN_MENU_ROLES,
   PERMISSIONS,
   ROLES,
   hasRole,
+  rolesLabel,
   rolesOf,
   uniquePin,
   type RoleId,
   type StaffMember,
 } from '../data/staff';
+import { byNumber, byText, descending, matchesSearch, sortRows, type SortOption } from '../lib/listView';
 import { payLabel } from '../lib/payroll';
 import { usePos } from '../lib/store';
 
 type Filter = 'active' | 'inactive';
+
+type StaffRowData = { member: StaffMember; added: number };
+
+const STAFF_SORTS: SortOption<StaffRowData>[] = [
+  { id: 'newest', label: 'Recently added first', compare: descending(byNumber((r) => r.added)) },
+  { id: 'oldest', label: 'First added first', compare: byNumber((r) => r.added) },
+  { id: 'name', label: 'Name A to Z', compare: byText((r) => r.member.name) },
+  { id: 'name-desc', label: 'Name Z to A', compare: descending(byText((r) => r.member.name)) },
+  { id: 'role', label: 'Role A to Z', compare: byText((r) => rolesLabel(r.member)) },
+];
 
 /**
  * The team — who can sign in, in what role, at what rate. Edits apply in
@@ -30,16 +44,31 @@ type Filter = 'active' | 'inactive';
 export function AdminStaff() {
   const { staff, addStaff, settings } = usePos();
   const [filter, setFilter] = useState<Filter>('active');
+  const [query, setQuery] = useState('');
+  const [sort, setSort] = useState('newest');
   // The new person's PIN is shown once, on their row — only its hash is kept.
   const [justAdded, setJustAdded] = useState<{ id: string; pin: string } | null>(null);
 
   const activeCount = staff.filter((m) => m.active).length;
-  const members = staff.filter((m) => (filter === 'active' ? m.active : !m.active));
+  // Saved oldest first, so a later place in the list is more recently added.
+  const members = sortRows(
+    staff
+      .map((member, added) => ({ member, added }))
+      .filter(
+        ({ member: m }) =>
+          (filter === 'active' ? m.active : !m.active) && matchesSearch(query, m.name, rolesLabel(m)),
+      ),
+    STAFF_SORTS,
+    sort,
+  ).map((r) => r.member);
 
   function add() {
     // Pay starts unset ("Not set") — it's entered on Salaries, in the business currency.
     const { member, pin } = addStaff({ name: 'New staff member', role: 'barista', active: true });
+    // Back to the view the new person lands at the top of.
     setFilter('active');
+    setQuery('');
+    setSort('newest');
     setJustAdded({ id: member.id, pin });
   }
 
@@ -57,14 +86,18 @@ export function AdminStaff() {
         </div>
       </div>
 
-      <PillRow label="Show" className="staff__filters">
-        <Pill active={filter === 'active'} onClick={() => setFilter('active')}>
-          Active <Mono>{activeCount}</Mono>
-        </Pill>
-        <Pill active={filter === 'inactive'} onClick={() => setFilter('inactive')}>
-          Deactivated <Mono>{staff.length - activeCount}</Mono>
-        </Pill>
-      </PillRow>
+      <div className="list-tools">
+        <SearchField value={query} onChange={setQuery} placeholder="Search name or role" label="Search staff" />
+        <PillRow label="Show">
+          <Pill active={filter === 'active'} onClick={() => setFilter('active')}>
+            Active <Mono>{activeCount}</Mono>
+          </Pill>
+          <Pill active={filter === 'inactive'} onClick={() => setFilter('inactive')}>
+            Deactivated <Mono>{staff.length - activeCount}</Mono>
+          </Pill>
+        </PillRow>
+        <SortSelect value={sort} onChange={setSort} options={STAFF_SORTS} />
+      </div>
 
       <section className="panel staff__list" aria-label="Staff members">
         <div className="staff-row staff-row--head" aria-hidden="true">
@@ -77,9 +110,11 @@ export function AdminStaff() {
         </div>
         {members.length === 0 ? (
           <p className="staff__empty">
-            {filter === 'active'
-              ? 'No active staff — add someone to get started.'
-              : 'Nobody has been deactivated.'}
+            {query.trim()
+              ? 'Nobody matches that search.'
+              : filter === 'active'
+                ? 'No active staff. Add someone to get started.'
+                : 'Nobody has been deactivated.'}
           </p>
         ) : (
           members.map((member) => (

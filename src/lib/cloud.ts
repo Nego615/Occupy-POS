@@ -25,7 +25,12 @@ const RETRY_MS = 15_000;
 /** How often to look for changes realtime might have missed (a sleeping tablet, a dropped socket). */
 const CATCH_UP_MS = 60_000;
 /** Numbers reserved per trip to the shared counter. */
-const ID_BLOCK = 10;
+const ID_BLOCK = 20;
+/**
+ * Reserve more once a device is down to this many. Running dry means falling
+ * back to numbers another till may hold, and a clash overwrites a tab.
+ */
+const ID_LOW = 8;
 
 /** Record changes not yet uploaded. Survives reloads, so offline sales aren't lost. */
 const QUEUE_KEY = 'occupy-pos:queue';
@@ -99,6 +104,8 @@ export function cloudRepository(client: SupabaseClient, storeId: string, local: 
   const queue = new Map<string, Pending>(Object.entries(readJson<Record<string, Pending>>(QUEUE_KEY, {})));
   const pools: Record<string, number[]> = readJson(IDS_KEY, {});
   const refilling = new Set<string>();
+  /** The lowest number each counter may hand out, as last asked for — for top-ups. */
+  const floors: Record<string, number> = {};
   const listeners = new Set<(change: RemoteChange) => void>();
   let seen = readJson<string | null>(SEEN_KEY, null);
   let uploading = false;
@@ -230,11 +237,15 @@ export function cloudRepository(client: SupabaseClient, storeId: string, local: 
     window.addEventListener('online', () => {
       void upload();
       void catchUp();
+      topUp();
     });
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') void catchUp();
     });
-    window.setInterval(() => void catchUp(), CATCH_UP_MS);
+    window.setInterval(() => {
+      void catchUp();
+      topUp();
+    }, CATCH_UP_MS);
   }
 
   async function refill(counter: string, floor: number) {
@@ -254,6 +265,20 @@ export function cloudRepository(client: SupabaseClient, storeId: string, local: 
       console.warn(`Couldn’t reserve ${counter} numbers.`, err);
     } finally {
       refilling.delete(counter);
+    }
+  }
+
+  /** One past the highest number each counter has in use, so a top-up never starts a counter below them. */
+  function noteFloors(snapshot: Snapshot) {
+    for (const [counter, floorOf] of Object.entries(COUNTERS)) {
+      floors[counter] = Math.max(floors[counter] ?? 1, floorOf(snapshot));
+    }
+  }
+
+  /** Reserves more of any counter running low — a failed reservation is retried here, not only on the next sale. */
+  function topUp() {
+    for (const counter of Object.keys(COUNTERS)) {
+      if ((pools[counter]?.length ?? 0) < ID_LOW) void refill(counter, floors[counter] ?? 1);
     }
   }
 
@@ -294,6 +319,7 @@ export function cloudRepository(client: SupabaseClient, storeId: string, local: 
         console.warn('Cloud unavailable, starting from this device’s copy.', err);
         // The local copy already includes this device's queued edits.
         remember(localSnap);
+        noteFloors(localSnap);
         listen();
         return localSnap;
       }
@@ -345,9 +371,10 @@ export function cloudRepository(client: SupabaseClient, storeId: string, local: 
         if (!rows.some((r) => r.collection === 'staff' && !r.deleted)) delete snapshot.staff;
       }
 
+      noteFloors(snapshot);
       await Promise.all(
-        Object.entries(COUNTERS).map(([counter, floorOf]) =>
-          (pools[counter]?.length ?? 0) < 3 ? refill(counter, floorOf(snapshot)) : undefined,
+        Object.keys(COUNTERS).map((counter) =>
+          (pools[counter]?.length ?? 0) < ID_LOW ? refill(counter, floors[counter]) : undefined,
         ),
       );
       listen();
@@ -410,7 +437,8 @@ export function cloudRepository(client: SupabaseClient, storeId: string, local: 
       const id = pool.shift();
       pools[counter] = pool;
       savePools();
-      if (pool.length < 3) void refill(counter, Math.max(floor, (id ?? floor) + 1));
+      floors[counter] = Math.max(floors[counter] ?? 1, floor, (id ?? floor) + 1);
+      if (pool.length < ID_LOW) void refill(counter, floors[counter]);
       // Offline with nothing reserved: the next free number here. Only then can two tills clash.
       return id ?? floor;
     },

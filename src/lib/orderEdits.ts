@@ -60,6 +60,10 @@ export function editProblem(next: OrderRecord, note: string): string | null {
     const diff = roundMoney(paidAmount(next.payments) - orderTotal(next));
     if (diff !== 0) return 'Payments have to add up to the new total.';
   }
+  // A debt part paid can't be cut below what's already come in.
+  if (next.status === 'charged' && roundMoney(paidAmount(next.payments) - orderTotal(next)) > 0) {
+    return 'More’s been paid toward this debt than the new total.';
+  }
   if (!note.trim()) return 'Say what changed and why.';
   return null;
 }

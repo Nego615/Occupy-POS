@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router';
 import './Inventory.css';
 import { Button } from '../components/Button';
 import { FilterSelect } from '../components/FilterSelect';
+import { SortSelect } from '../components/ListControls';
 import { Money, Mono } from '../components/Mono';
 import { Pill, PillRow } from '../components/Pill';
 import { SearchField } from '../components/SearchField';
@@ -11,11 +12,28 @@ import { categoryPath, stockState, type CatalogItem } from '../data/catalog';
 import { ADJUST_REASONS, MOVEMENT_LABEL, OPEN_PURCHASE_STATUSES, formatDay } from '../data/inventory';
 import { money } from '../lib/analytics';
 import { round } from '../lib/cart';
+import { byNumber, byText, descending, matchesSearch, sortRows, type SortOption } from '../lib/listView';
 import { reorderSuggestions } from '../lib/inventory';
 import { usePos } from '../lib/store';
 import { useRevealPanel } from '../lib/useRevealPanel';
 
 type Filter = 'all' | 'low' | 'out';
+
+/** An item and where it sits in the catalog — later is more recently added. */
+type StockRow = { item: CatalogItem; added: number };
+
+const STOCK_SORTS: SortOption<StockRow>[] = [
+  { id: 'newest', label: 'Recently added first', compare: descending(byNumber((r) => r.added)) },
+  { id: 'name', label: 'Name A to Z', compare: byText((r) => r.item.name) },
+  { id: 'name-desc', label: 'Name Z to A', compare: descending(byText((r) => r.item.name)) },
+  { id: 'stock-asc', label: 'Least on hand first', compare: byNumber((r) => r.item.stock) },
+  { id: 'stock-desc', label: 'Most on hand first', compare: descending(byNumber((r) => r.item.stock)) },
+  {
+    id: 'value-desc',
+    label: 'Value high to low',
+    compare: descending(byNumber((r) => r.item.stock * (r.item.cost ?? 0))),
+  },
+];
 
 /**
  * What's on the shelf, what it's worth at cost, and every change to it.
@@ -32,6 +50,7 @@ export function AdminStock() {
   const [filter, setFilter] = useState<Filter>('all');
   const [query, setQuery] = useState('');
   const [supplier, setSupplier] = useState('all');
+  const [sort, setSort] = useState('newest');
   const low = settings.lowStockDefault;
 
   // `?item=` deep-links from the item editor.
@@ -51,15 +70,17 @@ export function AdminStock() {
   }, [catalog, low]);
 
   const visible = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return catalog.filter((item) => {
-      const state = stockState(item, low);
-      if (filter === 'low' && state === 'in') return false;
-      if (filter === 'out' && state !== 'out') return false;
-      if (supplier !== 'all' && (item.supplierId ?? 'none') !== supplier) return false;
-      return !q || item.name.toLowerCase().includes(q);
-    });
-  }, [catalog, filter, supplier, query, low]);
+    const rows = catalog
+      .map((item, added) => ({ item, added }))
+      .filter(({ item }) => {
+        const state = stockState(item, low);
+        if (filter === 'low' && state === 'in') return false;
+        if (filter === 'out' && state !== 'out') return false;
+        if (supplier !== 'all' && (item.supplierId ?? 'none') !== supplier) return false;
+        return matchesSearch(query, item.name, categoryPath(categories, item.category));
+      });
+    return sortRows(rows, STOCK_SORTS, sort).map((r) => r.item);
+  }, [catalog, categories, filter, supplier, query, low, sort]);
 
   const value = round(catalog.reduce((sum, i) => sum + i.stock * (i.cost ?? 0), 0));
   const uncosted = catalog.filter((i) => i.cost === undefined).length;
@@ -122,6 +143,7 @@ export function AdminStock() {
           </Pill>
         </PillRow>
         <div className="inv-toolbar__right">
+          <SortSelect value={sort} onChange={setSort} options={STOCK_SORTS} />
           <FilterSelect value={supplier} onChange={setSupplier} label="Supplier">
             <option value="all">Any supplier</option>
             {suppliers.map((s) => (
@@ -131,7 +153,12 @@ export function AdminStock() {
             ))}
             <option value="none">No supplier</option>
           </FilterSelect>
-          <SearchField value={query} onChange={setQuery} placeholder="Find an item" label="Find an item" />
+          <SearchField
+            value={query}
+            onChange={setQuery}
+            placeholder="Find an item or category"
+            label="Find an item or category"
+          />
         </div>
       </div>
 

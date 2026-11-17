@@ -2,11 +2,15 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import '../../../pages/AdminItems.css';
 import { Button } from '../../../components/Button';
+import { SortSelect } from '../../../components/ListControls';
+import { SearchField } from '../../../components/SearchField';
 import { Money, Mono } from '../../../components/Mono';
 import { Pill, PillRow } from '../../../components/Pill';
 import { StatusChip } from '../../../components/StatusChip';
 import { categoryPath, categoryTree, inCategory, stockState, type CatalogItem, type CategoryId } from '../../../data/catalog';
 import { priceRange, variantsOf, type Product } from '../../../data/products';
+import { ITEM_SORTS, withAddedOrder } from '../../../lib/itemSorts';
+import { matchesSearch, sortRows } from '../../../lib/listView';
 import { usePos } from '../../../lib/store';
 
 /** A category, or `restock`: tracked items that are low or sold out. */
@@ -23,11 +27,19 @@ export function RetailItems() {
   const navigate = useNavigate();
   const { catalog, products, categories, settings } = usePos();
   const [filter, setFilter] = useState<Filter>('all');
+  const [query, setQuery] = useState('');
+  const [sort, setSort] = useState('newest');
   const restock = (item: CatalogItem) => stockState(item, settings.lowStockDefault) !== 'in';
 
-  const shown = catalog.filter((i) =>
-    filter === 'all' ? true : filter === 'restock' ? restock(i) : inCategory(categories, i.category, filter),
-  );
+  // Recently added first unless another order is picked, so what was just added is at the top.
+  const productName = (i: CatalogItem) => (i.productId ? products.find((p) => p.id === i.productId)?.name : undefined);
+  const shown = sortRows(withAddedOrder(catalog), ITEM_SORTS, sort)
+    .map((r) => r.item)
+    .filter(
+      (i) =>
+        (filter === 'all' ? true : filter === 'restock' ? restock(i) : inCategory(categories, i.category, filter)) &&
+        matchesSearch(query, i.name, productName(i), categoryPath(categories, i.category), i.sku, i.barcode),
+    );
   // Each product is listed once, where its first matching variant falls.
   const seen = new Set<string>();
   const rows = shown.flatMap((item): Row[] => {
@@ -57,6 +69,16 @@ export function RetailItems() {
         </div>
       </div>
 
+      <div className="list-tools">
+        <SearchField
+          value={query}
+          onChange={setQuery}
+          placeholder="Search name, SKU, or barcode"
+          label="Search products by name, SKU, or barcode"
+        />
+        <SortSelect value={sort} onChange={setSort} options={ITEM_SORTS} />
+      </div>
+
       <PillRow label="Filter products" className="admin-items__filters">
         <Pill active={filter === 'all'} onClick={() => setFilter('all')}>
           All
@@ -78,11 +100,13 @@ export function RetailItems() {
 
         {rows.length === 0 && (
           <p className="admin-items__empty">
-            {filter === 'restock'
-              ? 'Everything tracked is well stocked.'
-              : categories.length === 0
-                ? 'Products are sorted into categories — create one under Manage categories first.'
-                : 'Nothing here yet — add a product or an item.'}
+            {query.trim()
+              ? 'Nothing matches that search.'
+              : filter === 'restock'
+                ? 'Everything tracked is well stocked.'
+                : categories.length === 0
+                  ? 'Products are sorted into categories — create one under Manage categories first.'
+                  : 'Nothing here yet — add a product or an item.'}
           </p>
         )}
 
