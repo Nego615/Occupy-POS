@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { setActiveCurrency, setCostCurrency } from '../lib/currency';
-import { expectedCash, expectedLocalCash, shiftStart, shiftTotals, type CashUp } from './cashup';
+import { drawerDiff, expectedCash, expectedLocalCash, netTaken, shiftStart, shiftTotals, type CashUp } from './cashup';
 import type { OrderRecord } from './orders';
 
 const order = (patch: Partial<OrderRecord>): OrderRecord => ({
@@ -127,5 +127,30 @@ describe('shiftStart', () => {
     expect(shiftStart([], now)).toBe(new Date('2026-10-07T00:00:00').toISOString());
     const done = [{ closedAt: '2026-10-07T09:00:00.000Z' }, { closedAt: '2026-10-07T12:00:00.000Z' }] as CashUp[];
     expect(shiftStart(done, now)).toBe('2026-10-07T12:00:00.000Z');
+  });
+});
+
+describe('drawerDiff', () => {
+  const base = {
+    countedCash: 100,
+    expectedCash: 100,
+    taken: { cash: 100, card: 50, mobile: 25 },
+    refunded: { cash: 10, card: 0, mobile: 5 },
+  } as CashUp;
+
+  it('is the main drawer short or over', () => {
+    expect(drawerDiff({ ...base, countedCash: 95 })).toEqual({ diff: -5, localOff: false });
+    expect(drawerDiff({ ...base, countedCash: 102 })).toEqual({ diff: 2, localOff: false });
+    expect(drawerDiff(base)).toEqual({ diff: 0, localOff: false });
+  });
+
+  it('falls to the cost-currency drawer only when the main one balanced', () => {
+    const local = { currency: 'TZS', float: 0, taken: 0, refunded: 0, expected: 5000, counted: 4000 } as CashUp['local'];
+    expect(drawerDiff({ ...base, local })).toEqual({ diff: -1000, localOff: true });
+    expect(drawerDiff({ ...base, countedCash: 90, local })).toEqual({ diff: -10, localOff: false });
+  });
+
+  it('nets takings across methods', () => {
+    expect(netTaken(base)).toBe(160);
   });
 });

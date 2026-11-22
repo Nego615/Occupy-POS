@@ -150,3 +150,17 @@ export function shiftStart(cashUps: CashUp[], now = new Date()): string {
   midnight.setHours(0, 0, 0, 0);
   return midnight.toISOString();
 }
+
+/**
+ * How far the drawer was off: the main drawer's over (+) or short (−), or the
+ * cost-currency drawer's — in that currency — when it's the only one that's off.
+ */
+export function drawerDiff(c: CashUp): { diff: number; localOff: boolean } {
+  const localOff = !!c.local && c.local.counted !== c.local.expected && c.countedCash === c.expectedCash;
+  return { diff: localOff ? c.local!.counted - c.local!.expected : roundMoney(c.countedCash - c.expectedCash), localOff };
+}
+
+/** Net money taken by every method, refunds off. */
+export function netTaken(c: Pick<CashUp, 'taken' | 'refunded'>): number {
+  return TENDER_METHODS.reduce((sum, m) => sum + c.taken[m] - c.refunded[m], 0);
+}

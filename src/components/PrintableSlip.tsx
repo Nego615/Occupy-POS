@@ -287,9 +287,10 @@ function ReportRows({ report, currency }: { report: ShiftReport; currency?: Curr
       </div>
       <div className="print-receipt__lines">
         {head(`Open tabs · ${report.openTabs.count}`)}
-        {report.openTabs.tabs.map((t, i) => (
-          <Row key={`${t.name}-${i}`} label={t.name} value={t.total} currency={currency} />
-        ))}
+        {/* Only the totals — every tab's line would run the tape long on a busy night. */}
+        {report.openTabs.count > 0 && report.openTabs.paid > 0 && (
+          <Row label="Tabs total" value={report.openTabs.total} currency={currency} />
+        )}
         {report.openTabs.count > 0 && (
           <Row label="Still to pay" value={report.openTabs.total - report.openTabs.paid} total currency={currency} />
         )}

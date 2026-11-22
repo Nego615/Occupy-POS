@@ -17,10 +17,17 @@ import { PrintableCashUp, PrintableFolio } from '../components/PrintableSlip';
 import { PrintableReceipt } from '../components/PrintableReceipt';
 import { ReceiptEdge, SummaryRow } from '../components/Receipt';
 import { SearchField } from '../components/SearchField';
-import { MethodTable, ShiftReportSections, shiftLength } from '../components/ShiftReport';
+import {
+  DrawerResult,
+  MethodTable,
+  ShiftReportSections,
+  StockResult,
+  shiftLength,
+  useShiftCurrency,
+} from '../components/ShiftReport';
 import { StatusChip } from '../components/StatusChip';
 import { TopBar } from '../components/TopBar';
-import { expectedCash, expectedLocalCash, shiftStart, shiftTotals, type CashUp } from '../data/cashup';
+import { drawerDiff, expectedCash, expectedLocalCash, shiftStart, shiftTotals, type CashUp } from '../data/cashup';
 import { inAnyCategory } from '../data/catalog';
 import { EXPENSE_CATEGORIES, expenseCategoryLabel, type ExpenseCategoryId } from '../data/expenses';
 import { PAYMENT_METHOD_LABEL, todayIso, type PaymentMethod } from '../data/inventory';
@@ -46,10 +53,8 @@ import {
   roundMoney,
   type Currency,
 } from '../lib/currency';
-import { beforeSwitch } from '../lib/currencySwitch';
 import { byNumber, byText, descending, matchesSearch, sortRows, type SortOption } from '../lib/listView';
 import { swapIn } from '../lib/motion';
-import { cashUpStock, countResult } from '../lib/shiftStock';
 import { usePos } from '../lib/store';
 import { BILL_QUEUE_SORTS } from '../lib/tabSorts';
 import { formatTime, useNow } from '../lib/useClock';
@@ -802,41 +807,6 @@ function RoomsView({ onShowBill }: { onShowBill: (orderId: number) => void }) {
   );
 }
 
-/** "Counted · expected TSh 50,000 · short TSh 2,000", in whatever currency the drawer's in. */
-function DrawerResult({ counted, expected }: { counted: number; expected: number }) {
-  return (
-    <p className="desk__hint">
-      Counted · expected <Money value={expected} /> ·{' '}
-      {counted === expected ? (
-        'balanced'
-      ) : (
-        <>
-          {counted < expected ? 'short' : 'over'} <Money value={Math.abs(counted - expected)} />
-        </>
-      )}
-    </p>
-  );
-}
-
-/** What the shelf count at close found, once the shift's closed. */
-function StockResult({ cashUp }: { cashUp: CashUp }) {
-  const { cashUps, catalog, movements, stockCounts } = usePos();
-  if (!cashUp.countId) return null;
-  const result = countResult(cashUpStock(cashUp, cashUps, catalog, movements, stockCounts));
-  return (
-    <p className="desk__hint">
-      Shelf · <Mono>{result.counted}</Mono> counted ·{' '}
-      {result.off === 0 ? (
-        'all as expected'
-      ) : (
-        <>
-          <Mono>{result.off}</Mono> off, <Money value={result.value} /> at cost
-        </>
-      )}
-    </p>
-  );
-}
-
 function computeOpenTotal(orders: OrderRecord[], orderId: number): number {
   const order = orders.find((o) => o.id === orderId);
   return order ? round(orderTotal(order) - paidAmount(order.payments)) : 0;
@@ -1020,9 +990,7 @@ function CashUpView() {
   }
 
   const nameOf = (id: string) => allStaff.find((m) => m.id === id)?.name ?? '—';
-  // A shift closed before the shop switched what it sells in was counted in the old currency.
-  const shiftCurrency = (c: CashUp) =>
-    beforeSwitch(c.closedAt, settings.currencySwitch) ? currencyOf(settings.currencySwitch.from) : undefined;
+  const shiftCurrency = useShiftCurrency();
 
   const shown = printing
     ? {
@@ -1055,7 +1023,7 @@ function CashUpView() {
             </p>
           )}
           {shown.report ? (
-            <ShiftReportSections report={shown.report} />
+            <ShiftReportSections key={printing?.id ?? 'live'} report={shown.report} />
           ) : (
             <p className="history__summary">This shift was closed before shift reports were kept.</p>
           )}
@@ -1065,9 +1033,7 @@ function CashUpView() {
           <>
             <h2 className="desk__subheading">Past cash-ups</h2>
             {cashUps.slice(0, 10).map((c, i) => {
-              // The dollar drawer's result, else the cost-currency drawer's when that's the one that's off.
-              const localOff = !!c.local && c.local.counted !== c.local.expected && c.countedCash === c.expectedCash;
-              const diff = localOff ? c.local!.counted - c.local!.expected : round(c.countedCash - c.expectedCash);
+              const { diff, localOff } = drawerDiff(c);
               return (
                 <InCurrency key={c.id} currency={shiftCurrency(c)}>
                   <button

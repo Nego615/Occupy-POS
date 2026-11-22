@@ -1,10 +1,13 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { CostMoney, Money, Mono } from './Mono';
-import { TENDER_METHODS, type ByMethod } from '../data/cashup';
+import { TENDER_METHODS, type ByMethod, type CashUp } from '../data/cashup';
 import { expenseCategoryLabel } from '../data/expenses';
 import { TENDER_LABEL } from '../data/orders';
 import type { ShiftReport } from '../data/shiftReport';
-import { activeCurrency, costCurrency } from '../lib/currency';
+import { activeCurrency, costCurrency, currencyOf, type Currency } from '../lib/currency';
+import { beforeSwitch } from '../lib/currencySwitch';
+import { cashUpStock, countResult } from '../lib/shiftStock';
+import { usePos } from '../lib/store';
 
 /** "8 h 30 min", "45 min". */
 export function shiftLength(from: string, to: string): string {
@@ -88,10 +91,14 @@ const count = (n: number, one: string, many = `${one}s`) => (
   </>
 );
 
+/** Open tabs listed before "View more". */
+const TABS_SHOWN = 5;
+
 /** A shift's sales, debts, expenses, open tabs and best sellers, as tables. */
 export function ShiftReportSections({ report }: { report: ShiftReport }) {
   const { sales } = report;
   const twoCurrencies = costCurrency().code !== activeCurrency().code && report.expenses.length > 0;
+  const [allTabs, setAllTabs] = useState(false);
   return (
     <div className="shift-report">
       <Section title="Sales">
@@ -184,11 +191,20 @@ export function ShiftReportSections({ report }: { report: ShiftReport }) {
             <Money value={0} />
           </Line>
         )}
-        {report.openTabs.tabs.map((t, i) => (
+        {(allTabs ? report.openTabs.tabs : report.openTabs.tabs.slice(0, TABS_SHOWN)).map((t, i) => (
           <Line key={`${t.name}-${i}`} label={t.name}>
             <Money value={t.total} />
           </Line>
         ))}
+        {report.openTabs.tabs.length > TABS_SHOWN && (
+          <tr>
+            <td colSpan={2} className="shift-report__more-cell">
+              <button type="button" className="shift-report__more" onClick={() => setAllTabs((v) => !v)}>
+                {allTabs ? 'Show fewer' : `View ${report.openTabs.tabs.length - TABS_SHOWN} more`}
+              </button>
+            </td>
+          </tr>
+        )}
         {report.openTabs.paid > 0 && (
           <Line label="Already paid toward them">
             <Money value={-report.openTabs.paid} />
@@ -218,5 +234,47 @@ export function ShiftReportSections({ report }: { report: ShiftReport }) {
         </Section>
       )}
     </div>
+  );
+}
+
+/** The currency a closed shift was counted in: the old one when it closed before the shop switched. */
+export function useShiftCurrency(): (c: CashUp) => Currency | undefined {
+  const { settings } = usePos();
+  return (c) =>
+    beforeSwitch(c.closedAt, settings.currencySwitch) ? currencyOf(settings.currencySwitch.from) : undefined;
+}
+
+/** "Counted · expected TSh 50,000 · short TSh 2,000", in whatever currency the drawer's in. */
+export function DrawerResult({ counted, expected }: { counted: number; expected: number }) {
+  return (
+    <p className="desk__hint">
+      Counted · expected <Money value={expected} /> ·{' '}
+      {counted === expected ? (
+        'balanced'
+      ) : (
+        <>
+          {counted < expected ? 'short' : 'over'} <Money value={Math.abs(counted - expected)} />
+        </>
+      )}
+    </p>
+  );
+}
+
+/** What the shelf count at close found, once the shift's closed. */
+export function StockResult({ cashUp }: { cashUp: CashUp }) {
+  const { cashUps, catalog, movements, stockCounts } = usePos();
+  if (!cashUp.countId) return null;
+  const result = countResult(cashUpStock(cashUp, cashUps, catalog, movements, stockCounts));
+  return (
+    <p className="desk__hint">
+      Shelf · <Mono>{result.counted}</Mono> counted ·{' '}
+      {result.off === 0 ? (
+        'all as expected'
+      ) : (
+        <>
+          <Mono>{result.off}</Mono> off, <Money value={result.value} /> at cost
+        </>
+      )}
+    </p>
   );
 }

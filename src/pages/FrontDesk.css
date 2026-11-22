@@ -414,3 +414,20 @@
   background: var(--surface-hover);
   color: var(--ink);
 }
+
+/* "View 7 more" under the first few open tabs. */
+.shift-report__more-cell {
+  text-align: left !important;
+}
+
+.shift-report__more {
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-weight: 700;
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}

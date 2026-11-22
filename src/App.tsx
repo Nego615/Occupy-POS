@@ -24,6 +24,7 @@ import { AdminStockCount } from './pages/AdminStockCount';
 import { AdminSuppliers } from './pages/AdminSuppliers';
 import { AdminLocations } from './pages/AdminLocations';
 import { AdminOverview } from './pages/AdminOverview';
+import { AdminCashUps } from './pages/AdminCashUps';
 import { FrontDesk } from './pages/FrontDesk';
 import { ItemEditor } from './pages/ItemEditor';
 import { Kitchen } from './pages/Kitchen';
@@ -90,6 +91,7 @@ export function App() {
               <Route index element={<AdminHome />} />
               <Route path="orders" element={guard('reports', <AdminOrders />)} />
               <Route path="reports" element={guard('reports', <AdminReports />)} />
+              <Route path="cashups" element={guard('reports', <AdminCashUps />)} />
               <Route path="staff" element={guard('staff', <AdminStaff />)} />
               <Route path="timecards" element={guard('timecards', <AdminTimecards />)} />
               <Route path="salaries" element={guard('payroll', <AdminSalaries />)} />
