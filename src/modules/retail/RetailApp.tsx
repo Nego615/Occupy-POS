@@ -6,6 +6,7 @@ import { NoAccess, RequirePermission, RequireSignIn } from '../../components/Gua
 import type { Permission } from '../../data/staff';
 import { usePos } from '../../lib/store';
 import { AdminBills } from '../../pages/AdminBills';
+import { AdminCashUps } from '../../pages/AdminCashUps';
 import { AdminCategories } from '../../pages/AdminCategories';
 import { AdminExpenses } from '../../pages/AdminExpenses';
 import { AdminOrders } from '../../pages/AdminOrders';
@@ -96,6 +97,7 @@ export function RetailApp() {
               <Route index element={<AdminHome />} />
               <Route path="orders" element={guard('reports', <AdminOrders />)} />
               <Route path="reports" element={guard('reports', <AdminReports />)} />
+              <Route path="cashups" element={guard('reports', <AdminCashUps />)} />
               <Route path="items" element={guard('menu', <RetailItems />)} />
               <Route path="categories" element={guard('catalog', <AdminCategories />)} />
               <Route path="promotions" element={guard('promotions', <AdminPromotions />)} />

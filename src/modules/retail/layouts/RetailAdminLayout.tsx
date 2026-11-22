@@ -31,6 +31,7 @@ export const RETAIL_NAV: { section: string; items: NavEntry[] }[] = [
       { to: '/admin/categories', icon: 'layers', label: 'Categories', permission: 'catalog' },
       { to: '/admin/promotions', icon: 'percent', label: 'Promotions', permission: 'promotions' },
       { to: '/admin/reports', icon: 'chart', label: 'Reports', permission: 'reports' },
+      { to: '/admin/cashups', icon: 'wallet', label: 'Cash-ups', permission: 'reports' },
       { to: '/admin/expenses', icon: 'cash', label: 'Expenses', permission: 'expenses' },
     ],
   },
