@@ -1,0 +1,30 @@
+/* Admin › Cash-ups: the counter's shift report, read back in the admin side panel. */
+
+.cashups__result {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.cashups__note {
+  margin: 8px 0 0;
+  font-size: 13px;
+  font-style: italic;
+}
+
+/* The counter's report tables, tightened to the narrower side panel. */
+.cashups__panel .desk__table th,
+.cashups__panel .desk__table td {
+  padding: 8px 4px;
+}
+
+.cashups__panel .desk__subheading {
+  margin: 20px 0 4px;
+  padding: 0;
+  font-size: 13px;
+}
+
+.cashups__panel .desk__hint {
+  margin-top: 8px;
+}
